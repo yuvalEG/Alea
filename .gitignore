@@ -1,0 +1,19 @@
+# Build output
+build/
+cmake-build-*/
+out/
+
+# JUCE downloaded by CMake (FetchContent) lives inside build/, but just in case
+JUCE/
+_deps/
+
+# macOS noise
+.DS_Store
+
+# IDE / editor files
+.vscode/
+.idea/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+compile_commands.json
+.cache/
