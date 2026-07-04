@@ -196,12 +196,24 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
     const double ppqEnd = ppqStart + numSamples * ppqPerSample;
 
-    // Transport start, or a host loop/locator jump backwards: cut the held
-    // note and restart the pick clock from here.
-    if (! wasPlaying || (! freeRun && ppqStart < lastPpqEnd))
+    // Host jump detection needs slack: our predicted block end and the
+    // host's reported position disagree by tiny floating-point/rounding
+    // amounts every block, and treating that jitter as a "jump backwards"
+    // resets the scheduler every block (= runaway note bursts). Only a
+    // discontinuity larger than one block is a real loop/locator jump.
+    const double blockPpq = numSamples * ppqPerSample;
+    const double jumpTolerance = juce::jmax (0.1, 2.0 * blockPpq);
+
+    if (! wasPlaying || (! freeRun && ppqStart < lastPpqEnd - jumpTolerance))
     {
         if (wasPlaying)
             sendAllNotesOff (midi, 0);
+        resetSchedule (ppqStart);
+    }
+    else if (nextEventPpq < ppqStart - jumpTolerance)
+    {
+        // Jumped forward (locator/skip): re-anchor instead of burst-firing
+        // every missed event to catch up.
         resetSchedule (ppqStart);
     }
 
