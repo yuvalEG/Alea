@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
 
 // A silent stereo output bus is required: Ableton Live (and some other hosts)
 // won't open a VST3 that has no audio outputs, so Alea presents as an
@@ -49,6 +50,10 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
     const bool isPlaying = position.hasValue() && position->getIsPlaying();
 
+    hostIsPlaying.store (isPlaying);
+    if (position.hasValue())
+        hostBpm.store (position->getBpm().orFallback (0.0));
+
     if (! isPlaying)
     {
         // Transport just stopped (or paused): silence everything, once.
@@ -82,6 +87,7 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
     wasPlaying = true;
     lastPpqEnd = ppqEnd;
+    hostPpq.store (ppqStart);
 
     auto ppqToOffset = [&] (double ppq)
     {
@@ -109,10 +115,16 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
             midi.addEvent (juce::MidiMessage::noteOff (midiChannel, currentNote), offset);
 
         midi.addEvent (juce::MidiMessage::noteOn (midiChannel, testNote, testVelocity), offset);
+        notesSent.fetch_add (1);
         currentNote = testNote;
         noteOffPpq = (double) beat + gateInBeats;
         lastBeat = beat;
     }
+}
+
+juce::AudioProcessorEditor* AleaAudioProcessor::createEditor()
+{
+    return new AleaAudioProcessorEditor (*this);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

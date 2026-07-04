@@ -15,8 +15,14 @@ public:
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     bool isBusesLayoutSupported (const BusesLayout&) const override;
 
-    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
-    bool hasEditor() const override                     { return false; }
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override                     { return true; }
+
+    // Read-only status for the debug editor; written from the audio thread.
+    std::atomic<bool>   hostIsPlaying { false };
+    std::atomic<double> hostBpm  { 0.0 };
+    std::atomic<double> hostPpq  { 0.0 };
+    std::atomic<int>    notesSent { 0 };
 
     const juce::String getName() const override         { return JucePlugin_Name; }
     bool acceptsMidi() const override                   { return true; }

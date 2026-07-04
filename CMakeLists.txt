@@ -30,7 +30,8 @@ juce_add_plugin(Alea
     COPY_PLUGIN_AFTER_BUILD TRUE)
 
 target_sources(Alea PRIVATE
-    Source/PluginProcessor.cpp)
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp)
 
 target_compile_definitions(Alea PUBLIC
     JUCE_WEB_BROWSER=0
