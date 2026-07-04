@@ -16,7 +16,7 @@ public:
 private:
     void timerCallback() override { repaint(); }
 
-    AleaAudioProcessor& processor;
+    AleaAudioProcessor& alea;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AleaAudioProcessorEditor)
 };

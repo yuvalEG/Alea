@@ -30,6 +30,7 @@ juce_add_plugin(Alea
     COPY_PLUGIN_AFTER_BUILD TRUE)
 
 target_sources(Alea PRIVATE
+    Source/Params.cpp
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp)
 

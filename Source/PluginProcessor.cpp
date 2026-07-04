@@ -5,8 +5,51 @@
 // won't open a VST3 that has no audio outputs, so Alea presents as an
 // instrument that emits MIDI and outputs silence.
 AleaAudioProcessor::AleaAudioProcessor()
-    : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+    : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+      apvts (*this, nullptr, "AleaState", params::createLayout())
 {
+    cacheScaleRefs ('a', refA);
+    cacheScaleRefs ('b', refB);
+
+    pIntervalMode = raw ("intervalMode"); pIntervalSync = raw ("intervalSync"); pIntervalFree = raw ("intervalFree");
+    pLengthMode   = raw ("lengthMode");   pLengthSync   = raw ("lengthSync");   pLengthFree   = raw ("lengthFree");
+    pMorphPos     = raw ("morphPos");     pAutoSweep    = raw ("autoSweep");
+    pMorphDurMode = raw ("morphDurMode"); pMorphDurBars = raw ("morphDurBars");
+    pMorphDurFree = raw ("morphDurFree"); pMorphDurUnit = raw ("morphDurUnit");
+    pMorphMode    = raw ("morphMode");    pMorphCurve   = raw ("morphCurve");
+    pTempoSource  = raw ("tempoSource");  pInternalTempo = raw ("internalTempo");
+}
+
+void AleaAudioProcessor::cacheScaleRefs (char scale, ScaleRefs& refs)
+{
+    for (int pc = 0; pc < 12; ++pc)
+        refs.notes[pc] = raw (params::noteId (scale, pc).toRawUTF8());
+    for (int r = 0; r < 5; ++r)
+        refs.rests[r] = raw (params::restId (scale, r).toRawUTF8());
+
+    const auto s = juce::String::charToString (scale);
+    refs.octMin = raw ((s + "OctMin").toRawUTF8());
+    refs.octMax = raw ((s + "OctMax").toRawUTF8());
+    refs.velMin = raw ((s + "VelMin").toRawUTF8());
+    refs.velMax = raw ((s + "VelMax").toRawUTF8());
+}
+
+void AleaAudioProcessor::readSnapshot (const ScaleRefs& refs, ScaleSnapshot& snap) const
+{
+    snap.numPitchClasses = 0;
+    for (int pc = 0; pc < 12; ++pc)
+        if (refs.notes[pc]->load() > 0.5f)
+            snap.pitchClasses[snap.numPitchClasses++] = pc;
+
+    snap.numRests = 0;
+    for (int r = 0; r < 5; ++r)
+        if (refs.rests[r]->load() > 0.5f)
+            snap.rests[snap.numRests++] = r;
+
+    snap.octMin = (int) refs.octMin->load();
+    snap.octMax = juce::jmax ((int) refs.octMax->load(), snap.octMin); // Max auto-clamps >= Min (spec 4.1)
+    snap.velMin = juce::jmax (1, (int) refs.velMin->load());           // never emit velocity 0 (spec 4.1)
+    snap.velMax = juce::jmax ((int) refs.velMax->load(), snap.velMin);
 }
 
 bool AleaAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -18,13 +61,9 @@ bool AleaAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) con
 void AleaAudioProcessor::prepareToPlay (double, int)
 {
     currentNote = -1;
-    lastBeat = std::numeric_limits<std::int64_t>::min();
     lastPpqEnd = -1.0;
+    internalPpq = 0.0;
     wasPlaying = false;
-}
-
-void AleaAudioProcessor::releaseResources()
-{
 }
 
 void AleaAudioProcessor::sendAllNotesOff (juce::MidiBuffer& midi, int sampleOffset)
@@ -34,8 +73,76 @@ void AleaAudioProcessor::sendAllNotesOff (juce::MidiBuffer& midi, int sampleOffs
         midi.addEvent (juce::MidiMessage::noteOff (midiChannel, currentNote), sampleOffset);
         currentNote = -1;
     }
-
     midi.addEvent (juce::MidiMessage::allNotesOff (midiChannel), sampleOffset);
+}
+
+void AleaAudioProcessor::resetSchedule (double ppq)
+{
+    nextEventPpq = ppq;   // first draw fires immediately
+}
+
+// Morph position (0..1) as a pure function of the beat-clock position, so it
+// is deterministic and re-syncs after host loop jumps (spec section 7).
+double AleaAudioProcessor::morphAt (double ppq, double bpm) const
+{
+    if (pAutoSweep->load() < 0.5f)
+        return pMorphPos->load() / 100.0;
+
+    double legPpq;
+    if ((int) pMorphDurMode->load() == 0) // Sync: bars
+        legPpq = params::morphDurBarValues[(size_t) pMorphDurBars->load()] * 4.0;
+    else
+    {
+        const double seconds = pMorphDurFree->load() * ((int) pMorphDurUnit->load() == 1 ? 60.0 : 1.0);
+        legPpq = seconds * bpm / 60.0;
+    }
+
+    if (legPpq <= 1.0e-9)
+        return 1.0; // zero duration = instantly at B
+
+    const double t = ppq / legPpq; // legs elapsed since timeline start
+    double leg = 0.0;
+
+    switch ((int) pMorphMode->load())
+    {
+        case params::oneShot: leg = juce::jmin (t, 1.0); break;
+        case params::loop:    leg = t - std::floor (t); break;
+        case params::bounce:
+        {
+            const double ft = std::fmod (t, 2.0);
+            leg = ft < 1.0 ? ft : 2.0 - ft;
+            break;
+        }
+        default: break;
+    }
+
+    switch ((int) pMorphCurve->load())
+    {
+        case params::exponential: return leg * leg;
+        case params::sCurve:      return leg * leg * (3.0 - 2.0 * leg);
+        case params::logarithmic: return 1.0 - (1.0 - leg) * (1.0 - leg);
+        default:                  return leg;
+    }
+}
+
+double AleaAudioProcessor::intervalPpqAt (double bpm)
+{
+    switch ((int) pIntervalMode->load())
+    {
+        case params::free:   return juce::jmax (0.01, (double) pIntervalFree->load() * bpm / 60.0);
+        case params::random: return params::randomPoolBars[(size_t) rng.nextInt (4)] * 4.0;
+        default:             return params::divisionBars[(size_t) pIntervalSync->load()] * 4.0;
+    }
+}
+
+double AleaAudioProcessor::lengthPpqAt (double bpm)
+{
+    switch ((int) pLengthMode->load())
+    {
+        case params::free:   return juce::jmax (0.01, (double) pLengthFree->load() * bpm / 60.0);
+        case params::random: return params::randomPoolBars[(size_t) rng.nextInt (4)] * 4.0;
+        default:             return params::divisionBars[(size_t) pLengthSync->load()] * 4.0;
+    }
 }
 
 void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -49,77 +156,145 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
                                               : juce::Optional<juce::AudioPlayHead::PositionInfo>();
 
     const bool isPlaying = position.hasValue() && position->getIsPlaying();
-
     hostIsPlaying.store (isPlaying);
-    if (position.hasValue())
-        hostBpm.store (position->getBpm().orFallback (0.0));
+
+    const bool freeRun = (int) pTempoSource->load() == 1;
+    const double bpm = freeRun ? (double) pInternalTempo->load()
+                               : (position.hasValue() ? position->getBpm().orFallback ((double) pInternalTempo->load())
+                                                      : (double) pInternalTempo->load());
+    hostBpm.store (bpm);
 
     if (! isPlaying)
     {
-        // Transport just stopped (or paused): silence everything, once.
         if (wasPlaying)
             sendAllNotesOff (midi, 0);
-
         wasPlaying = false;
         return;
     }
 
-    const double bpm        = position->getBpm().orFallback (120.0);
-    const double ppqStart   = position->getPpqPosition().orFallback (0.0);
     const double sampleRate = getSampleRate();
-    const int numSamples    = buffer.getNumSamples();
-
+    const int numSamples = buffer.getNumSamples();
     if (sampleRate <= 0.0 || numSamples <= 0 || bpm <= 0.0)
         return;
 
     const double ppqPerSample = bpm / 60.0 / sampleRate;
-    const double ppqEnd = ppqStart + numSamples * ppqPerSample;
 
-    // Loop wrap or jump backwards: kill the held note and rearm the beat counter.
-    if (wasPlaying && ppqStart < lastPpqEnd)
+    // Beat-clock position: host timeline, or our own accumulator in Free-Run
+    // (which deliberately ignores host jumps, spec section 7).
+    double ppqStart;
+    if (freeRun)
     {
-        sendAllNotesOff (midi, 0);
-        lastBeat = std::numeric_limits<std::int64_t>::min();
+        if (! wasPlaying)
+            internalPpq = 0.0;
+        ppqStart = internalPpq;
+        internalPpq += numSamples * ppqPerSample;
+    }
+    else
+    {
+        ppqStart = position->getPpqPosition().orFallback (0.0);
     }
 
-    if (! wasPlaying)
-        lastBeat = std::numeric_limits<std::int64_t>::min();
+    const double ppqEnd = ppqStart + numSamples * ppqPerSample;
+
+    // Transport start, or a host loop/locator jump backwards: cut the held
+    // note and restart the pick clock from here.
+    if (! wasPlaying || (! freeRun && ppqStart < lastPpqEnd))
+    {
+        if (wasPlaying)
+            sendAllNotesOff (midi, 0);
+        resetSchedule (ppqStart);
+    }
 
     wasPlaying = true;
     lastPpqEnd = ppqEnd;
     hostPpq.store (ppqStart);
+    morphPercent.store (morphAt (ppqStart, bpm) * 100.0);
+
+    ScaleSnapshot snapA, snapB;
+    readSnapshot (refA, snapA);
+    readSnapshot (refB, snapB);
 
     auto ppqToOffset = [&] (double ppq)
     {
-        auto offset = (int) ((ppq - ppqStart) / ppqPerSample);
-        return juce::jlimit (0, numSamples - 1, offset);
+        return juce::jlimit (0, numSamples - 1, (int) ((ppq - ppqStart) / ppqPerSample));
     };
 
-    // End the sounding note when its gate expires inside this block.
-    if (currentNote >= 0 && noteOffPpq < ppqEnd)
+    // Walk note-off and pick events through this block in beat order.
+    for (int guard = 0; guard < 4096; ++guard)
     {
-        midi.addEvent (juce::MidiMessage::noteOff (midiChannel, currentNote), ppqToOffset (noteOffPpq));
-        currentNote = -1;
-    }
+        const double offAt = currentNote >= 0 ? noteOffPpq : std::numeric_limits<double>::max();
+        const double eventAt = juce::jmin (offAt, nextEventPpq);
+        if (eventAt >= ppqEnd)
+            break;
 
-    // Fire one note on every integer beat inside [ppqStart, ppqEnd).
-    for (auto beat = (std::int64_t) std::ceil (ppqStart - 1.0e-6); (double) beat < ppqEnd; ++beat)
-    {
-        if (beat <= lastBeat || beat < 0)
+        if (offAt <= nextEventPpq)
+        {
+            midi.addEvent (juce::MidiMessage::noteOff (midiChannel, currentNote), ppqToOffset (offAt));
+            currentNote = -1;
+            continue;
+        }
+
+        // Pick-pool draw (spec 5.1/5.2): source scale by morph-weighted coin
+        // flip, then a uniform outcome from that scale's notes + rests.
+        const double eventPpq = nextEventPpq;
+        const double m = morphAt (eventPpq, bpm);
+        const int offset = ppqToOffset (eventPpq);
+        const ScaleSnapshot& src = rng.nextDouble() < (1.0 - m) ? snapA : snapB;
+        const int poolSize = src.numPitchClasses + src.numRests;
+
+        if (poolSize == 0) // empty scale: continuous silence, keep running (spec 10)
+        {
+            nextEventPpq += intervalPpqAt (bpm);
+            continue;
+        }
+
+        const int pick = rng.nextInt (poolSize);
+
+        if (pick >= src.numPitchClasses) // a rest: silence for the rest's own duration
+        {
+            nextEventPpq = eventPpq + params::restBars[(size_t) src.rests[pick - src.numPitchClasses]] * 4.0;
+            continue;
+        }
+
+        // Octave and velocity ranges interpolate between A and B by m (spec 5.2).
+        const int octMin = (int) std::lround (snapA.octMin + (snapB.octMin - snapA.octMin) * m);
+        const int octMax = juce::jmax (octMin, (int) std::lround (snapA.octMax + (snapB.octMax - snapA.octMax) * m));
+        const int velMin = (int) std::lround (snapA.velMin + (snapB.velMin - snapA.velMin) * m);
+        const int velMax = juce::jmax (velMin, (int) std::lround (snapA.velMax + (snapB.velMax - snapA.velMax) * m));
+
+        const int octave = octMin + rng.nextInt (octMax - octMin + 1);
+        const int note = 24 + 12 * octave + src.pitchClasses[pick]; // C3 = 60 convention (spec 5.3)
+
+        nextEventPpq = eventPpq + intervalPpqAt (bpm);
+
+        if (note < 0 || note > 127) // out of range: drop, never wrap (spec 5.3)
             continue;
 
-        const int offset = ppqToOffset ((double) beat);
-
-        // Monophonic guarantee: note-off before the next note-on.
-        if (currentNote >= 0)
+        if (currentNote >= 0) // monophonic: off before on (spec principle 4)
             midi.addEvent (juce::MidiMessage::noteOff (midiChannel, currentNote), offset);
 
-        midi.addEvent (juce::MidiMessage::noteOn (midiChannel, testNote, testVelocity), offset);
+        const auto velocity = (juce::uint8) juce::jlimit (1, 127, velMin + rng.nextInt (velMax - velMin + 1));
+        midi.addEvent (juce::MidiMessage::noteOn (midiChannel, note, velocity), offset);
+        currentNote = note;
+        noteOffPpq = eventPpq + lengthPpqAt (bpm); // gate runs from the note's start
         notesSent.fetch_add (1);
-        currentNote = testNote;
-        noteOffPpq = (double) beat + gateInBeats;
-        lastBeat = beat;
+        lastNote.store (note);
     }
+}
+
+void AleaAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+{
+    auto state = apvts.copyState();
+    state.setProperty ("stateVersion", 2, nullptr);
+    if (auto xml = state.createXml())
+        copyXmlToBinary (*xml, destData);
+}
+
+void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+{
+    if (auto xml = getXmlFromBinary (data, sizeInBytes))
+        if (xml->hasTagName (apvts.state.getType()))
+            apvts.replaceState (juce::ValueTree::fromXml (*xml));
 }
 
 juce::AudioProcessorEditor* AleaAudioProcessor::createEditor()

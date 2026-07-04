@@ -12,9 +12,9 @@ namespace colors
 }
 
 AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
-    : AudioProcessorEditor (p), processor (p)
+    : AudioProcessorEditor (p), alea (p)
 {
-    setSize (340, 210);
+    setSize (340, 262);
     startTimerHz (15);
 }
 
@@ -39,15 +39,15 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
 
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (13.0f));
-    g.drawText ("Emits C3 every beat while the DAW plays.",
+    g.drawText ("Random notes from Scale A, morphing toward B.",
                 area.removeFromTop (22), juce::Justification::centredLeft);
 
     area.removeFromTop (8);
 
-    const bool playing = processor.hostIsPlaying.load();
-    const double bpm   = processor.hostBpm.load();
-    const double ppq   = processor.hostPpq.load();
-    const int sent     = processor.notesSent.load();
+    const bool playing = alea.hostIsPlaying.load();
+    const double bpm   = alea.hostBpm.load();
+    const double ppq   = alea.hostPpq.load();
+    const int sent     = alea.notesSent.load();
 
     auto drawRow = [&] (const juce::String& label, const juce::String& value, juce::Colour valueColor)
     {
@@ -60,9 +60,18 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
         g.drawText (value, row, juce::Justification::centredLeft);
     };
 
+    const double morph = alea.morphPercent.load();
+    const int last     = alea.lastNote.load();
+
+    // Spec display convention: middle C = C3 = MIDI 60.
+    const auto noteName = last < 0 ? juce::String ("-")
+                                   : params::pitchClassNames[last % 12] + juce::String (last / 12 - 2);
+
     drawRow ("Transport", playing ? "PLAYING" : "stopped",
              playing ? colors::green : colors::secondary);
-    drawRow ("Host tempo", bpm > 0.0 ? juce::String (bpm, 1) + " BPM" : "-", colors::text);
+    drawRow ("Tempo", bpm > 0.0 ? juce::String (bpm, 1) + " BPM" : "-", colors::text);
     drawRow ("Beat (ppq)", playing ? juce::String (ppq, 2) : "-", colors::text);
+    drawRow ("Morph", juce::String (morph, 1) + "%  (" + (morph < 50.0 ? "A" : "B") + ")", colors::text);
+    drawRow ("Last note", noteName, colors::text);
     drawRow ("Notes sent", juce::String (sent), sent > 0 ? colors::green : colors::text);
 }
