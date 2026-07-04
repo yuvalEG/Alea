@@ -32,7 +32,10 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
 
     g.setColour (colors::text);
     g.setFont (juce::FontOptions (18.0f, juce::Font::bold));
-    g.drawText ("Alea — Milestone 1", area.removeFromTop (28), juce::Justification::centredLeft);
+    // Non-ASCII literals must go through CharPointer_UTF8: juce::String
+    // treats a plain char* as single-byte characters and garbles UTF-8.
+    g.drawText (juce::String (juce::CharPointer_UTF8 ("Alea \xe2\x80\x94 Milestone 1")),
+                area.removeFromTop (28), juce::Justification::centredLeft);
 
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (13.0f));
