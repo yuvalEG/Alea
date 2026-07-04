@@ -30,7 +30,16 @@ up under `build/Alea_artefacts/`.
 
 ## Trying it in a DAW
 
-1. Build (above), then rescan plugins in your DAW.
-2. Add **Alea** as a MIDI-effect / instrument-track plugin.
-3. Route Alea's MIDI output to an instrument (per-DAW routing varies).
+Alea is classified as a VST3 *instrument* that outputs MIDI (and silent
+audio) — Ableton Live won't load VST3s with no audio output, and hosts have
+no common slot for third-party "MIDI effect" plugins.
+
+In Ableton Live:
+
+1. Build (above). In Live: Settings → Plug-Ins → Rescan (hold Alt and click
+   Rescan for a full rescan if Alea doesn't appear — Live caches plugins
+   that previously failed to load).
+2. Drop **Alea** (under Plug-Ins) onto a MIDI track.
+3. On a second MIDI track with an instrument: set **MIDI From** to the Alea
+   track, choose **Alea** in the second chooser, and set Monitor to **In**.
 4. Press Play — you should hear C3 once per beat.

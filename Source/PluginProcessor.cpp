@@ -1,8 +1,17 @@
 #include "PluginProcessor.h"
 
+// A silent stereo output bus is required: Ableton Live (and some other hosts)
+// won't open a VST3 that has no audio outputs, so Alea presents as an
+// instrument that emits MIDI and outputs silence.
 AleaAudioProcessor::AleaAudioProcessor()
-    : AudioProcessor (BusesProperties()) // MIDI effect: no audio buses
+    : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
+}
+
+bool AleaAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+{
+    const auto out = layouts.getMainOutputChannelSet();
+    return out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono();
 }
 
 void AleaAudioProcessor::prepareToPlay (double, int)
