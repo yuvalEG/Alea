@@ -43,6 +43,15 @@ public:
     std::atomic<int>    notesSent { 0 };
     std::atomic<double> morphPercent { 0.0 };
     std::atomic<int>    lastNote { -1 };
+    std::atomic<int>    activeNote { -1 };    // sounding right now (-1 = none)
+    std::atomic<int>    activeSource { 0 };   // 0 = Scale A, 1 = Scale B (spec 5.4)
+    std::atomic<bool>   panicRequested { false };
+
+    // Note history ring buffer (spec 9.1: last 50 notes). Entries pack
+    // note | (source << 8); total written count in historyCount.
+    static constexpr int historyCapacity = 64;
+    std::array<std::atomic<int>, historyCapacity> history {};
+    std::atomic<int> historyCount { 0 };
 
 private:
     // Per-block copy of one scale's settings, cheap to read per event.

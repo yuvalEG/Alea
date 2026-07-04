@@ -74,6 +74,7 @@ void AleaAudioProcessor::sendAllNotesOff (juce::MidiBuffer& midi, int sampleOffs
         currentNote = -1;
     }
     midi.addEvent (juce::MidiMessage::allNotesOff (midiChannel), sampleOffset);
+    activeNote.store (-1);
 }
 
 void AleaAudioProcessor::resetSchedule (double ppq)
@@ -150,6 +151,9 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
     midi.clear();
+
+    if (panicRequested.exchange (false)) // spec 8: Panic sends All Notes Off immediately
+        sendAllNotesOff (midi, 0);
 
     auto* playHead = getPlayHead();
     const auto position = playHead != nullptr ? playHead->getPosition()
@@ -243,6 +247,7 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         {
             midi.addEvent (juce::MidiMessage::noteOff (midiChannel, currentNote), ppqToOffset (offAt));
             currentNote = -1;
+            activeNote.store (-1);
             continue;
         }
 
@@ -289,8 +294,25 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         midi.addEvent (juce::MidiMessage::noteOn (midiChannel, note, velocity), offset);
         currentNote = note;
         noteOffPpq = eventPpq + lengthPpqAt (bpm); // gate runs from the note's start
+
+        // Origin scale for the green highlight (spec 5.4): the pool it was
+        // drawn from, except shared notes follow morph position.
+        const int pc = src.pitchClasses[pick];
+        auto contains = [pc] (const ScaleSnapshot& s)
+        {
+            for (int i = 0; i < s.numPitchClasses; ++i)
+                if (s.pitchClasses[i] == pc) return true;
+            return false;
+        };
+        const bool inBoth = contains (snapA) && contains (snapB);
+        const int source = inBoth ? (m < 0.5 ? 0 : 1) : (&src == &snapA ? 0 : 1);
+
         notesSent.fetch_add (1);
         lastNote.store (note);
+        activeSource.store (source);
+        activeNote.store (note);
+        history[(size_t) (historyCount.load() % historyCapacity)].store (note | (source << 8));
+        historyCount.fetch_add (1);
     }
 }
 

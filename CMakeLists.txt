@@ -32,6 +32,7 @@ juce_add_plugin(Alea
 target_sources(Alea PRIVATE
     Source/Params.cpp
     Source/PluginProcessor.cpp
+    Source/UI.cpp
     Source/PluginEditor.cpp)
 
 target_compile_definitions(Alea PUBLIC
@@ -46,3 +47,19 @@ target_link_libraries(Alea
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+# Dev tool: renders the editor to a PNG for layout checks (not shipped).
+juce_add_console_app(AleaUISnapshot PRODUCT_NAME "AleaUISnapshot")
+target_sources(AleaUISnapshot PRIVATE
+    Tools/UISnapshot.cpp
+    Source/Params.cpp
+    Source/PluginProcessor.cpp
+    Source/UI.cpp
+    Source/PluginEditor.cpp)
+target_compile_definitions(AleaUISnapshot PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JucePlugin_Name="Alea")
+target_link_libraries(AleaUISnapshot
+    PRIVATE juce::juce_audio_utils
+    PUBLIC juce::juce_recommended_config_flags)
