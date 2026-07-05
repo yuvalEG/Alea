@@ -145,8 +145,8 @@ void PianoKeyboard::mouseDown (const juce::MouseEvent& e)
 }
 
 //==============================================================================
-RestSelector::RestSelector (AleaAudioProcessor& p, char scaleId, juce::Colour accentColour)
-    : accent (accentColour)
+RestSelector::RestSelector (AleaAudioProcessor& p, char scaleId, int sourceIdx, juce::Colour accentColour)
+    : alea (p), sourceIndex (sourceIdx), accent (accentColour)
 {
     for (int r = 0; r < 5; ++r)
     {
@@ -159,15 +159,19 @@ RestSelector::RestSelector (AleaAudioProcessor& p, char scaleId, juce::Colour ac
 
 void RestSelector::paint (juce::Graphics& g)
 {
+    const int active = alea.activeRest.load();
+    const bool mine = active >= 0 && alea.activeRestSource.load() == sourceIndex;
+
     const float w = (float) getWidth() / 5.0f;
     for (int r = 0; r < 5; ++r)
     {
+        const bool resting = mine && r == active;
         const auto cell = juce::Rectangle<float> (w * (float) r, 0.0f, w, (float) getHeight()).reduced (2.0f);
-        g.setColour (selected[r] ? accent : colors::control);
+        g.setColour (resting ? colors::playing : selected[r] ? accent : colors::control);
         g.fillRoundedRectangle (cell, 4.0f);
         g.setColour (colors::border);
         g.drawRoundedRectangle (cell, 4.0f, 1.0f);
-        g.setColour (selected[r] ? juce::Colours::black.withAlpha (0.75f) : colors::secondary);
+        g.setColour (selected[r] || resting ? juce::Colours::black.withAlpha (0.75f) : colors::secondary);
         g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
         g.drawText (params::restNames[r], cell, juce::Justification::centred);
     }
@@ -197,14 +201,28 @@ void MorphBar::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
     const bool sweep = sweepActive();
-    const float pct = sweep ? (float) alea.morphPercent.load() : value;
+    const float pct = juce::jlimit (0.0f, 100.0f, sweep ? (float) alea.morphPercent.load() : value);
 
     g.setColour (colors::control);
     g.fillRoundedRectangle (bounds, 6.0f);
 
-    auto fill = bounds.withWidth (bounds.getWidth() * juce::jlimit (0.0f, 100.0f, pct) / 100.0f);
-    g.setColour (colors::amber.withAlpha (sweep ? 1.0f : 0.85f));
-    g.fillRoundedRectangle (fill, 6.0f);
+    // Fill is a purple-to-cyan gradient across the whole travel, clipped to
+    // the current position, so the color literally shows where between the
+    // two scales you are.
+    const float fillW = bounds.getWidth() * pct / 100.0f;
+    if (fillW > 0.5f)
+    {
+        g.saveState();
+        g.reduceClipRegion (juce::Rectangle<float> (bounds.getX(), bounds.getY(), fillW, bounds.getHeight()).toNearestInt());
+        g.setGradientFill (juce::ColourGradient::horizontal (colors::purple, bounds.getX(),
+                                                             colors::cyan, bounds.getRight()));
+        g.fillRoundedRectangle (bounds, 6.0f);
+        g.restoreState();
+    }
+
+    // Position marker
+    g.setColour (colors::amber);
+    g.fillRect (juce::Rectangle<float> (bounds.getX() + fillW - 1.5f, bounds.getY(), 3.0f, bounds.getHeight()));
 
     g.setColour (colors::border);
     g.drawRoundedRectangle (bounds.reduced (0.5f), 6.0f, 1.0f);
@@ -213,11 +231,11 @@ void MorphBar::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
     g.drawText (juce::String (pct, 1) + "%", bounds, juce::Justification::centred);
 
-    g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    g.setColour (colors::purple);
-    g.drawText ("A", bounds.reduced (8.0f, 0.0f), juce::Justification::centredLeft);
-    g.setColour (colors::cyan);
-    g.drawText ("B", bounds.reduced (8.0f, 0.0f), juce::Justification::centredRight);
+    g.setFont (juce::FontOptions (17.0f, juce::Font::bold));
+    g.setColour (pct < 1.0f ? colors::purple : colors::text);
+    g.drawText ("A", bounds.reduced (10.0f, 0.0f), juce::Justification::centredLeft);
+    g.setColour (pct > 99.0f ? colors::text : colors::cyan);
+    g.drawText ("B", bounds.reduced (10.0f, 0.0f), juce::Justification::centredRight);
 }
 
 void MorphBar::applyDrag (const juce::MouseEvent& e)
@@ -257,16 +275,33 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
     panicButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
     panicButton.onClick = [this] { alea.panicRequested.store (true); };
     addAndMakeVisible (panicButton);
+
+    freezeButton.setClickingTogglesState (true);
+    freezeButton.setColour (juce::TextButton::buttonColourId, colors::control);
+    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan.withAlpha (0.9f));
+    freezeButton.setColour (juce::TextButton::textColourOffId, colors::secondary);
+    freezeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+    addAndMakeVisible (freezeButton);
+    freezeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        alea.apvts, "freeze", freezeButton);
+
+    clearButton.setColour (juce::TextButton::buttonColourId, colors::control);
+    clearButton.setColour (juce::TextButton::textColourOffId, colors::secondary);
+    clearButton.onClick = [this] { alea.historyCount.store (0); repaint(); };
+    addAndMakeVisible (clearButton);
 }
 
 void OutputPanel::resized()
 {
-    panicButton.setBounds (getWidth() - 74, 0, 74, 26);
+    panicButton.setBounds (getWidth() - 70, 0, 70, 26);
+    freezeButton.setBounds (getWidth() - 148, 0, 72, 26);
+    clearButton.setBounds (getWidth() - 56, getHeight() - 76, 56, 18);
 }
 
 void OutputPanel::paint (juce::Graphics& g)
 {
     const int active = alea.activeNote.load();
+    const int rest   = alea.activeRest.load();
     const int last   = alea.lastNote.load();
     const double ppq = alea.hostPpq.load();
     const bool playing = alea.hostIsPlaying.load();
@@ -274,14 +309,29 @@ void OutputPanel::paint (juce::Graphics& g)
 
     auto area = getLocalBounds();
 
-    // Activity LED + big note display
+    // Activity LED + big note display (shows the sounding rest, too)
     auto noteRow = area.removeFromTop (56);
     g.setColour (active >= 0 ? colors::playing : colors::control);
     g.fillEllipse (noteRow.removeFromLeft (26).withSizeKeepingCentre (14, 14).toFloat());
 
-    g.setColour (active >= 0 ? colors::playing : colors::secondary);
-    g.setFont (juce::FontOptions (36.0f, juce::Font::bold));
-    g.drawText (noteName (active >= 0 ? active : last), noteRow, juce::Justification::centredLeft);
+    if (active >= 0)
+    {
+        g.setColour (colors::playing);
+        g.setFont (juce::FontOptions (36.0f, juce::Font::bold));
+        g.drawText (noteName (active), noteRow, juce::Justification::centredLeft);
+    }
+    else if (rest >= 0)
+    {
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (20.0f, juce::Font::italic));
+        g.drawText ("rest " + params::restNames[rest], noteRow, juce::Justification::centredLeft);
+    }
+    else
+    {
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (36.0f, juce::Font::bold));
+        g.drawText (noteName (last), noteRow, juce::Justification::centredLeft);
+    }
 
     // Bar / beat / morph source
     const int bar  = juce::jmax (1, (int) std::floor (ppq / 4.0) + 1);
@@ -297,25 +347,32 @@ void OutputPanel::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
     g.drawText (juce::String ("MORPH: ") + (morph < 50.0 ? "A" : "B"), row, juce::Justification::centredRight);
 
-    area.removeFromTop (6);
-
-    // History: last 50 notes, oldest first
+    // History: a single readable ticker, newest note entering on the right,
+    // sequence reading left-to-right, colored by source scale.
+    auto historyLabelRow = juce::Rectangle<int> (0, getHeight() - 76, getWidth(), 18);
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (11.0f));
-    g.drawText ("HISTORY", area.removeFromTop (16), juce::Justification::centredLeft);
+    g.drawText ("HISTORY", historyLabelRow, juce::Justification::centredLeft);
+
+    const auto ticker = juce::Rectangle<int> (0, getHeight() - 54, getWidth(), 26).toFloat();
+    const juce::Font tickerFont { juce::FontOptions (16.0f, juce::Font::bold) };
+    g.setFont (tickerFont);
 
     const int total = alea.historyCount.load();
-    const int shown = juce::jmin (50, total);
-    juce::String text;
-    for (int i = total - shown; i < total; ++i)
+    float xRight = ticker.getRight();
+    for (int i = total - 1; i >= juce::jmax (0, total - 50) && xRight > ticker.getX(); --i)
     {
         const int packed = alea.history[(size_t) (i % AleaAudioProcessor::historyCapacity)].load();
-        text << noteName (packed & 0xff) << " ";
+        const auto name = noteName (packed & 0xff);
+        const float w = juce::GlyphArrangement::getStringWidth (tickerFont, name);
+        xRight -= w + 10.0f;
+        if (xRight < ticker.getX())
+            break;
+        const float age = (float) (total - 1 - i);
+        g.setColour (((packed >> 8) & 1 ? colors::cyan : colors::purple).withAlpha (juce::jmax (0.35f, 1.0f - age * 0.06f)));
+        g.drawText (name, juce::Rectangle<float> (xRight, ticker.getY(), w + 2.0f, ticker.getHeight()),
+                    juce::Justification::centredLeft);
     }
-
-    g.setColour (colors::text.withAlpha (0.8f));
-    g.setFont (juce::FontOptions (12.0f));
-    g.drawFittedText (text.trim(), area.reduced (0, 2), juce::Justification::topLeft, 8);
 }
 
 } // namespace ui

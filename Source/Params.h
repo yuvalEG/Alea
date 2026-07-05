@@ -16,6 +16,7 @@ namespace params
     constexpr std::array<double, 9> divisionBars { 1.0/64, 1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0/2, 1.0, 2.0, 4.0 };
 
     // Fixed pool for Random interval/length mode (spec 4.2).
+    inline const juce::StringArray randomPoolNames { "1/16", "1/8", "1/4", "1/2" };
     constexpr std::array<double, 4> randomPoolBars { 1.0/16, 1.0/8, 1.0/4, 1.0/2 };
 
     inline const juce::StringArray timingModes   { "Sync", "Free", "Random" };

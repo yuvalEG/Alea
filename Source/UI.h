@@ -63,15 +63,18 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PianoKeyboard)
 };
 
-// Five rest toggle buttons styled like a mini keyboard (spec 9.2).
+// Five rest toggle buttons styled like a mini keyboard (spec 9.2). The rest
+// currently "sounding" lights green on its originating scale's selector.
 class RestSelector : public juce::Component
 {
 public:
-    RestSelector (AleaAudioProcessor&, char scaleId, juce::Colour accent);
+    RestSelector (AleaAudioProcessor&, char scaleId, int sourceIndex, juce::Colour accent);
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
 
 private:
+    AleaAudioProcessor& alea;
+    int sourceIndex;
     juce::Colour accent;
     bool selected[5] {};
     std::array<std::unique_ptr<juce::ParameterAttachment>, 5> attachments;
@@ -115,6 +118,9 @@ public:
 private:
     AleaAudioProcessor& alea;
     juce::TextButton panicButton { "PANIC" };
+    juce::TextButton freezeButton { "FREEZE" };
+    juce::TextButton clearButton { "CLEAR" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freezeAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputPanel)
 };

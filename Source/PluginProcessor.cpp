@@ -18,6 +18,7 @@ AleaAudioProcessor::AleaAudioProcessor()
     pMorphDurFree = raw ("morphDurFree"); pMorphDurUnit = raw ("morphDurUnit");
     pMorphMode    = raw ("morphMode");    pMorphCurve   = raw ("morphCurve");
     pTempoSource  = raw ("tempoSource");  pInternalTempo = raw ("internalTempo");
+    pFreeze       = raw ("freeze");
 }
 
 void AleaAudioProcessor::cacheScaleRefs (char scale, ScaleRefs& refs)
@@ -130,8 +131,13 @@ double AleaAudioProcessor::intervalPpqAt (double bpm)
 {
     switch ((int) pIntervalMode->load())
     {
-        case params::free:   return juce::jmax (0.01, (double) pIntervalFree->load() * bpm / 60.0);
-        case params::random: return params::randomPoolBars[(size_t) rng.nextInt (4)] * 4.0;
+        case params::free:   return juce::jmax (0.001, (double) pIntervalFree->load() * bpm / 60.0);
+        case params::random:
+        {
+            const int i = rng.nextInt (4);
+            lastRandomInterval.store (i);
+            return params::randomPoolBars[(size_t) i] * 4.0;
+        }
         default:             return params::divisionBars[(size_t) pIntervalSync->load()] * 4.0;
     }
 }
@@ -140,8 +146,13 @@ double AleaAudioProcessor::lengthPpqAt (double bpm)
 {
     switch ((int) pLengthMode->load())
     {
-        case params::free:   return juce::jmax (0.01, (double) pLengthFree->load() * bpm / 60.0);
-        case params::random: return params::randomPoolBars[(size_t) rng.nextInt (4)] * 4.0;
+        case params::free:   return juce::jmax (0.001, (double) pLengthFree->load() * bpm / 60.0);
+        case params::random:
+        {
+            const int i = rng.nextInt (4);
+            lastRandomLength.store (i);
+            return params::randomPoolBars[(size_t) i] * 4.0;
+        }
         default:             return params::divisionBars[(size_t) pLengthSync->load()] * 4.0;
     }
 }
@@ -173,6 +184,8 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         if (wasPlaying)
             sendAllNotesOff (midi, 0);
         wasPlaying = false;
+        lastFreeRun = freeRun;
+        activeRest.store (-1);
         return;
     }
 
@@ -182,6 +195,18 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         return;
 
     const double ppqPerSample = bpm / 60.0 / sampleRate;
+
+    // Switching tempo source mid-play moves us between two different beat
+    // clocks; without re-anchoring, the scheduler waits for a position the
+    // new clock may never reach (= a note frozen forever).
+    bool clockSwitched = false;
+    if (freeRun != lastFreeRun)
+    {
+        clockSwitched = true;
+        lastFreeRun = freeRun;
+        if (freeRun)
+            internalPpq = juce::jmax (0.0, lastPpqEnd); // carry the beat count over
+    }
 
     // Beat-clock position: host timeline, or our own accumulator in Free-Run
     // (which deliberately ignores host jumps, spec section 7).
@@ -208,11 +233,12 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     const double blockPpq = numSamples * ppqPerSample;
     const double jumpTolerance = juce::jmax (0.1, 2.0 * blockPpq);
 
-    if (! wasPlaying || (! freeRun && ppqStart < lastPpqEnd - jumpTolerance))
+    if (! wasPlaying || clockSwitched || (! freeRun && ppqStart < lastPpqEnd - jumpTolerance))
     {
         if (wasPlaying)
             sendAllNotesOff (midi, 0);
         resetSchedule (ppqStart);
+        activeRest.store (-1);
     }
     else if (nextEventPpq < ppqStart - jumpTolerance)
     {
@@ -225,6 +251,24 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     lastPpqEnd = ppqEnd;
     hostPpq.store (ppqStart);
     morphPercent.store (morphAt (ppqStart, bpm) * 100.0);
+
+    // Freeze: hold the sounding note indefinitely - no note-offs, no new
+    // events. Time (and morph) keeps moving; unfreezing re-anchors cleanly.
+    if (pFreeze->load() > 0.5f)
+    {
+        wasFrozen = true;
+        return;
+    }
+    if (wasFrozen)
+    {
+        wasFrozen = false;
+        resetSchedule (ppqStart);
+        if (currentNote >= 0)
+            noteOffPpq = ppqStart; // release the held note as the stream resumes
+    }
+
+    if (activeRest.load() >= 0 && ppqStart >= restEndPpq)
+        activeRest.store (-1);
 
     ScaleSnapshot snapA, snapB;
     readSnapshot (refA, snapA);
@@ -269,7 +313,11 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
         if (pick >= src.numPitchClasses) // a rest: silence for the rest's own duration
         {
-            nextEventPpq = eventPpq + params::restBars[(size_t) src.rests[pick - src.numPitchClasses]] * 4.0;
+            const int slot = src.rests[pick - src.numPitchClasses];
+            restEndPpq = eventPpq + params::restBars[(size_t) slot] * 4.0;
+            nextEventPpq = restEndPpq;
+            activeRest.store (slot);
+            activeRestSource.store (&src == &snapA ? 0 : 1);
             continue;
         }
 
@@ -311,6 +359,7 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         lastNote.store (note);
         activeSource.store (source);
         activeNote.store (note);
+        activeRest.store (-1);
         history[(size_t) (historyCount.load() % historyCapacity)].store (note | (source << 8));
         historyCount.fetch_add (1);
     }

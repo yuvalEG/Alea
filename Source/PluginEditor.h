@@ -17,8 +17,8 @@ private:
     void timerCallback() override;
     void updateModeVisibility();
 
-    void setupSlider (juce::Slider&, const juce::String& paramID, juce::Colour accent);
-    void setupCombo (juce::ComboBox&, const juce::String& paramID);
+    void setupSlider (juce::Slider&, const juce::String& paramID, juce::Colour accent, bool positionStyle = false);
+    void setupCombo (juce::ComboBox&, const juce::String& paramID, const juce::StringArray& customLabels = {});
 
     AleaAudioProcessor& alea;
 
@@ -43,6 +43,7 @@ private:
     // Header
     ui::SegmentedSelector tempoSource;
     juce::Slider internalTempo;
+    juce::TextButton menuButton;
 
     // Output panel
     ui::OutputPanel output;

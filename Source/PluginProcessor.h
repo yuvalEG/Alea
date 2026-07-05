@@ -45,6 +45,10 @@ public:
     std::atomic<int>    lastNote { -1 };
     std::atomic<int>    activeNote { -1 };    // sounding right now (-1 = none)
     std::atomic<int>    activeSource { 0 };   // 0 = Scale A, 1 = Scale B (spec 5.4)
+    std::atomic<int>    activeRest { -1 };    // rest slot (0-4) currently "sounding"
+    std::atomic<int>    activeRestSource { 0 };
+    std::atomic<int>    lastRandomInterval { -1 }; // pool index picked by Random mode
+    std::atomic<int>    lastRandomLength { -1 };
     std::atomic<bool>   panicRequested { false };
 
     // Note history ring buffer (spec 9.1: last 50 notes). Entries pack
@@ -86,7 +90,7 @@ private:
                        *pLengthMode {}, *pLengthSync {}, *pLengthFree {},
                        *pMorphPos {}, *pAutoSweep {}, *pMorphDurMode {}, *pMorphDurBars {},
                        *pMorphDurFree {}, *pMorphDurUnit {}, *pMorphMode {}, *pMorphCurve {},
-                       *pTempoSource {}, *pInternalTempo {};
+                       *pTempoSource {}, *pInternalTempo {}, *pFreeze {};
 
     juce::Random rng;
 
@@ -96,8 +100,11 @@ private:
     double noteOffPpq = 0.0;     // when the sounding note's gate ends
     int currentNote = -1;
     double internalPpq = 0.0;    // beat clock for Free-Run tempo mode
+    double restEndPpq = 0.0;
     double lastPpqEnd = -1.0;
     bool wasPlaying = false;
+    bool lastFreeRun = false;
+    bool wasFrozen = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AleaAudioProcessor)
 };

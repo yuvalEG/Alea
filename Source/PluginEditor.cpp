@@ -17,8 +17,8 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     : AudioProcessorEditor (p), alea (p),
       keyboardA (p, 'a', 0, colors::purple),
       keyboardB (p, 'b', 1, colors::cyan),
-      restsA (p, 'a', colors::purple),
-      restsB (p, 'b', colors::cyan),
+      restsA (p, 'a', 0, colors::purple),
+      restsB (p, 'b', 1, colors::cyan),
       intervalMode (*p.apvts.getParameter ("intervalMode"), params::timingModes, colors::text.withAlpha (0.9f)),
       lengthMode   (*p.apvts.getParameter ("lengthMode"),   params::timingModes, colors::text.withAlpha (0.9f)),
       morphBar (p),
@@ -37,10 +37,11 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     addAndMakeVisible (tempoSource);
     addAndMakeVisible (output);
 
-    setupSlider (aOctMin, "aOctMin", colors::purple);   setupSlider (aOctMax, "aOctMax", colors::purple);
-    setupSlider (aVelMin, "aVelMin", colors::purple);   setupSlider (aVelMax, "aVelMax", colors::purple);
-    setupSlider (bOctMin, "bOctMin", colors::cyan);     setupSlider (bOctMax, "bOctMax", colors::cyan);
-    setupSlider (bVelMin, "bVelMin", colors::cyan);     setupSlider (bVelMax, "bVelMax", colors::cyan);
+    // Octave is a position, not an amount: dot-on-a-track, no bar fill.
+    setupSlider (aOctMin, "aOctMin", colors::purple, true);  setupSlider (aOctMax, "aOctMax", colors::purple, true);
+    setupSlider (aVelMin, "aVelMin", colors::purple);        setupSlider (aVelMax, "aVelMax", colors::purple);
+    setupSlider (bOctMin, "bOctMin", colors::cyan, true);    setupSlider (bOctMax, "bOctMax", colors::cyan, true);
+    setupSlider (bVelMin, "bVelMin", colors::cyan);          setupSlider (bVelMax, "bVelMax", colors::cyan);
     setupSlider (intervalFree, "intervalFree", colors::text.withAlpha (0.6f));
     setupSlider (lengthFree, "lengthFree", colors::text.withAlpha (0.6f));
     setupSlider (morphDurFree, "morphDurFree", colors::amber);
@@ -50,8 +51,33 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     setupCombo (lengthSync, "lengthSync");
     setupCombo (morphDurBars, "morphDurBars");
     setupCombo (morphDurUnit, "morphDurUnit");
-    setupCombo (morphMode, "morphMode");
-    setupCombo (morphCurve, "morphCurve");
+
+    // Decorated labels (display only - host automation keeps clean names)
+    setupCombo (morphMode, "morphMode", juce::StringArray {
+        juce::String::fromUTF8 ("One-Shot   A \xe2\x86\x92 B, hold"),
+        juce::String::fromUTF8 ("Loop   A \xe2\x86\x92 B \xe2\x86\xbb restart"),
+        juce::String::fromUTF8 ("Bounce   A \xe2\x87\x84 B back & forth") });
+    setupCombo (morphCurve, "morphCurve", juce::StringArray {
+        juce::String::fromUTF8 ("Linear   \xe2\x95\xb1  steady"),
+        juce::String::fromUTF8 ("Exponential   slow \xe2\x86\x92 fast"),
+        juce::String::fromUTF8 ("S-Curve   \xe2\x88\xbf  ease in & out"),
+        juce::String::fromUTF8 ("Logarithmic   fast \xe2\x86\x92 slow") });
+
+    menuButton.setButtonText (juce::String::fromUTF8 ("\xe2\x8b\xaf"));
+    menuButton.setColour (juce::TextButton::buttonColourId, colors::control);
+    menuButton.setColour (juce::TextButton::textColourOffId, colors::text);
+    menuButton.onClick = [this]
+    {
+        juce::PopupMenu m;
+        m.addItem ("About Alea...", []
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
+                "Alea",
+                juce::String::fromUTF8 ("Aleatoric scale shifter\nVersion 0.1.0\n\nMade by Yuval Egozi"));
+        });
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton));
+    };
+    addAndMakeVisible (menuButton);
 
     autoSweep.setColour (juce::ToggleButton::textColourId, colors::text);
     autoSweep.setColour (juce::ToggleButton::tickColourId, colors::amber);
@@ -65,10 +91,21 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     startTimerHz (15);
 }
 
-void AleaAudioProcessorEditor::setupSlider (juce::Slider& s, const juce::String& paramID, juce::Colour accent)
+void AleaAudioProcessorEditor::setupSlider (juce::Slider& s, const juce::String& paramID, juce::Colour accent,
+                                            bool positionStyle)
 {
-    s.setSliderStyle (juce::Slider::LinearBar);
-    s.setColour (juce::Slider::trackColourId, accent.withAlpha (0.55f));
+    if (positionStyle)
+    {
+        s.setSliderStyle (juce::Slider::LinearHorizontal);
+        s.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 30, 20);
+        s.setColour (juce::Slider::thumbColourId, accent);
+        s.setColour (juce::Slider::trackColourId, colors::control);
+    }
+    else
+    {
+        s.setSliderStyle (juce::Slider::LinearBar);
+        s.setColour (juce::Slider::trackColourId, accent.withAlpha (0.55f));
+    }
     s.setColour (juce::Slider::backgroundColourId, colors::control);
     s.setColour (juce::Slider::textBoxTextColourId, colors::text);
     s.setColour (juce::Slider::textBoxOutlineColourId, colors::border);
@@ -77,9 +114,12 @@ void AleaAudioProcessorEditor::setupSlider (juce::Slider& s, const juce::String&
         alea.apvts, paramID, s));
 }
 
-void AleaAudioProcessorEditor::setupCombo (juce::ComboBox& c, const juce::String& paramID)
+void AleaAudioProcessorEditor::setupCombo (juce::ComboBox& c, const juce::String& paramID,
+                                           const juce::StringArray& customLabels)
 {
-    if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (alea.apvts.getParameter (paramID)))
+    if (customLabels.size() > 0)
+        c.addItemList (customLabels, 1);
+    else if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (alea.apvts.getParameter (paramID)))
         c.addItemList (choice->choices, 1);
 
     c.setColour (juce::ComboBox::backgroundColourId, colors::control);
@@ -94,8 +134,9 @@ void AleaAudioProcessorEditor::setupCombo (juce::ComboBox& c, const juce::String
 void AleaAudioProcessorEditor::resized()
 {
     // Header
-    tempoSource.setBounds (600, 16, 160, 26);
-    internalTempo.setBounds (770, 16, 156, 26);
+    tempoSource.setBounds (586, 16, 150, 26);
+    internalTempo.setBounds (746, 16, 148, 26);
+    menuButton.setBounds (902, 16, 28, 26);
 
     auto scaleControls = [] (const juce::Rectangle<int>& panel, PianoKeyboard& kb, RestSelector& rests,
                                  juce::Slider& octMin, juce::Slider& octMax,
@@ -147,9 +188,16 @@ void AleaAudioProcessorEditor::timerCallback()
     updateModeVisibility();
     keyboardA.repaint();
     keyboardB.repaint();
+    restsA.repaint();
+    restsB.repaint();
     morphBar.repaint();
     output.repaint();
     repaint (0, 0, getWidth(), 60); // header status dot
+
+    // Random-mode "current pick" readouts live in the timing panel
+    if ((int) alea.apvts.getRawParameterValue ("intervalMode")->load() == params::random
+        || (int) alea.apvts.getRawParameterValue ("lengthMode")->load() == params::random)
+        repaint (timingPanel);
 }
 
 void AleaAudioProcessorEditor::updateModeVisibility()
@@ -182,7 +230,7 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawText ("ALEA", 20, 10, 120, 38, juce::Justification::centredLeft);
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (12.0f));
-    g.drawText ("generative MIDI", 96, 16, 160, 28, juce::Justification::centredLeft);
+    g.drawText ("Aleatoric scale shifter", 96, 16, 180, 28, juce::Justification::centredLeft);
 
     const bool playing = alea.hostIsPlaying.load();
     g.setColour (playing ? colors::green : colors::control);
@@ -190,7 +238,7 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (colors::secondary);
     g.drawText (playing ? "playing" : "stopped", 282, 14, 90, 28, juce::Justification::centredLeft);
 
-    g.drawText ("TEMPO", 540, 16, 54, 26, juce::Justification::centredRight);
+    g.drawText ("TEMPO", 512, 16, 68, 26, juce::Justification::centredRight);
 
     auto drawPanel = [&g] (const juce::Rectangle<int>& r, const juce::String& title, juce::Colour accent)
     {
@@ -222,6 +270,22 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
 
     g.drawText ("INTERVAL", timingPanel.getX() + 12, timingPanel.getY() + 30, 100, 16, juce::Justification::centredLeft);
     g.drawText ("LENGTH",   timingPanel.getX() + 12, timingPanel.getY() + 128, 100, 16, juce::Justification::centredLeft);
+
+    // Random-mode monitoring: show what the dice just rolled.
+    auto drawRandomPick = [&g] (int y, int poolIndex)
+    {
+        g.setColour (colors::text.withAlpha (0.85f));
+        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.drawText (poolIndex >= 0 ? "now: " + params::randomPoolNames[poolIndex] : "now: -",
+                    timingPanel.getX() + 12, y, timingPanel.getWidth() - 24, 26, juce::Justification::centred);
+        g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+        g.setColour (colors::secondary);
+    };
+
+    if ((int) alea.apvts.getRawParameterValue ("intervalMode")->load() == params::random)
+        drawRandomPick (timingPanel.getY() + 80, alea.lastRandomInterval.load());
+    if ((int) alea.apvts.getRawParameterValue ("lengthMode")->load() == params::random)
+        drawRandomPick (timingPanel.getY() + 178, alea.lastRandomLength.load());
     g.drawText ("DURATION", morphPanel.getX() + 12, morphPanel.getY() + 108, 100, 12, juce::Justification::centredLeft);
     g.drawText ("MODE",     morphPanel.getX() + 12, morphPanel.getY() + 154, 100, 12, juce::Justification::centredLeft);
     g.drawText ("CURVE",    morphPanel.getX() + 12, morphPanel.getY() + 200, 100, 12, juce::Justification::centredLeft);
