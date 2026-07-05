@@ -36,26 +36,32 @@ private:
     // Morph panel
     ui::MorphBar morphBar;
     juce::TextButton autoSweep { "AUTO-SWEEP" };
-    ui::SegmentedSelector morphDurMode;
-    juce::ComboBox morphDurBars, morphDurUnit, morphMode, morphCurve;
+    ui::SegmentedSelector morphDurMode, morphMode;
+    ui::CurveSelector morphCurve;
+    juce::ComboBox morphDurBars, morphDurUnit;
     juce::Slider morphDurFree;
 
     // Header
     ui::SegmentedSelector tempoSource;
     juce::Slider internalTempo;
     juce::TextButton menuButton;
+    juce::TextButton freezeButton { "FREEZE" };
 
     // Output panel
     ui::OutputPanel output;
 
     // Presets row
-    std::vector<std::unique_ptr<juce::TextButton>> presetButtons;
+    juce::ComboBox presetBox;
     juce::TextButton savePreset { "Save" }, loadPreset { "Load" };
     std::unique_ptr<juce::FileChooser> fileChooser;
+    std::vector<float> presetSnapshot; // param values right after a preset applied; divergence clears the mark
+
+    // Scale panels dim when the morph is fully on the other side
+    float alphaA = 1.0f, alphaB = 1.0f;
 
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> comboAttachments;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> sweepAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> sweepAttachment, freezeAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AleaAudioProcessorEditor)
 };

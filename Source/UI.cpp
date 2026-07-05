@@ -55,6 +55,72 @@ void SegmentedSelector::mouseDown (const juce::MouseEvent& e)
 }
 
 //==============================================================================
+CurveSelector::CurveSelector (juce::RangedAudioParameter& param, juce::Colour accentColour)
+    : accent (accentColour),
+      attachment (param, [this] (float v) { value = (int) v; repaint(); })
+{
+    attachment.sendInitialUpdate();
+}
+
+void CurveSelector::paint (juce::Graphics& g)
+{
+    const auto bounds = getLocalBounds().toFloat();
+    g.setColour (colors::control);
+    g.fillRoundedRectangle (bounds, 5.0f);
+
+    // Same shapes the engine applies (see morphAt's curve mapping).
+    auto shape = [] (int curve, float t) -> float
+    {
+        switch (curve)
+        {
+            case params::exponential: return t * t;
+            case params::sCurve:      return t * t * (3.0f - 2.0f * t);
+            case params::logarithmic: return 1.0f - (1.0f - t) * (1.0f - t);
+            default:                  return t;
+        }
+    };
+
+    const float w = bounds.getWidth() / 4.0f;
+    for (int i = 0; i < 4; ++i)
+    {
+        auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight());
+        if (i == value)
+        {
+            g.setColour (accent);
+            g.fillRoundedRectangle (seg.reduced (2.0f), 4.0f);
+            g.setColour (juce::Colours::black.withAlpha (0.8f));
+        }
+        else
+        {
+            g.setColour (colors::secondary);
+        }
+
+        const auto plot = seg.withSizeKeepingCentre (juce::jmin (34.0f, w - 16.0f), seg.getHeight() - 12.0f);
+        juce::Path path;
+        for (int s = 0; s <= 20; ++s)
+        {
+            const float t = (float) s / 20.0f;
+            const auto pt = juce::Point<float> (plot.getX() + plot.getWidth() * t,
+                                                plot.getBottom() - plot.getHeight() * shape (i, t));
+            if (s == 0)
+                path.startNewSubPath (pt);
+            else
+                path.lineTo (pt);
+        }
+        g.strokePath (path, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
+
+    g.setColour (colors::border);
+    g.drawRoundedRectangle (bounds.reduced (0.5f), 5.0f, 1.0f);
+}
+
+void CurveSelector::mouseDown (const juce::MouseEvent& e)
+{
+    const int idx = juce::jlimit (0, 3, (int) (e.position.x / ((float) getWidth() / 4.0f)));
+    attachment.setValueAsCompleteGesture ((float) idx);
+}
+
+//==============================================================================
 namespace
 {
     // pc -> white-key slot (C D E F G A B), or -1 for black keys
@@ -307,15 +373,6 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
     panicButton.onClick = [this] { alea.panicRequested.store (true); };
     addAndMakeVisible (panicButton);
 
-    freezeButton.setClickingTogglesState (true);
-    freezeButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan.withAlpha (0.9f));
-    freezeButton.setColour (juce::TextButton::textColourOffId, colors::secondary);
-    freezeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
-    addAndMakeVisible (freezeButton);
-    freezeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
-        alea.apvts, "freeze", freezeButton);
-
     clearButton.setColour (juce::TextButton::buttonColourId, colors::control);
     clearButton.setColour (juce::TextButton::textColourOffId, colors::secondary);
     clearButton.onClick = [this] { alea.historyCount.store (0); repaint(); };
@@ -325,7 +382,6 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
 void OutputPanel::resized()
 {
     panicButton.setBounds (getWidth() - 70, 0, 70, 26);
-    freezeButton.setBounds (getWidth() - 148, 0, 72, 26);
     clearButton.setBounds (getWidth() - 56, getHeight() - 76, 56, 18);
 }
 

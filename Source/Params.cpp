@@ -72,7 +72,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (choice ("morphDurBars", "Morph Duration (bars)", morphDurBarNames, 3)); // 8 bars
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "morphDurFree", 1 }, "Morph Duration (time)",
-        juce::NormalisableRange<float> (0.0f, 600.0f), 30.0f));
+        juce::NormalisableRange<float> (0.0f, 600.0f, 0.0f, 0.35f), 30.0f)); // skewed: most of the travel serves short durations
     layout.add (choice ("morphDurUnit", "Morph Duration Unit", morphDurUnits, 0));
     layout.add (choice ("morphMode", "Morph Mode", morphModes, oneShot));
     layout.add (choice ("morphCurve", "Morph Curve", morphCurves, linear));

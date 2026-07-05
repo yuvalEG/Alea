@@ -25,6 +25,12 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
       lengthMode   (*p.apvts.getParameter ("lengthMode"),   params::timingModes, colors::text.withAlpha (0.9f)),
       morphBar (p),
       morphDurMode (*p.apvts.getParameter ("morphDurMode"), params::morphDurModes, colors::text.withAlpha (0.9f)),
+      morphMode (*p.apvts.getParameter ("morphMode"),
+                 juce::StringArray { juce::String::fromUTF8 ("A \xe2\x86\x92 B"),
+                                     juce::String::fromUTF8 ("A \xe2\x86\x92 B \xe2\x86\xbb"),
+                                     juce::String::fromUTF8 ("A \xe2\x87\x84 B") },
+                 colors::text.withAlpha (0.9f)),
+      morphCurve (*p.apvts.getParameter ("morphCurve"), colors::text.withAlpha (0.9f)),
       tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, colors::text.withAlpha (0.9f)),
       output (p)
 {
@@ -36,6 +42,8 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     addAndMakeVisible (lengthMode);
     addAndMakeVisible (morphBar);
     addAndMakeVisible (morphDurMode);
+    addAndMakeVisible (morphMode);
+    addAndMakeVisible (morphCurve);
     addAndMakeVisible (tempoSource);
     addAndMakeVisible (output);
 
@@ -54,17 +62,6 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     setupCombo (morphDurBars, "morphDurBars");
     setupCombo (morphDurUnit, "morphDurUnit");
 
-    // Decorated labels (display only - host automation keeps clean names)
-    setupCombo (morphMode, "morphMode", juce::StringArray {
-        juce::String::fromUTF8 ("A \xe2\x86\x92 B"),
-        juce::String::fromUTF8 ("A \xe2\x86\x92 B \xe2\x86\xbb"),
-        juce::String::fromUTF8 ("A \xe2\x87\x84 B") });
-    setupCombo (morphCurve, "morphCurve", juce::StringArray {
-        juce::String::fromUTF8 ("Linear \xe2\x95\xb1"),
-        juce::String::fromUTF8 ("Exponential x\xc2\xb2"),
-        juce::String::fromUTF8 ("S-Curve \xe2\x88\xbf"),
-        juce::String::fromUTF8 ("Logarithmic \xe2\x88\x9ax") });
-
     menuButton.setButtonText (juce::String::fromUTF8 ("\xe2\x8b\xaf"));
     menuButton.setColour (juce::TextButton::buttonColourId, colors::control);
     menuButton.setColour (juce::TextButton::textColourOffId, colors::text);
@@ -78,10 +75,19 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                 juce::String::fromUTF8 (
                     "Aleatoric Scale Shifter\nVersion 0.1.0\n\n"
                     "HOW TO USE\n"
-                    "Alea generates MIDI, not audio. Put it on its own MIDI track, "
-                    "then route an instrument track's MIDI input from Alea and press Play. "
-                    "In Ableton Live: on the instrument track set MIDI From to the Alea "
-                    "track, pick 'Alea' in the lower chooser, and set Monitor to In.\n\n"
+                    "Alea generates MIDI notes - it makes no sound of its own.\n"
+                    "1. Load Alea on a MIDI track.\n"
+                    "2. Create a second MIDI track and put any instrument on it.\n"
+                    "3. Route the instrument track's MIDI input from the Alea track "
+                    "(in Ableton Live: set 'MIDI From' to the Alea track and pick "
+                    "'Alea' in the chooser below it).\n"
+                    "4. Arm the instrument track and press Play - Alea follows the "
+                    "host transport and you should hear notes drawn from Scale A.\n"
+                    "5. From there: pick a preset from the PRESETS menu, set up your "
+                    "own Scale A and Scale B, drag the morph bar to blend between "
+                    "them, or hit AUTO-SWEEP and let Alea travel on its own.\n"
+                    "Hearing nothing? Check the instrument track is armed and the "
+                    "header dot says 'playing'.\n\n"
                     "ALEA was made with a particular vision in mind: exploring the "
                     "relationship between an improvising human player and a machine that "
                     "randomly shifts from a diatonic scale to complete dodecaphony over "
@@ -97,8 +103,19 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     };
     addAndMakeVisible (menuButton);
 
+    // Freeze is a performance control and Panic an escape hatch - they live
+    // far apart (header vs. output panel) so neither is hit by accident.
+    freezeButton.setClickingTogglesState (true);
+    freezeButton.setColour (juce::TextButton::buttonColourId, colors::control);
+    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan.withAlpha (0.9f));
+    freezeButton.setColour (juce::TextButton::textColourOffId, colors::secondary);
+    freezeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+    addAndMakeVisible (freezeButton);
+    freezeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        alea.apvts, "freeze", freezeButton);
+
     // Auto-sweep is the heart of the plugin - a full toggle button, not a tick.
-    autoSweep.setButtonText (juce::String::fromUTF8 ("\xe2\x9f\xbf  AUTO-SWEEP"));
+    autoSweep.setButtonText (juce::String::fromUTF8 ("AUTO-SWEEP \xe2\x86\x92"));
     autoSweep.setClickingTogglesState (true);
     autoSweep.setColour (juce::TextButton::buttonColourId, colors::control);
     autoSweep.setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.9f));
@@ -108,16 +125,37 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     sweepAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         alea.apvts, "autoSweep", autoSweep);
 
-    // Presets row
-    for (size_t i = 0; i < presets::factory().size(); ++i)
+    // Presets row: a categorized dropdown - the selected name doubles as the
+    // "which preset am I on" mark, and clears once any knob diverges.
     {
-        auto b = std::make_unique<juce::TextButton> (juce::String::fromUTF8 (presets::factory()[i].name));
-        b->setColour (juce::TextButton::buttonColourId, colors::control);
-        b->setColour (juce::TextButton::textColourOffId, colors::text);
-        b->onClick = [this, i] { presets::apply (alea.apvts, presets::factory()[i]); };
-        addAndMakeVisible (*b);
-        presetButtons.push_back (std::move (b));
+        juce::String category;
+        for (size_t i = 0; i < presets::factory().size(); ++i)
+        {
+            const auto& f = presets::factory()[i];
+            if (category != f.category)
+            {
+                category = f.category;
+                presetBox.addSectionHeading (category);
+            }
+            presetBox.addItem (juce::String::fromUTF8 (f.name), (int) i + 1);
+        }
     }
+    presetBox.setTextWhenNothingSelected ("Select a preset...");
+    presetBox.setColour (juce::ComboBox::backgroundColourId, colors::control);
+    presetBox.setColour (juce::ComboBox::textColourId, colors::text);
+    presetBox.setColour (juce::ComboBox::outlineColourId, colors::border);
+    presetBox.setColour (juce::ComboBox::arrowColourId, colors::secondary);
+    presetBox.onChange = [this]
+    {
+        const int id = presetBox.getSelectedId();
+        if (id <= 0)
+            return;
+        presets::apply (alea.apvts, presets::factory()[(size_t) id - 1]);
+        presetSnapshot.clear();
+        for (auto* param : alea.getParameters())
+            presetSnapshot.push_back (param->getValue());
+    };
+    addAndMakeVisible (presetBox);
 
     for (auto* b : { &savePreset, &loadPreset })
     {
@@ -164,6 +202,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
 
     setSize (kWidth, kHeight);
     updateModeVisibility();
+    timerCallback(); // apply dimming/visibility state before first paint
     startTimerHz (15);
 }
 
@@ -210,6 +249,7 @@ void AleaAudioProcessorEditor::setupCombo (juce::ComboBox& c, const juce::String
 void AleaAudioProcessorEditor::resized()
 {
     // Header
+    freezeButton.setBounds (398, 16, 84, 26);
     tempoSource.setBounds (586, 16, 150, 26);
     internalTempo.setBounds (746, 16, 148, 26);
     menuButton.setBounds (902, 16, 28, 26);
@@ -260,15 +300,8 @@ void AleaAudioProcessorEditor::resized()
 
     // Presets row
     {
-        const int widths[] = { 118, 122, 118, 104, 178 };
-        int x = presetsPanel.getX() + 90;
         const int y = presetsPanel.getY() + 10;
-        for (size_t i = 0; i < presetButtons.size(); ++i)
-        {
-            const int w = widths[juce::jmin ((size_t) 4, i)];
-            presetButtons[i]->setBounds (x, y, w, 26);
-            x += w + 8;
-        }
+        presetBox.setBounds (presetsPanel.getX() + 90, y, 320, 26);
         savePreset.setBounds (presetsPanel.getRight() - 128, y, 58, 26);
         loadPreset.setBounds (presetsPanel.getRight() - 64, y, 54, 26);
     }
@@ -277,6 +310,47 @@ void AleaAudioProcessorEditor::resized()
 void AleaAudioProcessorEditor::timerCallback()
 {
     updateModeVisibility();
+
+    // A fully one-sided morph means the other scale can't sound - dim it.
+    {
+        const bool sweep = alea.apvts.getRawParameterValue ("autoSweep")->load() > 0.5f;
+        const float pct = sweep ? (float) alea.morphPercent.load()
+                                : alea.apvts.getRawParameterValue ("morphPos")->load();
+        const float newA = pct >= 99.95f ? 0.35f : 1.0f;
+        const float newB = pct <= 0.05f  ? 0.35f : 1.0f;
+
+        if (! juce::approximatelyEqual (newA, alphaA) || ! juce::approximatelyEqual (newB, alphaB))
+        {
+            alphaA = newA;
+            alphaB = newB;
+            for (auto* c : { (juce::Component*) &keyboardA, (juce::Component*) &restsA,
+                             (juce::Component*) &aOctMin, (juce::Component*) &aOctMax,
+                             (juce::Component*) &aVelMin, (juce::Component*) &aVelMax })
+                c->setAlpha (alphaA);
+            for (auto* c : { (juce::Component*) &keyboardB, (juce::Component*) &restsB,
+                             (juce::Component*) &bOctMin, (juce::Component*) &bOctMax,
+                             (juce::Component*) &bVelMin, (juce::Component*) &bVelMax })
+                c->setAlpha (alphaB);
+            repaint (scaleAPanel);
+            repaint (scaleBPanel);
+        }
+    }
+
+    // Any manual tweak after applying a preset un-marks it.
+    if (! presetSnapshot.empty())
+    {
+        const auto& ps = alea.getParameters();
+        for (size_t i = 0; i < (size_t) ps.size() && i < presetSnapshot.size(); ++i)
+        {
+            if (std::abs (ps[(int) i]->getValue() - presetSnapshot[i]) > 1.0e-4f)
+            {
+                presetSnapshot.clear();
+                presetBox.setSelectedId (0, juce::dontSendNotification);
+                break;
+            }
+        }
+    }
+
     keyboardA.repaint();
     keyboardB.repaint();
     restsA.repaint();
@@ -342,8 +416,8 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
         g.drawText (title, r.getX() + 12, r.getY() + 8, r.getWidth() - 24, 18, juce::Justification::centredLeft);
     };
 
-    drawPanel (scaleAPanel, "SCALE A", colors::purple);
-    drawPanel (scaleBPanel, "SCALE B", colors::cyan);
+    drawPanel (scaleAPanel, "SCALE A", colors::purple.withMultipliedAlpha (alphaA));
+    drawPanel (scaleBPanel, "SCALE B", colors::cyan.withMultipliedAlpha (alphaB));
     drawPanel (timingPanel, "TIMING", colors::text.withAlpha (0.9f));
     drawPanel (morphPanel, "MORPH", colors::text.withAlpha (0.9f));
     drawPanel (outputPanel, "OUTPUT", colors::green);
@@ -357,12 +431,14 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
 
-    for (const auto* panel : { &scaleAPanel, &scaleBPanel })
+    for (const auto& [panel, alpha] : { std::pair { &scaleAPanel, alphaA }, std::pair { &scaleBPanel, alphaB } })
     {
+        g.setColour (colors::secondary.withMultipliedAlpha (alpha));
         g.drawText ("RESTS", panel->getX() + 12, panel->getY() + 132, 40, 26, juce::Justification::centredLeft);
         g.drawText ("OCT",   panel->getX() + 12, panel->getY() + 168, 40, 24, juce::Justification::centredLeft);
         g.drawText ("VEL",   panel->getX() + 12, panel->getY() + 202, 40, 24, juce::Justification::centredLeft);
     }
+    g.setColour (colors::secondary);
 
     g.drawText ("INTERVAL", timingPanel.getX() + 12, timingPanel.getY() + 30, 100, 16, juce::Justification::centredLeft);
     g.drawText ("LENGTH",   timingPanel.getX() + 12, timingPanel.getY() + 128, 100, 16, juce::Justification::centredLeft);

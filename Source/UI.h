@@ -41,6 +41,22 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SegmentedSelector)
 };
 
+// Four segments, each drawing its morph curve shape (no math notation).
+class CurveSelector : public juce::Component
+{
+public:
+    CurveSelector (juce::RangedAudioParameter&, juce::Colour accent);
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+
+private:
+    juce::Colour accent;
+    int value = 0;
+    juce::ParameterAttachment attachment;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CurveSelector)
+};
+
 // One-octave keyboard; clicking a key toggles that pitch class (spec 9.2).
 // The currently playing note lights green on its originating keyboard only.
 class PianoKeyboard : public juce::Component
@@ -82,9 +98,9 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RestSelector)
 };
 
-// The morph position bar: click to jump, drag to scrub; animates and is
-// read-only while auto-sweep runs (manual scrub-during-sweep is a later
-// milestone).
+// The morph position bar: click to jump, drag to scrub - also while
+// auto-sweep runs (the sweep re-anchors at the dragged position).
+// Right-click to bind a MIDI CC to Morph Position.
 class MorphBar : public juce::Component
 {
 public:
@@ -109,8 +125,9 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MorphBar)
 };
 
-// Output panel: activity LED, playing note, bar/beat, morph source,
-// note history (last 50), Panic (spec 9.1).
+// Output panel: activity LED, playing note, bar/beat, note history
+// (last 50), Panic (spec 9.1). Freeze lives in the header, well away
+// from Panic - they do opposite jobs.
 class OutputPanel : public juce::Component
 {
 public:
@@ -121,9 +138,7 @@ public:
 private:
     AleaAudioProcessor& alea;
     juce::TextButton panicButton { "PANIC" };
-    juce::TextButton freezeButton { "FREEZE" };
     juce::TextButton clearButton { "CLEAR" };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freezeAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputPanel)
 };
