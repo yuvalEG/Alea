@@ -48,6 +48,11 @@ private:
     // Output panel
     ui::OutputPanel output;
 
+    // Presets row
+    std::vector<std::unique_ptr<juce::TextButton>> presetButtons;
+    juce::TextButton savePreset { "Save" }, loadPreset { "Load" };
+    std::unique_ptr<juce::FileChooser> fileChooser;
+
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> comboAttachments;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> sweepAttachment;

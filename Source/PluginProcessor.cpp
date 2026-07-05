@@ -83,6 +83,40 @@ void AleaAudioProcessor::resetSchedule (double ppq)
     nextEventPpq = ppq;   // first draw fires immediately
 }
 
+double AleaAudioProcessor::sweepLegPpq (double bpm) const
+{
+    if ((int) pMorphDurMode->load() == 0) // Sync: bars
+        return params::morphDurBarValues[(size_t) pMorphDurBars->load()] * 4.0;
+
+    const double seconds = pMorphDurFree->load() * ((int) pMorphDurUnit->load() == 1 ? 60.0 : 1.0);
+    return seconds * bpm / 60.0;
+}
+
+// Inverse of the sweep curve: which leg fraction shows position p?
+static double inverseCurve (double p, int curve)
+{
+    p = juce::jlimit (0.0, 1.0, p);
+    switch (curve)
+    {
+        case params::exponential: return std::sqrt (p);
+        case params::logarithmic: return 1.0 - std::sqrt (1.0 - p);
+        case params::sCurve:
+        {
+            double t = p; // Newton iterations on t^2(3-2t) = p
+            for (int i = 0; i < 5; ++i)
+            {
+                const double denom = 6.0 * t * (1.0 - t);
+                if (std::abs (denom) < 1.0e-6)
+                    break;
+                t -= (t * t * (3.0 - 2.0 * t) - p) / denom;
+                t = juce::jlimit (0.0, 1.0, t);
+            }
+            return t;
+        }
+        default: return p;
+    }
+}
+
 // Morph position (0..1) as a pure function of the beat-clock position, so it
 // is deterministic and re-syncs after host loop jumps (spec section 7).
 double AleaAudioProcessor::morphAt (double ppq, double bpm) const
@@ -90,14 +124,7 @@ double AleaAudioProcessor::morphAt (double ppq, double bpm) const
     if (pAutoSweep->load() < 0.5f)
         return pMorphPos->load() / 100.0;
 
-    double legPpq;
-    if ((int) pMorphDurMode->load() == 0) // Sync: bars
-        legPpq = params::morphDurBarValues[(size_t) pMorphDurBars->load()] * 4.0;
-    else
-    {
-        const double seconds = pMorphDurFree->load() * ((int) pMorphDurUnit->load() == 1 ? 60.0 : 1.0);
-        legPpq = seconds * bpm / 60.0;
-    }
+    const double legPpq = sweepLegPpq (bpm);
 
     if (legPpq <= 1.0e-9)
         return 1.0; // zero duration = instantly at B
@@ -163,6 +190,20 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 {
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
+
+    // Incoming MIDI: CC learn + learned CC drives Morph Position (spec 7).
+    for (const auto metadata : midi)
+    {
+        const auto msg = metadata.getMessage();
+        if (! msg.isController())
+            continue;
+        if (ccLearnArmed.exchange (false))
+            morphCC.store (msg.getControllerNumber());
+        if (msg.getControllerNumber() == morphCC.load())
+            if (auto* p = apvts.getParameter ("morphPos"))
+                p->setValueNotifyingHost ((float) msg.getControllerValue() / 127.0f);
+    }
+
     midi.clear();
 
     if (panicRequested.exchange (false)) // spec 8: Panic sends All Notes Off immediately
@@ -261,6 +302,16 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     if (sweepOn && ! lastSweepOn)
         sweepAnchorPpq = ppqStart;
     lastSweepOn = sweepOn;
+
+    // Scrub during auto-sweep (spec 4.3.2): re-anchor so the sweep sits at
+    // the dragged position right now, then keeps travelling forward.
+    const float scrub = scrubRequest.exchange (-1.0f);
+    if (scrub >= 0.0f && sweepOn)
+    {
+        const double legPpq = sweepLegPpq (bpm);
+        if (legPpq > 1.0e-9)
+            sweepAnchorPpq = ppqStart - inverseCurve (scrub / 100.0, (int) pMorphCurve->load()) * legPpq;
+    }
 
     morphPercent.store (morphAt (ppqStart, bpm) * 100.0);
 
@@ -381,6 +432,7 @@ void AleaAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty ("stateVersion", 2, nullptr);
+    state.setProperty ("morphCC", morphCC.load(), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -389,7 +441,10 @@ void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
         if (xml->hasTagName (apvts.state.getType()))
+        {
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
+            morphCC.store ((int) apvts.state.getProperty ("morphCC", -1));
+        }
 }
 
 juce::AudioProcessorEditor* AleaAudioProcessor::createEditor()

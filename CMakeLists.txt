@@ -31,6 +31,7 @@ juce_add_plugin(Alea
 
 target_sources(Alea PRIVATE
     Source/Params.cpp
+    Source/Presets.cpp
     Source/PluginProcessor.cpp
     Source/UI.cpp
     Source/PluginEditor.cpp)
@@ -53,6 +54,7 @@ juce_add_console_app(AleaUISnapshot PRODUCT_NAME "AleaUISnapshot")
 target_sources(AleaUISnapshot PRIVATE
     Tools/UISnapshot.cpp
     Source/Params.cpp
+    Source/Presets.cpp
     Source/PluginProcessor.cpp
     Source/UI.cpp
     Source/PluginEditor.cpp)

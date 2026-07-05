@@ -50,6 +50,9 @@ public:
     std::atomic<int>    lastRandomInterval { -1 }; // pool index picked by Random mode
     std::atomic<int>    lastRandomLength { -1 };
     std::atomic<bool>   panicRequested { false };
+    std::atomic<float>  scrubRequest { -1.0f };  // 0-100: re-anchor auto-sweep here
+    std::atomic<bool>   ccLearnArmed { false };  // next incoming CC binds Morph Position
+    std::atomic<int>    morphCC { -1 };          // learned controller number
 
     // Note history ring buffer (spec 9.1: last 50 notes). Entries pack
     // note | (source << 8); total written count in historyCount.
@@ -79,6 +82,7 @@ private:
     void readSnapshot (const ScaleRefs&, ScaleSnapshot&) const;
 
     double morphAt (double ppq, double bpm) const;      // 0..1
+    double sweepLegPpq (double bpm) const;              // one A->B leg, in beats
     double intervalPpqAt (double bpm);                  // gap to next event, in beats
     double lengthPpqAt (double bpm);                    // gate length, in beats
     void sendAllNotesOff (juce::MidiBuffer&, int sampleOffset);

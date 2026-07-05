@@ -97,10 +97,13 @@ public:
 private:
     bool sweepActive() const;
     void applyDrag (const juce::MouseEvent&);
+    float pctFromX (const juce::MouseEvent&) const;
+    void showCcMenu();
 
     AleaAudioProcessor& alea;
     float value = 0.0f; // 0..100, mirrors the parameter
     bool dragging = false;
+    bool scrubbing = false; // dragging while auto-sweep runs
     juce::ParameterAttachment attachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MorphBar)

@@ -238,34 +238,65 @@ void MorphBar::paint (juce::Graphics& g)
     g.drawText ("B", bounds.reduced (10.0f, 0.0f), juce::Justification::centredRight);
 }
 
+float MorphBar::pctFromX (const juce::MouseEvent& e) const
+{
+    return juce::jlimit (0.0f, 100.0f, 100.0f * e.position.x / (float) getWidth());
+}
+
 void MorphBar::applyDrag (const juce::MouseEvent& e)
 {
-    const float pct = juce::jlimit (0.0f, 100.0f, 100.0f * e.position.x / (float) getWidth());
-    attachment.setValueAsPartOfGesture (pct);
+    attachment.setValueAsPartOfGesture (pctFromX (e));
+}
+
+void MorphBar::showCcMenu()
+{
+    juce::PopupMenu menu;
+    const int cc = alea.morphCC.load();
+
+    if (alea.ccLearnArmed.load())
+        menu.addItem (1, "Waiting for a CC... (move a knob on your controller)", false);
+    else
+        menu.addItem ("Learn MIDI CC", [this] { alea.ccLearnArmed.store (true); });
+
+    if (cc >= 0)
+        menu.addItem ("Forget CC " + juce::String (cc), [this] { alea.morphCC.store (-1); });
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this));
 }
 
 void MorphBar::mouseDown (const juce::MouseEvent& e)
 {
-    if (sweepActive())
-        return; // scrub-during-sweep lands with the preset milestone
+    if (e.mods.isPopupMenu())
+        return showCcMenu();
+
     dragging = true;
-    attachment.beginGesture();
-    applyDrag (e);
+    scrubbing = sweepActive();
+
+    if (scrubbing)
+        alea.scrubRequest.store (pctFromX (e)); // re-anchors the running sweep
+    else
+    {
+        attachment.beginGesture();
+        applyDrag (e);
+    }
 }
 
 void MorphBar::mouseDrag (const juce::MouseEvent& e)
 {
-    if (dragging)
+    if (! dragging)
+        return;
+    if (scrubbing)
+        alea.scrubRequest.store (pctFromX (e));
+    else
         applyDrag (e);
 }
 
 void MorphBar::mouseUp (const juce::MouseEvent&)
 {
-    if (dragging)
-    {
+    if (dragging && ! scrubbing)
         attachment.endGesture();
-        dragging = false;
-    }
+    dragging = false;
+    scrubbing = false;
 }
 
 //==============================================================================
@@ -305,7 +336,6 @@ void OutputPanel::paint (juce::Graphics& g)
     const int last   = alea.lastNote.load();
     const double ppq = alea.hostPpq.load();
     const bool playing = alea.hostIsPlaying.load();
-    const double morph = alea.morphPercent.load();
 
     auto area = getLocalBounds();
 
@@ -343,9 +373,6 @@ void OutputPanel::paint (juce::Graphics& g)
     g.drawText ("BAR " + juce::String (playing ? bar : 1)
                 + "  BEAT " + juce::String (playing ? beat : 1), row, juce::Justification::centredLeft);
 
-    g.setColour (morph < 50.0 ? colors::purple : colors::cyan);
-    g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-    g.drawText (juce::String ("MORPH: ") + (morph < 50.0 ? "A" : "B"), row, juce::Justification::centredRight);
 
     // History: a single readable ticker, newest note entering on the right,
     // sequence reading left-to-right, colored by source scale.

@@ -1,16 +1,18 @@
 #include "PluginEditor.h"
+#include "Presets.h"
 
 using namespace ui;
 
 namespace
 {
-    constexpr int kWidth = 940, kHeight = 590;
+    constexpr int kWidth = 940, kHeight = 646;
 
     const juce::Rectangle<int> scaleAPanel   { 10,  64, 455, 240 };
     const juce::Rectangle<int> scaleBPanel   { 475, 64, 455, 240 };
     const juce::Rectangle<int> timingPanel   { 10,  314, 290, 266 };
     const juce::Rectangle<int> morphPanel    { 310, 314, 330, 266 };
     const juce::Rectangle<int> outputPanel   { 650, 314, 280, 266 };
+    const juce::Rectangle<int> presetsPanel  { 10,  590, 920, 46 };
 }
 
 AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
@@ -22,8 +24,8 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
       intervalMode (*p.apvts.getParameter ("intervalMode"), params::timingModes, colors::text.withAlpha (0.9f)),
       lengthMode   (*p.apvts.getParameter ("lengthMode"),   params::timingModes, colors::text.withAlpha (0.9f)),
       morphBar (p),
-      morphDurMode (*p.apvts.getParameter ("morphDurMode"), params::morphDurModes, colors::amber),
-      tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, colors::green),
+      morphDurMode (*p.apvts.getParameter ("morphDurMode"), params::morphDurModes, colors::text.withAlpha (0.9f)),
+      tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, colors::text.withAlpha (0.9f)),
       output (p)
 {
     addAndMakeVisible (keyboardA);
@@ -59,9 +61,9 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         juce::String::fromUTF8 ("A \xe2\x87\x84 B") });
     setupCombo (morphCurve, "morphCurve", juce::StringArray {
         juce::String::fromUTF8 ("Linear \xe2\x95\xb1"),
-        juce::String::fromUTF8 ("Exponential \xe2\x97\x9e"),
+        juce::String::fromUTF8 ("Exponential x\xc2\xb2"),
         juce::String::fromUTF8 ("S-Curve \xe2\x88\xbf"),
-        juce::String::fromUTF8 ("Logarithmic \xe2\x97\x9c") });
+        juce::String::fromUTF8 ("Logarithmic \xe2\x88\x9ax") });
 
     menuButton.setButtonText (juce::String::fromUTF8 ("\xe2\x8b\xaf"));
     menuButton.setColour (juce::TextButton::buttonColourId, colors::control);
@@ -96,14 +98,69 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     addAndMakeVisible (menuButton);
 
     // Auto-sweep is the heart of the plugin - a full toggle button, not a tick.
+    autoSweep.setButtonText (juce::String::fromUTF8 ("\xe2\x9f\xbf  AUTO-SWEEP"));
     autoSweep.setClickingTogglesState (true);
     autoSweep.setColour (juce::TextButton::buttonColourId, colors::control);
-    autoSweep.setColour (juce::TextButton::buttonOnColourId, colors::amber);
+    autoSweep.setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.9f));
     autoSweep.setColour (juce::TextButton::textColourOffId, colors::secondary);
     autoSweep.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
     addAndMakeVisible (autoSweep);
     sweepAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         alea.apvts, "autoSweep", autoSweep);
+
+    // Presets row
+    for (size_t i = 0; i < presets::factory().size(); ++i)
+    {
+        auto b = std::make_unique<juce::TextButton> (juce::String::fromUTF8 (presets::factory()[i].name));
+        b->setColour (juce::TextButton::buttonColourId, colors::control);
+        b->setColour (juce::TextButton::textColourOffId, colors::text);
+        b->onClick = [this, i] { presets::apply (alea.apvts, presets::factory()[i]); };
+        addAndMakeVisible (*b);
+        presetButtons.push_back (std::move (b));
+    }
+
+    for (auto* b : { &savePreset, &loadPreset })
+    {
+        b->setColour (juce::TextButton::buttonColourId, colors::panel);
+        b->setColour (juce::TextButton::textColourOffId, colors::secondary);
+        addAndMakeVisible (*b);
+    }
+
+    savePreset.onClick = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> ("Save Alea preset",
+            juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.alea");
+        fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
+                                  | juce::FileBrowserComponent::canSelectFiles
+                                  | juce::FileBrowserComponent::warnAboutOverwriting,
+            [this] (const juce::FileChooser& fc)
+            {
+                auto file = fc.getResult();
+                if (file == juce::File())
+                    return;
+                auto state = alea.apvts.copyState();
+                state.setProperty ("stateVersion", 2, nullptr);
+                if (auto xml = state.createXml())
+                    file.replaceWithText (xml->toString());
+            });
+    };
+
+    loadPreset.onClick = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> ("Load Alea preset",
+            juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.alea");
+        fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                  | juce::FileBrowserComponent::canSelectFiles,
+            [this] (const juce::FileChooser& fc)
+            {
+                auto file = fc.getResult();
+                if (! file.existsAsFile())
+                    return;
+                if (auto xml = juce::XmlDocument::parse (file))
+                    if (xml->hasTagName (alea.apvts.state.getType()))
+                        alea.apvts.replaceState (juce::ValueTree::fromXml (*xml));
+            });
+    };
 
     setSize (kWidth, kHeight);
     updateModeVisibility();
@@ -189,7 +246,7 @@ void AleaAudioProcessorEditor::resized()
     {
         const int x = morphPanel.getX() + 12, w = morphPanel.getWidth() - 24;
         morphBar.setBounds (x, morphPanel.getY() + 34, w, 34);
-        autoSweep.setBounds (x, morphPanel.getY() + 76, 150, 30);
+        autoSweep.setBounds (x, morphPanel.getY() + 79, 150, 24);
         morphDurMode.setBounds (x + 160, morphPanel.getY() + 79, w - 160, 24);
         morphDurBars.setBounds (x, morphPanel.getY() + 122, w, 26);
         morphDurFree.setBounds (x, morphPanel.getY() + 122, w - 110, 26);
@@ -200,6 +257,21 @@ void AleaAudioProcessorEditor::resized()
 
     output.setBounds (outputPanel.getX() + 12, outputPanel.getY() + 34,
                       outputPanel.getWidth() - 24, outputPanel.getHeight() - 46);
+
+    // Presets row
+    {
+        const int widths[] = { 118, 122, 118, 104, 178 };
+        int x = presetsPanel.getX() + 90;
+        const int y = presetsPanel.getY() + 10;
+        for (size_t i = 0; i < presetButtons.size(); ++i)
+        {
+            const int w = widths[juce::jmin ((size_t) 4, i)];
+            presetButtons[i]->setBounds (x, y, w, 26);
+            x += w + 8;
+        }
+        savePreset.setBounds (presetsPanel.getRight() - 128, y, 58, 26);
+        loadPreset.setBounds (presetsPanel.getRight() - 64, y, 54, 26);
+    }
 }
 
 void AleaAudioProcessorEditor::timerCallback()
@@ -273,8 +345,13 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
     drawPanel (scaleAPanel, "SCALE A", colors::purple);
     drawPanel (scaleBPanel, "SCALE B", colors::cyan);
     drawPanel (timingPanel, "TIMING", colors::text.withAlpha (0.9f));
-    drawPanel (morphPanel, "MORPH", colors::amber);
+    drawPanel (morphPanel, "MORPH", colors::text.withAlpha (0.9f));
     drawPanel (outputPanel, "OUTPUT", colors::green);
+    drawPanel (presetsPanel, "", colors::secondary);
+    g.setColour (colors::secondary);
+    g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+    g.drawText ("PRESETS", presetsPanel.getX() + 12, presetsPanel.getY(), 80, presetsPanel.getHeight(),
+                juce::Justification::centredLeft);
 
     // Small row labels
     g.setColour (colors::secondary);
