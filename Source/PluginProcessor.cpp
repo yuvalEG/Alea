@@ -102,7 +102,9 @@ double AleaAudioProcessor::morphAt (double ppq, double bpm) const
     if (legPpq <= 1.0e-9)
         return 1.0; // zero duration = instantly at B
 
-    const double t = ppq / legPpq; // legs elapsed since timeline start
+    // Legs elapsed since the sweep was engaged - not since bar 1, otherwise
+    // enabling auto-sweep mid-song lands instantly at B in One-Shot mode.
+    const double t = juce::jmax (0.0, ppq - sweepAnchorPpq) / legPpq;
     double leg = 0.0;
 
     switch ((int) pMorphMode->load())
@@ -185,6 +187,7 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
             sendAllNotesOff (midi, 0);
         wasPlaying = false;
         lastFreeRun = freeRun;
+        lastSweepOn = pAutoSweep->load() > 0.5f;
         activeRest.store (-1);
         return;
     }
@@ -239,6 +242,7 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
             sendAllNotesOff (midi, 0);
         resetSchedule (ppqStart);
         activeRest.store (-1);
+        sweepAnchorPpq = ppqStart; // sweep restarts from play/loop start
     }
     else if (nextEventPpq < ppqStart - jumpTolerance)
     {
@@ -250,6 +254,14 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     wasPlaying = true;
     lastPpqEnd = ppqEnd;
     hostPpq.store (ppqStart);
+
+    // Engaging auto-sweep mid-play anchors the sweep here, so it always
+    // starts its journey from A at the moment you turn it on.
+    const bool sweepOn = pAutoSweep->load() > 0.5f;
+    if (sweepOn && ! lastSweepOn)
+        sweepAnchorPpq = ppqStart;
+    lastSweepOn = sweepOn;
+
     morphPercent.store (morphAt (ppqStart, bpm) * 100.0);
 
     // Freeze: hold the sounding note indefinitely - no note-offs, no new

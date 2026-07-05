@@ -105,6 +105,8 @@ private:
     bool wasPlaying = false;
     bool lastFreeRun = false;
     bool wasFrozen = false;
+    double sweepAnchorPpq = 0.0; // beat position auto-sweep measures from
+    bool lastSweepOn = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AleaAudioProcessor)
 };

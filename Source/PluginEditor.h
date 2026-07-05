@@ -35,7 +35,7 @@ private:
 
     // Morph panel
     ui::MorphBar morphBar;
-    juce::ToggleButton autoSweep { "Auto-Sweep" };
+    juce::TextButton autoSweep { "AUTO-SWEEP" };
     ui::SegmentedSelector morphDurMode;
     juce::ComboBox morphDurBars, morphDurUnit, morphMode, morphCurve;
     juce::Slider morphDurFree;

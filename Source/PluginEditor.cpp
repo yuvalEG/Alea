@@ -54,14 +54,14 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
 
     // Decorated labels (display only - host automation keeps clean names)
     setupCombo (morphMode, "morphMode", juce::StringArray {
-        juce::String::fromUTF8 ("One-Shot   A \xe2\x86\x92 B, hold"),
-        juce::String::fromUTF8 ("Loop   A \xe2\x86\x92 B \xe2\x86\xbb restart"),
-        juce::String::fromUTF8 ("Bounce   A \xe2\x87\x84 B back & forth") });
+        juce::String::fromUTF8 ("A \xe2\x86\x92 B"),
+        juce::String::fromUTF8 ("A \xe2\x86\x92 B \xe2\x86\xbb"),
+        juce::String::fromUTF8 ("A \xe2\x87\x84 B") });
     setupCombo (morphCurve, "morphCurve", juce::StringArray {
-        juce::String::fromUTF8 ("Linear   \xe2\x95\xb1  steady"),
-        juce::String::fromUTF8 ("Exponential   slow \xe2\x86\x92 fast"),
-        juce::String::fromUTF8 ("S-Curve   \xe2\x88\xbf  ease in & out"),
-        juce::String::fromUTF8 ("Logarithmic   fast \xe2\x86\x92 slow") });
+        juce::String::fromUTF8 ("Linear \xe2\x95\xb1"),
+        juce::String::fromUTF8 ("Exponential \xe2\x97\x9e"),
+        juce::String::fromUTF8 ("S-Curve \xe2\x88\xbf"),
+        juce::String::fromUTF8 ("Logarithmic \xe2\x97\x9c") });
 
     menuButton.setButtonText (juce::String::fromUTF8 ("\xe2\x8b\xaf"));
     menuButton.setColour (juce::TextButton::buttonColourId, colors::control);
@@ -73,15 +73,34 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         {
             juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
                 "Alea",
-                juce::String::fromUTF8 ("Aleatoric scale shifter\nVersion 0.1.0\n\nMade by Yuval Egozi"));
+                juce::String::fromUTF8 (
+                    "Aleatoric Scale Shifter\nVersion 0.1.0\n\n"
+                    "HOW TO USE\n"
+                    "Alea generates MIDI, not audio. Put it on its own MIDI track, "
+                    "then route an instrument track's MIDI input from Alea and press Play. "
+                    "In Ableton Live: on the instrument track set MIDI From to the Alea "
+                    "track, pick 'Alea' in the lower chooser, and set Monitor to In.\n\n"
+                    "ALEA was made with a particular vision in mind: exploring the "
+                    "relationship between an improvising human player and a machine that "
+                    "randomly shifts from a diatonic scale to complete dodecaphony over "
+                    "time (hence the last factory preset).\n\n"
+                    "That said, I'm sure any musician playing with it will have all kinds "
+                    "of ideas, and I hope it can serve your musical aspirations.\n\n"
+                    "I'll be more than happy to hear your feedback, ideas and music made "
+                    "with ALEA! You can reach me through GitHub or my email: "
+                    "yuvalprod@gmail.com\n\n"
+                    "Made by Yuval Egozi"));
         });
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton));
     };
     addAndMakeVisible (menuButton);
 
-    autoSweep.setColour (juce::ToggleButton::textColourId, colors::text);
-    autoSweep.setColour (juce::ToggleButton::tickColourId, colors::amber);
-    autoSweep.setColour (juce::ToggleButton::tickDisabledColourId, colors::border);
+    // Auto-sweep is the heart of the plugin - a full toggle button, not a tick.
+    autoSweep.setClickingTogglesState (true);
+    autoSweep.setColour (juce::TextButton::buttonColourId, colors::control);
+    autoSweep.setColour (juce::TextButton::buttonOnColourId, colors::amber);
+    autoSweep.setColour (juce::TextButton::textColourOffId, colors::secondary);
+    autoSweep.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
     addAndMakeVisible (autoSweep);
     sweepAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         alea.apvts, "autoSweep", autoSweep);
@@ -170,8 +189,8 @@ void AleaAudioProcessorEditor::resized()
     {
         const int x = morphPanel.getX() + 12, w = morphPanel.getWidth() - 24;
         morphBar.setBounds (x, morphPanel.getY() + 34, w, 34);
-        autoSweep.setBounds (x, morphPanel.getY() + 76, 130, 24);
-        morphDurMode.setBounds (x + 140, morphPanel.getY() + 76, w - 140, 24);
+        autoSweep.setBounds (x, morphPanel.getY() + 76, 150, 30);
+        morphDurMode.setBounds (x + 160, morphPanel.getY() + 79, w - 160, 24);
         morphDurBars.setBounds (x, morphPanel.getY() + 122, w, 26);
         morphDurFree.setBounds (x, morphPanel.getY() + 122, w - 110, 26);
         morphDurUnit.setBounds (x + w - 102, morphPanel.getY() + 122, 102, 26);
@@ -230,7 +249,7 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawText ("ALEA", 20, 10, 120, 38, juce::Justification::centredLeft);
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (12.0f));
-    g.drawText ("Aleatoric scale shifter", 96, 16, 180, 28, juce::Justification::centredLeft);
+    g.drawText ("Aleatoric Scale Shifter", 96, 16, 180, 28, juce::Justification::centredLeft);
 
     const bool playing = alea.hostIsPlaying.load();
     g.setColour (playing ? colors::green : colors::control);
