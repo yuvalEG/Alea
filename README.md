@@ -20,22 +20,25 @@ diatonic scale to complete dodecaphony over time.
   **AUTO-SWEEP** to travel on its own: One-Shot, Loop, or Bounce, over bars
   or free time, shaped by linear/exponential/S/logarithmic curves. Grab the
   bar mid-sweep to scrub; the sweep re-anchors and keeps going.
-- **Timing**: note rate and length synced to the host (1/64 note to 4 bars),
-  free-running in ms/seconds, or rolled randomly per note.
+- **Timing**: note rate and length synced to the host (4 bars down to a
+  1/128 note), free-running in ms/seconds, or rolled randomly per note.
+- **Roots and transpose**: each scale picks the pitch its octave span starts
+  from; a global transpose shifts the whole output.
+- **Internal synth**: a warm 8-voice pad (detuned, phasing, velocity-aware,
+  with delay and reverb) so the AU, and the standalone app, make sound with
+  zero routing.
 - **Performance controls**: Freeze (hold the stream), Panic (all notes off).
 - **Monitoring**: activity LED, current note, bar/beat, an 88-key strip, and
   an event history ticker - everything colored by which scale it came from.
-- **8 factory presets** - from *Just an Arp* to *Order → Chaos*, the
-  three-minute journey from five quiet notes to full dodecaphony - plus
-  save/load of your own patches as `.alea` files.
+- **10 factory presets** - from *Just an Arp* through the eerie *Hexatonic
+  Pole* to *Order → Chaos*, the three-minute journey from five quiet notes
+  to full dodecaphony - plus save/load of your own patches as `.alea` files.
 - Deterministic per session: loop playback re-rolls the same choices, so what
   you heard is what you'll hear again.
 
 ## Status
 
-**v0.2** - VST3, AU and CLAP plugins plus a standalone app, on macOS. All
-six milestones complete: engine, host sync, full UI, presets & controls,
-standalone transport with a built-in synth, and the three plugin formats.
+**v0.2** - VST3, AU and CLAP plugins plus a standalone app, on macOS.
 Every build passes [pluginval](https://github.com/Tracktion/pluginval) at
 strictness 10; the AU passes Apple's auval.
 

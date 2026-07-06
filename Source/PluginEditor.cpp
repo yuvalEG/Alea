@@ -6,7 +6,7 @@ using namespace ui;
 
 namespace
 {
-    constexpr int kWidth = 940, kHeight = 704;
+    constexpr int kWidth = 940, kHeight = 720;
 
     // About dialog: wordmark over a subtle vertical gradient, text below.
     struct AboutComponent : juce::Component
