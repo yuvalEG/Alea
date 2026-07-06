@@ -20,6 +20,7 @@ AleaAudioProcessor::AleaAudioProcessor()
     pMorphMode    = raw ("morphMode");    pMorphCurve   = raw ("morphCurve");
     pTempoSource  = raw ("tempoSource");  pInternalTempo = raw ("internalTempo");
     pFreeze       = raw ("freeze");
+    pTranspose    = raw ("transpose");    pSynthVol      = raw ("synthVol");
 
     // Fresh instances boot into the first factory preset, marked as selected,
     // so there's music (and a lit bubble) before any knob is touched. Saved
@@ -279,6 +280,7 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
         return;
 
     auto* left = buffer.getWritePointer (0);
+    const float master = juce::Decibels::decibelsToGain (pSynthVol->load());
 
     int pos = 0;
     auto renderTo = [&] (int end)
@@ -298,7 +300,7 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
                 const float shimmer = 0.16f * v.velocity * v.bright.getNextSample();
                 const float s = 0.55f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
                               + shimmer * (float) std::sin (2.0 * v.phase);
-                left[n] += 0.13f * v.gain * env * s / (1.0f + shimmer);
+                left[n] += 0.13f * master * v.gain * env * s / (1.0f + shimmer);
                 v.phase += inc1;
                 v.phase2 += inc2;
             }
@@ -383,12 +385,18 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
 
     // Soft safety limiter: transparent at normal levels, rounds off the
     // peaks when eight ringing voices + delay + reverb stack up.
+    float peak = 0.0f;
     for (int n = 0; n < numSamples; ++n)
     {
         left[n] = std::tanh (left[n]);
+        peak = juce::jmax (peak, std::abs (left[n]));
         if (right != nullptr)
+        {
             right[n] = std::tanh (right[n]);
+            peak = juce::jmax (peak, std::abs (right[n]));
+        }
     }
+    synthPeak.store (peak);
 }
 
 void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -658,7 +666,8 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         const int velMax = juce::jmax (velMin, (int) std::lround (snapA.velMax + (snapB.velMax - snapA.velMax) * m));
 
         const int octave = octMin + rng.nextInt (octMax - octMin + 1);
-        const int note = 24 + 12 * octave + src.pitchClasses[pick]; // C3 = 60 convention (spec 5.3)
+        const int note = 24 + 12 * octave + src.pitchClasses[pick] // C3 = 60 convention (spec 5.3)
+                       + (int) pTranspose->load();                 // global transpose
 
         nextEventPpq = eventPpq + intervalPpqAt (bpm);
 
@@ -691,6 +700,7 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         lastNote.store (note);
         activeSource.store (source);
         activeNote.store (note);
+        activeSourcePc.store (pc); // pre-transpose: the key to light on the scale keyboards
         activeVelocity.store ((int) velocity);
         activeRest.store (-1);
         history[(size_t) (historyCount.load() % historyCapacity)].store (note | (source << 8) | ((int) velocity << 10));
@@ -705,6 +715,8 @@ void AleaAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("morphCC", morphCC.load(), nullptr);
     state.setProperty ("standaloneOutput", getStandaloneOutput(), nullptr);
     state.setProperty ("currentPreset", currentPreset.load(), nullptr);
+    state.setProperty ("rootA", rootA.load(), nullptr);
+    state.setProperty ("rootB", rootB.load(), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -716,6 +728,8 @@ void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
         {
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
             morphCC.store ((int) apvts.state.getProperty ("morphCC", -1));
+            rootA.store ((int) apvts.state.getProperty ("rootA", 0));
+            rootB.store ((int) apvts.state.getProperty ("rootB", 0));
 
             // States saved before presets tracked selection have no
             // currentPreset property: treat them as a fresh boot rather

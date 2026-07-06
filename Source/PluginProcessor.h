@@ -48,6 +48,9 @@ public:
     std::atomic<int>    activeRest { -1 };    // rest slot (0-4) currently "sounding"
     std::atomic<int>    activeRestSource { 0 };
     std::atomic<int>    activeVelocity { 0 };   // velocity of the sounding note (0-127)
+    std::atomic<int>    activeSourcePc { -1 };  // pre-transpose pitch class, for scale keyboard highlights
+    std::atomic<float>  synthPeak { 0.0f };     // internal synth output peak (post-limiter), per block
+    std::atomic<int>    rootA { 0 }, rootB { 0 }; // scale root pickers (UI transform state, persisted)
     std::atomic<int>    lastRandomInterval { -1 }; // pool index picked by Random mode
     std::atomic<int>    lastRandomLength { -1 };
     std::atomic<bool>   panicRequested { false };
@@ -131,7 +134,8 @@ private:
                        *pLengthMode {}, *pLengthSync {}, *pLengthFree {},
                        *pMorphPos {}, *pAutoSweep {}, *pMorphDurMode {}, *pMorphDurBars {},
                        *pMorphDurFree {}, *pMorphDurUnit {}, *pMorphMode {}, *pMorphCurve {},
-                       *pTempoSource {}, *pInternalTempo {}, *pFreeze {};
+                       *pTempoSource {}, *pInternalTempo {}, *pFreeze {},
+                       *pTranspose {}, *pSynthVol {};
 
     juce::Random rng;
 

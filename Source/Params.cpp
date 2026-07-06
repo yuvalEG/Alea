@@ -91,6 +91,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { "freeze", 1 }, "Freeze", false));
 
+    // Global output transpose, applied to emitted notes (spec 5.3 clamp rule).
+    layout.add (std::make_unique<juce::AudioParameterInt> (
+        juce::ParameterID { "transpose", 1 }, "Transpose", -24, 24, 0,
+        juce::AudioParameterIntAttributes().withStringFromValueFunction (
+            [] (int v, int) { return (v > 0 ? "+" : "") + juce::String (v) + " st"; })));
+
+    // Internal synth output volume
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "synthVol", 1 }, "Synth Volume",
+        juce::NormalisableRange<float> (-36.0f, 6.0f, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+            [] (float v, int) { return juce::String (v, 1) + " dB"; })));
+
     layout.add (choice ("tempoSource", "Tempo Source", tempoSources, 0));
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "internalTempo", 1 }, "Internal Tempo",

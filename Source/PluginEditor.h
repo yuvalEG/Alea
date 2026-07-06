@@ -19,22 +19,38 @@ private:
     void updateModeVisibility();
     void applyPresetAndMark (int index);
     void markPreset (int index); // -1 = nothing selected
+    void layoutMain();
+    void paintMain (juce::Graphics&);
+    void rotateScale (char scaleId, juce::ComboBox&, std::atomic<int>& rootStore);
 
     void setupSlider (juce::Slider&, const juce::String& paramID, juce::Colour accent, bool positionStyle = false);
     void setupCombo (juce::ComboBox&, const juce::String& paramID, const juce::StringArray& customLabels = {});
 
     AleaAudioProcessor& alea;
 
+    // All UI lives in a fixed-size view; resizing scales its transform, so
+    // the layout code stays in one coordinate system.
+    struct MainView : juce::Component
+    {
+        explicit MainView (AleaAudioProcessorEditor& o) : owner (o) {}
+        void paint (juce::Graphics& g) override { owner.paintMain (g); }
+        AleaAudioProcessorEditor& owner;
+    };
+    MainView content { *this };
+    int viewHeight = 0;
+
     // Scale panels
     ui::PianoKeyboard keyboardA, keyboardB;
     ui::RestSelector restsA, restsB;
     juce::Slider aOctMin, aOctMax, aVelMin, aVelMax;
     juce::Slider bOctMin, bOctMax, bVelMin, bVelMax;
+    juce::ComboBox rootABox, rootBBox; // root pickers: rotate the pitch-class set
 
     // Timing panel
     ui::SegmentedSelector intervalMode, lengthMode;
     juce::ComboBox intervalSync, lengthSync;
     juce::Slider intervalFree, lengthFree;
+    juce::Slider transposeSlider; // global output transpose
 
     // Morph panel
     ui::MorphBar morphBar;

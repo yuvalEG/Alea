@@ -146,8 +146,12 @@ public:
 
 private:
     AleaAudioProcessor& alea;
-    std::unique_ptr<juce::ComboBox> outputBox; // standalone only
+    std::unique_ptr<juce::ComboBox> outputBox;
     juce::Array<juce::MidiDeviceInfo> devices;
+    juce::Slider volSlider;                    // internal synth volume (dB)
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> volAttachment;
+    bool lastSynthOn = false;
+    float meterLevel = 0.0f;                   // falling peak for the output meter
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputPanel)
 };
