@@ -20,6 +20,9 @@ FetchContent_Declare(clap-juce-extensions
     GIT_TAG        main)
 FetchContent_MakeAvailable(clap-juce-extensions)
 
+# Embedded UI assets (header wordmark)
+juce_add_binary_data(AleaAssets SOURCES Assets/logo.png)
+
 # App/plugin icon: picked up automatically once Assets/icon.png exists.
 set(ALEA_ICON_ARGS "")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png")
@@ -57,6 +60,7 @@ target_compile_definitions(Alea PUBLIC
 
 target_link_libraries(Alea
     PRIVATE
+        AleaAssets
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
@@ -82,5 +86,5 @@ target_compile_definitions(AleaUISnapshot PRIVATE
     JUCE_USE_CURL=0
     JucePlugin_Name="Alea")
 target_link_libraries(AleaUISnapshot
-    PRIVATE juce::juce_audio_utils
+    PRIVATE AleaAssets juce::juce_audio_utils
     PUBLIC juce::juce_recommended_config_flags)

@@ -298,7 +298,7 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
                 const float shimmer = 0.16f * v.velocity * v.bright.getNextSample();
                 const float s = 0.55f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
                               + shimmer * (float) std::sin (2.0 * v.phase);
-                left[n] += 0.17f * v.gain * env * s / (1.0f + shimmer);
+                left[n] += 0.13f * v.gain * env * s / (1.0f + shimmer);
                 v.phase += inc1;
                 v.phase2 += inc2;
             }
@@ -330,7 +330,9 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
             }
             voice->freq = juce::MidiMessage::getMidiNoteInHertz (msg.getNoteNumber());
             voice->velocity = msg.getFloatVelocity();
-            voice->gain = 0.35f + 0.65f * msg.getFloatVelocity();
+            // A sine has no timbre to spend velocity on, so spend it on
+            // dynamics: a power curve gives soft notes a real pianissimo.
+            voice->gain = 0.06f + 0.94f * std::pow (msg.getFloatVelocity(), 1.7f);
             voice->note = msg.getNoteNumber();
             voice->amp.noteOn();
             voice->bright.noteOn();
@@ -378,6 +380,15 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
         reverb.processStereo (left, right, numSamples);
     else
         reverb.processMono (left, numSamples);
+
+    // Soft safety limiter: transparent at normal levels, rounds off the
+    // peaks when eight ringing voices + delay + reverb stack up.
+    for (int n = 0; n < numSamples; ++n)
+    {
+        left[n] = std::tanh (left[n]);
+        if (right != nullptr)
+            right[n] = std::tanh (right[n]);
+    }
 }
 
 void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)

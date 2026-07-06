@@ -41,15 +41,15 @@ pkgbuild --root "$OUT/claproot" --identifier com.alea-audio.alea.clap \
 pkgbuild --root "$OUT/approot" --identifier com.alea-audio.alea.app \
          --version "$VERSION" --install-location / "$OUT/Alea-App.pkg" > /dev/null
 
-cp Assets/icon.png "$OUT/background.png"
+cp Assets/installer-bg.png "$OUT/background.png"
 
 cat > "$OUT/distribution.xml" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1">
     <title>Alea $VERSION</title>
     <options customize="always" require-scripts="false" rootVolumeOnly="true"/>
-    <background file="background.png" mime-type="image/png" alignment="left" scaling="proportional"/>
-    <background-darkAqua file="background.png" mime-type="image/png" alignment="left" scaling="proportional"/>
+    <background file="background.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
+    <background-darkAqua file="background.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
     <welcome language="en" mime-type="text/plain">Alea - Aleatoric Scale Shifter. Choose which versions to install.</welcome>
     <choices-outline>
         <line choice="vst3"/>

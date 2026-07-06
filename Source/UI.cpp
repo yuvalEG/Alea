@@ -41,7 +41,8 @@ void SegmentedSelector::paint (juce::Graphics& g)
         auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight());
         if (i == value)
         {
-            g.setColour (accent);
+            g.setGradientFill (juce::ColourGradient (accent.brighter (0.10f), seg.getX(), seg.getY(),
+                                                     accent.darker (0.15f), seg.getX(), seg.getBottom(), false));
             g.fillRoundedRectangle (seg.reduced (2.0f), 4.0f);
             g.setColour (juce::Colours::black.withAlpha (0.8f));
         }
@@ -96,7 +97,8 @@ void CurveSelector::paint (juce::Graphics& g)
         auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight());
         if (i == value)
         {
-            g.setColour (accent);
+            g.setGradientFill (juce::ColourGradient (accent.brighter (0.10f), seg.getX(), seg.getY(),
+                                                     accent.darker (0.15f), seg.getX(), seg.getBottom(), false));
             g.fillRoundedRectangle (seg.reduced (2.0f), 4.0f);
             g.setColour (juce::Colours::black.withAlpha (0.8f));
         }
@@ -186,9 +188,14 @@ void PianoKeyboard::paint (juce::Graphics& g)
             continue;
         const auto key = whiteKeyBounds (whiteSlot[pc]).reduced (1.0f);
         const bool isPlayingKey = mine && pc == activePc;
-        g.setColour (isPlayingKey ? colors::playing
-                                  : selected[pc] ? accent
-                                                 : accent.withAlpha (0.10f));
+        const auto fill = isPlayingKey ? colors::playing
+                                       : selected[pc] ? accent
+                                                      : accent.withAlpha (0.10f);
+        if (isPlayingKey || selected[pc]) // subtle top-lit gradient on lit keys
+            g.setGradientFill (juce::ColourGradient (fill.brighter (0.08f), key.getX(), key.getY(),
+                                                     fill.darker (0.12f), key.getX(), key.getBottom(), false));
+        else
+            g.setColour (fill);
         g.fillRoundedRectangle (key, 3.0f);
         g.setColour (colors::border);
         g.drawRoundedRectangle (key, 3.0f, 1.0f);
@@ -205,9 +212,14 @@ void PianoKeyboard::paint (juce::Graphics& g)
             continue;
         const auto key = blackKeyBounds (pc);
         const bool isPlayingKey = mine && pc == activePc;
-        g.setColour (isPlayingKey ? colors::playing
-                                  : selected[pc] ? accent
-                                                 : juce::Colour (0xff08080c));
+        const auto fill = isPlayingKey ? colors::playing
+                                       : selected[pc] ? accent
+                                                      : juce::Colour (0xff08080c);
+        if (isPlayingKey || selected[pc])
+            g.setGradientFill (juce::ColourGradient (fill.brighter (0.08f), key.getX(), key.getY(),
+                                                     fill.darker (0.12f), key.getX(), key.getBottom(), false));
+        else
+            g.setColour (fill);
         g.fillRoundedRectangle (key, 3.0f);
         g.setColour (colors::border);
         g.drawRoundedRectangle (key, 3.0f, 1.0f);
@@ -253,7 +265,12 @@ void RestSelector::paint (juce::Graphics& g)
     {
         const bool resting = mine && r == active;
         const auto cell = juce::Rectangle<float> (w * (float) r, 0.0f, w, (float) getHeight()).reduced (2.0f);
-        g.setColour (resting ? colors::playing : selected[r] ? accent : colors::control);
+        const auto fill = resting ? colors::playing : selected[r] ? accent : colors::control;
+        if (resting || selected[r])
+            g.setGradientFill (juce::ColourGradient (fill.brighter (0.08f), cell.getX(), cell.getY(),
+                                                     fill.darker (0.12f), cell.getX(), cell.getBottom(), false));
+        else
+            g.setColour (fill);
         g.fillRoundedRectangle (cell, 4.0f);
         g.setColour (colors::border);
         g.drawRoundedRectangle (cell, 4.0f, 1.0f);

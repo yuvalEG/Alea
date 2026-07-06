@@ -1,11 +1,87 @@
 #include "PluginEditor.h"
 #include "Presets.h"
+#include "BinaryData.h"
 
 using namespace ui;
 
 namespace
 {
     constexpr int kWidth = 940, kHeight = 674;
+
+    // About dialog: wordmark over a subtle vertical gradient, text below.
+    struct AboutComponent : juce::Component
+    {
+        AboutComponent()
+        {
+            logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
+
+            text.setMultiLine (true);
+            text.setReadOnly (true);
+            text.setCaretVisible (false);
+            text.setScrollbarsShown (true);
+            text.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
+            text.setColour (juce::TextEditor::textColourId, colors::text);
+            text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
+            text.setFont (juce::FontOptions (14.5f));
+            text.setText (juce::String::fromUTF8 (
+                "Aleatoric Scale Shifter - Version 0.2.0\n\n\n"
+                "HOW TO USE\n\n"
+                "Alea generates MIDI notes - it makes no sound of its own "
+                "(unless you pick Internal Synth under OUT).\n\n"
+                "1. Load Alea on a MIDI track.\n"
+                "2. Create a second MIDI track and put any instrument on it.\n"
+                "3. Route the instrument track's MIDI input from the Alea track "
+                "(in Ableton Live: set 'MIDI From' to the Alea track and pick "
+                "'Alea' in the chooser below it).\n"
+                "4. Arm the instrument track and press Play - Alea follows the "
+                "host transport and you should hear notes drawn from Scale A.\n"
+                "5. From there: pick a preset, set up your own Scale A and "
+                "Scale B, drag the morph bar to blend between them, or hit "
+                "AUTO-SWEEP and let Alea travel on its own.\n\n"
+                "Hearing nothing? Check the instrument track is armed and the "
+                "header dot says 'playing'.\n\n\n"
+                "THE IDEA\n\n"
+                "ALEA was made with a particular vision in mind: exploring the "
+                "relationship between an improvising human player and a machine "
+                "that randomly shifts from a diatonic scale to complete "
+                "dodecaphony over time (hence the last factory preset).\n\n"
+                "That said, I'm sure any musician playing with it will have all "
+                "kinds of ideas, and I hope it can serve your musical "
+                "aspirations.\n\n\n"
+                "GET IN TOUCH\n\n"
+                "I'll be more than happy to hear your feedback, ideas and music "
+                "made with ALEA! You can reach me through GitHub or my email: "
+                "yuvalprod@gmail.com\n\n\n"
+                "Plugin Made By Yuval Egozi"),
+                juce::dontSendNotification);
+            addAndMakeVisible (text);
+            setSize (640, 620);
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            g.setGradientFill (juce::ColourGradient (colors::panel.brighter (0.08f), 0.0f, 0.0f,
+                                                     colors::background, 0.0f, (float) getHeight(), false));
+            g.fillRect (getLocalBounds());
+
+            if (logo.isValid())
+                g.drawImage (logo, juce::Rectangle<float> ((float) getWidth() / 2.0f - 62.0f, 16.0f, 124.0f, 48.0f),
+                             juce::RectanglePlacement::centred);
+
+            // A whisper of the scale colors under the wordmark
+            g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.5f), 40.0f, 0.0f,
+                                                     colors::cyan.withAlpha (0.5f), (float) getWidth() - 40.0f, 0.0f, false));
+            g.fillRect (40, 74, getWidth() - 80, 1);
+        }
+
+        void resized() override
+        {
+            text.setBounds (getLocalBounds().withTrimmedTop (86).reduced (18, 10));
+        }
+
+        juce::Image logo;
+        juce::TextEditor text;
+    };
 
     const juce::Rectangle<int> presetsPanel  { 10,  64, 920, 76 };
     const juce::Rectangle<int> scaleAPanel   { 10,  148, 455, 240 };
@@ -88,52 +164,8 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         m.addSeparator();
         m.addItem ("About Alea...", []
         {
-            // A custom dialog rather than an AlertWindow: wider, and the text
-            // gets room to breathe.
-            auto text = std::make_unique<juce::TextEditor>();
-            text->setMultiLine (true);
-            text->setReadOnly (true);
-            text->setCaretVisible (false);
-            text->setScrollbarsShown (true);
-            text->setColour (juce::TextEditor::backgroundColourId, colors::panel);
-            text->setColour (juce::TextEditor::textColourId, colors::text);
-            text->setColour (juce::TextEditor::outlineColourId, colors::panel);
-            text->setFont (juce::FontOptions (14.5f));
-            text->setText (juce::String::fromUTF8 (
-                "Aleatoric Scale Shifter\n"
-                "Version 0.2.0\n\n\n"
-                "HOW TO USE\n\n"
-                "Alea generates MIDI notes - it makes no sound of its own.\n\n"
-                "1. Load Alea on a MIDI track.\n"
-                "2. Create a second MIDI track and put any instrument on it.\n"
-                "3. Route the instrument track's MIDI input from the Alea track "
-                "(in Ableton Live: set 'MIDI From' to the Alea track and pick "
-                "'Alea' in the chooser below it).\n"
-                "4. Arm the instrument track and press Play - Alea follows the "
-                "host transport and you should hear notes drawn from Scale A.\n"
-                "5. From there: pick a preset, set up your own Scale A and "
-                "Scale B, drag the morph bar to blend between them, or hit "
-                "AUTO-SWEEP and let Alea travel on its own.\n\n"
-                "Hearing nothing? Check the instrument track is armed and the "
-                "header dot says 'playing'.\n\n\n"
-                "THE IDEA\n\n"
-                "ALEA was made with a particular vision in mind: exploring the "
-                "relationship between an improvising human player and a machine "
-                "that randomly shifts from a diatonic scale to complete "
-                "dodecaphony over time (hence the last factory preset).\n\n"
-                "That said, I'm sure any musician playing with it will have all "
-                "kinds of ideas, and I hope it can serve your musical "
-                "aspirations.\n\n\n"
-                "GET IN TOUCH\n\n"
-                "I'll be more than happy to hear your feedback, ideas and music "
-                "made with ALEA! You can reach me through GitHub or my email: "
-                "yuvalprod@gmail.com\n\n\n"
-                "Plugin Made By Yuval Egozi"),
-                juce::dontSendNotification);
-            text->setSize (640, 560);
-
             juce::DialogWindow::LaunchOptions o;
-            o.content.setOwned (text.release());
+            o.content.setOwned (new AboutComponent());
             o.dialogTitle = "About Alea";
             o.dialogBackgroundColour = colors::panel;
             o.escapeKeyTriggersCloseButton = true;
@@ -511,13 +543,16 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (colors::background);
 
-    // Header
-    g.setColour (colors::text);
-    g.setFont (juce::FontOptions (26.0f, juce::Font::bold));
-    g.drawText ("ALEA", 20, 10, 120, 38, juce::Justification::centredLeft);
+    // Header: the wordmark image, with the subtitle beside it
+    {
+        static const juce::Image logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
+        if (logo.isValid())
+            g.drawImage (logo, juce::Rectangle<float> (20.0f, 12.0f, 87.0f, 34.0f),
+                         juce::RectanglePlacement::xLeft | juce::RectanglePlacement::yMid);
+    }
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (12.0f));
-    g.drawText ("Aleatoric Scale Shifter", 96, 16, 180, 28, juce::Justification::centredLeft);
+    g.drawText ("Aleatoric Scale Shifter", 120, 16, 180, 28, juce::Justification::centredLeft);
 
     const bool playing = alea.hostIsPlaying.load();
     g.setColour (playing ? colors::green : colors::control);
