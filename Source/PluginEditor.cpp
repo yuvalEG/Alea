@@ -22,7 +22,7 @@ namespace
             text.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
             text.setColour (juce::TextEditor::textColourId, colors::text);
             text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
-            text.setFont (juce::FontOptions (17.0f));
+            text.setFont (juce::FontOptions (18.5f));
             text.setText (juce::String::fromUTF8 (
                 "Aleatoric Scale Shifter - Version 0.2.0\n\n\n"
                 "HOW TO USE\n\n"
@@ -32,7 +32,9 @@ namespace
                 "2. Create a second MIDI track and put any instrument on it.\n"
                 "3. Route the instrument track's MIDI input from the Alea track "
                 "(in Ableton Live: set 'MIDI From' to the Alea track and pick "
-                "'Alea' in the chooser below it).\n"
+                "'Alea' in the chooser below it). In Live use the VST3 - Live "
+                "cannot route MIDI from AU plugins. In Logic or GarageBand use "
+                "the AU with OUT set to Internal Synth.\n"
                 "4. Arm the instrument track and press Play - Alea follows the "
                 "host transport and you should hear notes drawn from Scale A.\n"
                 "5. From there: pick a preset, set up your own Scale A and "
@@ -50,12 +52,14 @@ namespace
                 "aspirations.\n\n\n"
                 "GET IN TOUCH\n\n"
                 "I'll be more than happy to hear your feedback, ideas and music "
-                "made with ALEA! You can reach me through GitHub or my email: "
-                "yuvalprod@gmail.com\n\n\n"
+                "made with ALEA! You can reach me through GitHub "
+                "(github.com/yuvalEG/Alea) or my email: yuvalprod@gmail.com\n\n"
+                "Alea is open source (GPLv3), built with JUCE. Check for "
+                "updates from the menu in the top-right corner.\n\n\n"
                 "Plugin Made By Yuval Egozi"),
                 juce::dontSendNotification);
             addAndMakeVisible (text);
-            setSize (780, 720);
+            setSize (820, 760);
         }
 
         void paint (juce::Graphics& g) override
@@ -259,7 +263,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     // answer lives one click away. The standalone synth needs no routing.
     helpLink.setButtonText ("No sound? Routing Help");
     helpLink.setURL (juce::URL ("https://github.com/yuvalEG/Alea#troubleshooting"));
-    helpLink.setFont (juce::FontOptions (12.0f), false, juce::Justification::centredRight);
+    helpLink.setFont (juce::FontOptions (13.0f), false, juce::Justification::centredLeft);
     helpLink.setColour (juce::HyperlinkButton::textColourId, colors::secondary);
     content.addChildComponent (helpLink);
     helpLink.setVisible (! standalone);
@@ -517,7 +521,7 @@ void AleaAudioProcessorEditor::layoutMain()
         loadPreset.setBounds (presetsPanel.getRight() - 64, presetsPanel.getY() + 40, 54, 26);
     }
 
-    helpLink.setBounds (vw - 250, vh - 22, 240, 18);
+    helpLink.setBounds (12, vh - 22, 240, 18); // left: the resize handle owns the right corner
 }
 
 bool AleaAudioProcessorEditor::keyPressed (const juce::KeyPress& key)

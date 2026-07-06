@@ -61,9 +61,11 @@ to build anything:
 
 Which format to load:
 
-- **Ableton Live, Cubase**: VST3
-- **Logic Pro, GarageBand**: AU. Note that Logic cannot route MIDI out of an
-  AU, so set OUT to **Internal Synth** to hear Alea directly there.
+- **Ableton Live, Cubase**: VST3. In Live specifically, don't use the AU -
+  Live cannot route MIDI out of AU plugins, so Alea's whole routing story
+  only works with the VST3 there.
+- **Logic Pro, GarageBand**: AU. Logic can't route AU MIDI either, so set
+  OUT to **Internal Synth** to hear Alea directly there.
 - **Bitwig, Reaper**: CLAP (or VST3 - both work)
 - **No DAW at all**: the standalone app, with its built-in synth or direct
   MIDI output to hardware.
@@ -117,6 +119,8 @@ In Ableton Live (VST3):
    is nothing to play. Hit PANIC once if a note seems stuck.
 6. Alea missing from Live's browser? Settings > Plug-Ins, hold Alt and click
    Rescan (Live caches plugins that previously failed to load).
+7. Using the AU in Live? That's the trap - Live cannot route MIDI from AU
+   plugins at all. Load the VST3 instead.
 
 **Standalone app silent?** Pick **Internal Synth** in the OUT dropdown
 (OUTPUT panel) and press PLAY.
@@ -131,5 +135,10 @@ Plugin made by Yuval Egozi.
 ## License
 
 Alea is open source under the [GPLv3](LICENSE) (it is built on
-[JUCE](https://juce.com), whose free tier requires it). The Space Grotesk
-font is embedded under the SIL Open Font License.
+[JUCE](https://juce.com), whose free tier requires it). It also uses
+[clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions)
+and the [CLAP](https://github.com/free-audio/clap) SDK (both MIT), and
+embeds the Space Grotesk font (SIL Open Font License).
+
+The Alea name, wordmark, and icon artwork are copyright Yuval Egozi and are
+not covered by the code license - please don't reuse the branding in forks.
