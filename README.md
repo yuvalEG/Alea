@@ -45,6 +45,29 @@ strictness 10; the AU passes Apple's auval.
 `scripts/make_installer.sh` builds a pkg installer with selectable
 components (unsigned for now).
 
+## Installing
+
+**Alea is macOS only for now** (Windows is on the wish list). You don't need
+to build anything:
+
+1. Download `Alea-x.y.z.pkg` from the
+   [latest release](https://github.com/yuvalEG/Alea/releases).
+2. Double-click it. The installer is unsigned for now, so macOS may refuse
+   the first open - right-click (Control-click) the file, choose **Open**,
+   and confirm.
+3. Tick the versions you want: VST3, AU, CLAP, and/or the standalone app.
+4. Restart your DAW (or rescan plugins) - it appears as **Alea Scale
+   Shifter**.
+
+Which format to load:
+
+- **Ableton Live, Cubase**: VST3
+- **Logic Pro, GarageBand**: AU. Note that Logic cannot route MIDI out of an
+  AU, so set OUT to **Internal Synth** to hear Alea directly there.
+- **Bitwig, Reaper**: CLAP (or VST3 - both work)
+- **No DAW at all**: the standalone app, with its built-in synth or direct
+  MIDI output to hardware.
+
 ## Building
 
 Requires: macOS, Xcode command-line tools, CMake ≥ 3.22
@@ -61,11 +84,12 @@ standalone app end up under `build/Alea_artefacts/Release/`.
 
 ## Using it in a DAW
 
-Alea generates MIDI notes - it makes no sound of its own. It is classified as
-a VST3 *instrument* (with silent audio) because hosts have no common slot for
+Alea generates MIDI notes - by default it makes no sound of its own (flip
+OUT to **Internal Synth** if you want it to). It is classified as an
+*instrument* (with silent audio) because hosts have no common slot for
 third-party MIDI-effect plugins.
 
-In Ableton Live:
+In Ableton Live (VST3):
 
 1. Build (above), then rescan plugins in Live's settings if Alea doesn't
    appear (hold Alt for a full rescan - Live caches failed loads).

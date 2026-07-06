@@ -456,7 +456,15 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
             sendAllNotesOff (midi, 0);
         wasPlaying = false;
         lastFreeRun = freeRun;
-        lastSweepOn = pAutoSweep->load() > 0.5f;
+
+        // Sweep toggled off while stopped: park the morph at the position
+        // the bar was showing (same rule as during playback).
+        const bool sweepOnNow = pAutoSweep->load() > 0.5f;
+        if (! sweepOnNow && lastSweepOn)
+            if (auto* p = apvts.getParameter ("morphPos"))
+                p->setValueNotifyingHost (p->convertTo0to1 ((float) morphPercent.load()));
+        lastSweepOn = sweepOnNow;
+
         activeRest.store (-1);
         return;
     }
@@ -525,10 +533,15 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
     hostPpq.store (ppqStart);
 
     // Engaging auto-sweep mid-play anchors the sweep here, so it always
-    // starts its journey from A at the moment you turn it on.
+    // starts its journey from A at the moment you turn it on. Disengaging
+    // parks the morph where the sweep left it - stopping the journey must
+    // not teleport the position.
     const bool sweepOn = pAutoSweep->load() > 0.5f;
     if (sweepOn && ! lastSweepOn)
         sweepAnchorPpq = ppqStart;
+    else if (! sweepOn && lastSweepOn)
+        if (auto* p = apvts.getParameter ("morphPos"))
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) morphPercent.load()));
     lastSweepOn = sweepOn;
 
     // Scrub during auto-sweep (spec 4.3.2): re-anchor so the sweep sits at
