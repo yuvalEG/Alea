@@ -35,6 +35,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                                      "Bounce: back and forth between A and B" }),
       morphCurve (*p.apvts.getParameter ("morphCurve"), colors::text.withAlpha (0.9f)),
       tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, colors::text.withAlpha (0.9f)),
+      standalone (p.wrapperType == juce::AudioProcessor::wrapperType_Standalone),
       output (p)
 {
     addAndMakeVisible (keyboardA);
@@ -78,6 +79,20 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     menuButton.onClick = [this]
     {
         juce::PopupMenu m;
+
+        if (standalone)
+        {
+            juce::PopupMenu midiMenu;
+            const auto current = alea.getMidiOutputId();
+            midiMenu.addItem ("Off", true, current.isEmpty(),
+                              [this] { alea.setMidiOutputDevice ({}); });
+            for (const auto& device : juce::MidiOutput::getAvailableDevices())
+                midiMenu.addItem (device.name, true, device.identifier == current,
+                                  [this, id = device.identifier] { alea.setMidiOutputDevice (id); });
+            m.addSubMenu ("MIDI Output", midiMenu);
+            m.addSeparator();
+        }
+
         m.addItem ("About Alea...", []
         {
             // A custom dialog rather than an AlertWindow: wider, and the text
@@ -136,6 +151,23 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton));
     };
     addAndMakeVisible (menuButton);
+
+    // Standalone: no host transport, so PLAY/STOP lives where the Host/
+    // Free-Run selector would be (the clock is always internal there).
+    tempoSource.setVisible (! standalone);
+    playButton.setClickingTogglesState (true);
+    playButton.setColour (juce::TextButton::buttonColourId, colors::control);
+    playButton.setColour (juce::TextButton::buttonOnColourId, colors::green);
+    playButton.setColour (juce::TextButton::textColourOffId, colors::text);
+    playButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+    playButton.onClick = [this]
+    {
+        const bool on = playButton.getToggleState();
+        playButton.setButtonText (on ? "STOP" : "PLAY");
+        alea.standaloneTransport.store (on);
+    };
+    addChildComponent (playButton);
+    playButton.setVisible (standalone);
 
     panicButton.setColour (juce::TextButton::buttonColourId, colors::red.withAlpha (0.85f));
     panicButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
@@ -288,6 +320,7 @@ void AleaAudioProcessorEditor::resized()
     // Header
     freezeButton.setBounds (380, 16, 80, 26);
     tempoSource.setBounds (530, 16, 140, 26);
+    playButton.setBounds (566, 16, 104, 26);
     internalTempo.setBounds (678, 16, 130, 26);
     panicButton.setBounds (820, 16, 72, 26);
     menuButton.setBounds (902, 16, 28, 26);
@@ -433,7 +466,8 @@ void AleaAudioProcessorEditor::updateModeVisibility()
     morphDurFree.setVisible (! durSync);
     morphDurUnit.setVisible (! durSync);
 
-    const bool freeRun = (int) alea.apvts.getRawParameterValue ("tempoSource")->load() == 1;
+    const bool freeRun = standalone
+                         || (int) alea.apvts.getRawParameterValue ("tempoSource")->load() == 1;
     internalTempo.setEnabled (freeRun);
     internalTempo.setAlpha (freeRun ? 1.0f : 0.4f);
 }

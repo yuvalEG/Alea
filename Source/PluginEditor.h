@@ -49,6 +49,8 @@ private:
     juce::TextButton menuButton;
     juce::TextButton freezeButton { "FREEZE" };
     juce::TextButton panicButton { "PANIC" };
+    juce::TextButton playButton { "PLAY" }; // standalone transport
+    const bool standalone;
 
     // Output panel
     ui::OutputPanel output;

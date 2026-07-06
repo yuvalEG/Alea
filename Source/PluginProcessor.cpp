@@ -187,7 +187,41 @@ double AleaAudioProcessor::lengthPpqAt (double bpm)
     }
 }
 
+void AleaAudioProcessor::setMidiOutputDevice (const juce::String& identifier)
+{
+    auto fresh = identifier.isEmpty() ? nullptr : juce::MidiOutput::openDevice (identifier);
+    if (fresh != nullptr)
+        fresh->startBackgroundThread();
+
+    const juce::ScopedLock sl (midiOutLock);
+    if (midiOutput != nullptr) // silence anything still ringing on the old device
+        for (int ch = 1; ch <= 16; ++ch)
+            midiOutput->sendMessageNow (juce::MidiMessage::allNotesOff (ch));
+    std::swap (midiOutput, fresh);
+    midiOutputId = midiOutput != nullptr ? identifier : juce::String();
+}
+
+juce::String AleaAudioProcessor::getMidiOutputId() const
+{
+    const juce::ScopedLock sl (midiOutLock);
+    return midiOutputId;
+}
+
 void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+{
+    generateBlock (buffer, midi);
+
+    // Standalone: mirror everything (including note-offs from early returns)
+    // to the chosen MIDI device. Try-lock so device swaps never stall audio.
+    if (wrapperType == wrapperType_Standalone && ! midi.isEmpty())
+    {
+        const juce::ScopedTryLock sl (midiOutLock);
+        if (sl.isLocked() && midiOutput != nullptr)
+            midiOutput->sendBlockOfMessages (midi, juce::Time::getMillisecondCounter() + 1.0, getSampleRate());
+    }
+}
+
+void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
@@ -214,10 +248,14 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     const auto position = playHead != nullptr ? playHead->getPosition()
                                               : juce::Optional<juce::AudioPlayHead::PositionInfo>();
 
-    const bool isPlaying = position.hasValue() && position->getIsPlaying();
+    // Standalone has no host: PLAY/STOP drives the transport and the clock
+    // is always the internal one (spec section 10).
+    const bool standalone = wrapperType == wrapperType_Standalone;
+    const bool isPlaying = standalone ? standaloneTransport.load()
+                                      : position.hasValue() && position->getIsPlaying();
     hostIsPlaying.store (isPlaying);
 
-    const bool freeRun = (int) pTempoSource->load() == 1;
+    const bool freeRun = standalone || (int) pTempoSource->load() == 1;
     const double bpm = freeRun ? (double) pInternalTempo->load()
                                : (position.hasValue() ? position->getBpm().orFallback ((double) pInternalTempo->load())
                                                       : (double) pInternalTempo->load());
@@ -439,6 +477,7 @@ void AleaAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     auto state = apvts.copyState();
     state.setProperty ("stateVersion", 2, nullptr);
     state.setProperty ("morphCC", morphCC.load(), nullptr);
+    state.setProperty ("midiOutDevice", getMidiOutputId(), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -450,6 +489,12 @@ void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
         {
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
             morphCC.store ((int) apvts.state.getProperty ("morphCC", -1));
+
+            // Reopen the remembered MIDI device (standalone settings restore
+            // arrives on the message thread; skip anywhere else).
+            if (wrapperType == wrapperType_Standalone
+                && juce::MessageManager::getInstance()->isThisTheMessageThread())
+                setMidiOutputDevice (apvts.state.getProperty ("midiOutDevice", juce::String()).toString());
         }
 }
 
