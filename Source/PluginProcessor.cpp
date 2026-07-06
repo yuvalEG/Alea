@@ -252,8 +252,10 @@ juce::String AleaAudioProcessor::getMidiOutputId() const
 
 void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
 {
-    if (choice == "synth")
+    if (choice.startsWith ("synth"))
     {
+        const auto flavour = choice.fromFirstOccurrenceOf (":", false, false);
+        synthVoice.store (flavour == "sine" ? 1 : flavour == "saw" ? 2 : flavour == "strings" ? 3 : 0);
         synthOn.store (true);
         setMidiOutputDevice ({});
     }
@@ -268,7 +270,15 @@ void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
 
 juce::String AleaAudioProcessor::getStandaloneOutput() const
 {
-    return synthOn.load() ? "synth" : getMidiOutputId();
+    if (! synthOn.load())
+        return getMidiOutputId();
+    switch (synthVoice.load())
+    {
+        case 1:  return "synth:sine";
+        case 2:  return "synth:saw";
+        case 3:  return "synth:strings";
+        default: return "synth";
+    }
 }
 
 // Polyphonic additive voices following our own note stream, into stereo
@@ -291,22 +301,48 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
         {
             if (! v.amp.isActive())
                 continue;
-            // A dominant equal pair ~10 cents apart gives the audible slow
-            // phasing (waves breathing in and out); a third, quieter osc
-            // detuned the other way plus sub and fixed 2nd/3rd fill the tone.
-            // Normalized so eight ringing voices stay clear of the limiter.
+            // Four voice flavours share the oscillator trio. Warm Pad: a
+            // dominant equal pair ~10 cents apart for the audible slow
+            // phasing, plus sub and fixed harmonics. Pure Sine: one clean
+            // oscillator. Soft Saw: one band-limited saw. Strings: three
+            // detuned soft saws with a slow bow-in. Normalized so eight
+            // ringing voices stay clear of the limiter.
+            const int flavour = synthVoice.load();
             const double inc1 = juce::MathConstants<double>::twoPi * v.freq / sampleRate;
             const double inc2 = inc1 * 1.0055;
             const double inc3 = inc1 * 0.9965;
+            const int harmonics = juce::jlimit (3, 9, (int) (sampleRate * 0.35 / juce::jmax (20.0, v.freq)));
+            auto saw = [harmonics] (double p) // band-limited-ish, gentle top
+            {
+                float acc = 0.0f;
+                for (int k = 1; k <= harmonics; ++k)
+                    acc += (float) std::sin (k * p) / (float) k;
+                return acc * 0.62f;
+            };
             for (int n = pos; n < end; ++n)
             {
                 const float env = v.amp.getNextSample();
                 const float shimmer = 0.14f * v.velocity * v.bright.getNextSample();
-                const float s = (0.44f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
-                               + 0.16f * (float) std::sin (v.phase3)
-                               + 0.28f * (float) std::sin (0.5 * v.phase)
-                               + (0.22f + shimmer) * (float) std::sin (2.0 * v.phase)
-                               + 0.08f * (float) std::sin (3.0 * v.phase)) / 1.55f;
+                float s;
+                switch (flavour)
+                {
+                    case 1: // Pure Sine
+                        s = 0.9f * (float) std::sin (v.phase);
+                        break;
+                    case 2: // Soft Saw
+                        s = 0.75f * saw (v.phase);
+                        break;
+                    case 3: // Strings
+                        s = 0.42f * (saw (v.phase) + saw (v.phase2) + saw (v.phase3));
+                        break;
+                    default: // Warm Pad
+                        s = (0.44f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
+                           + 0.16f * (float) std::sin (v.phase3)
+                           + 0.28f * (float) std::sin (0.5 * v.phase)
+                           + (0.22f + shimmer) * (float) std::sin (2.0 * v.phase)
+                           + 0.08f * (float) std::sin (3.0 * v.phase)) / 1.55f;
+                        break;
+                }
                 left[n] += 0.16f * master * v.gain * env * s;
                 v.phase += inc1;
                 v.phase2 += inc2;
@@ -348,6 +384,17 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
             voice->gain = 0.06f + 0.94f * std::pow (msg.getFloatVelocity(), 1.7f);
             voice->note = msg.getNoteNumber();
             voice->heldSamples = 0;
+            {
+                auto params = voice->amp.getParameters();
+                switch (synthVoice.load())
+                {
+                    case 1:  params.attack = 0.006f; break; // sine: clean
+                    case 2:  params.attack = 0.003f; break; // saw: plucky
+                    case 3:  params.attack = 0.280f; break; // strings: bow in
+                    default: params.attack = 0.012f; break; // warm pad
+                }
+                voice->amp.setParameters (params);
+            }
             voice->amp.noteOn();
             voice->bright.noteOn();
         }

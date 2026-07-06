@@ -60,6 +60,7 @@ public:
     // matters most for the AU, since Live and Logic can't route AU MIDI out.
     std::atomic<bool> standaloneTransport { false }; // standalone PLAY/STOP
     std::atomic<bool> synthOn { false };
+    std::atomic<int>  synthVoice { 0 };              // 0 warm pad / 1 pure sine / 2 soft saw / 3 strings
     void setStandaloneOutput (const juce::String& choice); // "synth", device identifier, or "" = MIDI to host; message thread only
     juce::String getStandaloneOutput() const;              // "synth", device identifier, or ""
     juce::String getMidiOutputId() const;

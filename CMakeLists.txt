@@ -56,6 +56,7 @@ target_sources(Alea PRIVATE
     Source/PluginEditor.cpp)
 
 target_compile_definitions(Alea PUBLIC
+    ALEA_VERSION="${PROJECT_VERSION}"
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0)
@@ -84,6 +85,7 @@ target_sources(AleaUISnapshot PRIVATE
     Source/UI.cpp
     Source/PluginEditor.cpp)
 target_compile_definitions(AleaUISnapshot PRIVATE
+    ALEA_VERSION="${PROJECT_VERSION}"
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JucePlugin_Name="Alea")

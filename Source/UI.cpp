@@ -431,37 +431,51 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
 
     const auto current = alea.getStandaloneOutput();
 
+    // Synth flavours share ids 1-4 in both modes; the mapping to the
+    // engine's output-choice string is one table.
+    static const std::array<const char*, 4> synthChoices { "synth", "synth:sine", "synth:saw", "synth:strings" };
+    static const std::array<const char*, 4> synthNames { "Synth: Warm Pad", "Synth: Pure Sine", "Synth: Soft Saw", "Synth: Strings" };
+
+    if (! standalone)
+        outputBox->addItem ("MIDI to DAW", 9); // plugin default, listed first
+
+    for (int i = 0; i < 4; ++i)
+        outputBox->addItem (synthNames[(size_t) i], i + 1);
+
     if (standalone)
     {
-        // Standalone: the synth (default) or any MIDI device on the system.
-        outputBox->addItem ("Internal Synth", 1);
+        // Standalone: the synth flavours (Warm Pad default) or any MIDI device.
         devices = juce::MidiOutput::getAvailableDevices();
         for (int i = 0; i < devices.size(); ++i)
-            outputBox->addItem ("MIDI: " + devices[i].name, 2 + i);
+            outputBox->addItem ("MIDI: " + devices[i].name, 10 + i);
 
         outputBox->setSelectedId (1, juce::dontSendNotification);
         for (int i = 0; i < devices.size(); ++i)
             if (devices[i].identifier == current)
-                outputBox->setSelectedId (2 + i, juce::dontSendNotification);
+                outputBox->setSelectedId (10 + i, juce::dontSendNotification);
 
         outputBox->onChange = [this]
         {
             const int id = outputBox->getSelectedId();
-            alea.setStandaloneOutput (id <= 1 ? "synth" : devices[id - 2].identifier);
+            alea.setStandaloneOutput (id <= 4 ? synthChoices[(size_t) (id - 1)]
+                                              : devices[id - 10].identifier);
         };
     }
     else
     {
         // Plugin: pure MIDI by default; the synth makes hosts that can't
         // route plugin MIDI (AU in Live/Logic) hear Alea directly.
-        outputBox->addItem ("MIDI to DAW", 1);
-        outputBox->addItem ("Internal Synth", 2);
-        outputBox->setSelectedId (current == "synth" ? 2 : 1, juce::dontSendNotification);
+        outputBox->setSelectedId (9, juce::dontSendNotification);
         outputBox->onChange = [this]
         {
-            alea.setStandaloneOutput (outputBox->getSelectedId() == 2 ? "synth" : "");
+            const int id = outputBox->getSelectedId();
+            alea.setStandaloneOutput (id <= 4 ? synthChoices[(size_t) (id - 1)] : "");
         };
     }
+
+    for (int i = 0; i < 4; ++i)
+        if (current == synthChoices[(size_t) i])
+            outputBox->setSelectedId (i + 1, juce::dontSendNotification);
 
     addAndMakeVisible (*outputBox);
 

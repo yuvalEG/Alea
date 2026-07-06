@@ -24,7 +24,7 @@ namespace
             text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
             text.setFont (juce::FontOptions (18.5f));
             text.setText (juce::String::fromUTF8 (
-                "Aleatoric Scale Shifter - Version 0.2.0\n\n\n"
+                "Aleatoric Scale Shifter - Version " ALEA_VERSION "\n\n\n"
                 "HOW TO USE\n\n"
                 "Alea generates MIDI notes - it makes no sound of its own "
                 "(unless you pick Internal Synth under OUT).\n\n"
@@ -219,9 +219,47 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         juce::PopupMenu m;
         m.addItem ("Check for Updates...", []
         {
-            // v1: opens the releases page; compare against the version in
-            // About. An in-app version check can come once the repo is public.
-            juce::URL ("https://github.com/yuvalEG/Alea/releases").launchInDefaultBrowser();
+            juce::Thread::launch ([]
+            {
+                const auto response = juce::URL ("https://api.github.com/repos/yuvalEG/Alea/releases/latest")
+                                          .readEntireTextStream();
+                auto latest = juce::JSON::parse (response)
+                                  .getProperty ("tag_name", juce::String()).toString()
+                                  .trimCharactersAtStart ("v");
+                juce::MessageManager::callAsync ([latest]
+                {
+                    const juce::String current (ALEA_VERSION);
+                    if (latest.isEmpty())
+                    {
+                        juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::WarningIcon,
+                            "Check for Updates",
+                            "Couldn't reach GitHub. Open the releases page instead?",
+                            "Open", "Close", nullptr,
+                            juce::ModalCallbackFunction::create ([] (int r)
+                            {
+                                if (r == 1)
+                                    juce::URL ("https://github.com/yuvalEG/Alea/releases").launchInDefaultBrowser();
+                            }));
+                    }
+                    else if (latest == current)
+                    {
+                        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
+                            "Check for Updates", "You're up to date - Alea " + current + ".");
+                    }
+                    else
+                    {
+                        juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::InfoIcon,
+                            "Update Available",
+                            "Alea " + latest + " is available (you have " + current + ").",
+                            "Get It", "Later", nullptr,
+                            juce::ModalCallbackFunction::create ([] (int r)
+                            {
+                                if (r == 1)
+                                    juce::URL ("https://github.com/yuvalEG/Alea/releases/latest").launchInDefaultBrowser();
+                            }));
+                    }
+                });
+            });
         });
         m.addSeparator();
         m.addItem ("About Alea...", []
