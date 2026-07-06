@@ -74,11 +74,18 @@ void AleaAudioProcessor::prepareToPlay (double sampleRate, int)
     wasPlaying = false;
 
     // Internal synth chain
-    synthEnv.setSampleRate (sampleRate);
-    synthEnv.setParameters ({ 0.004f, 0.08f, 0.75f, 0.30f });
-    synthEnv.reset();
-    synthPhase = 0.0;
-    synthGain = 0.0f;
+    for (auto& v : voices)
+    {
+        v.amp.setSampleRate (sampleRate);
+        v.amp.setParameters ({ 0.004f, 0.08f, 0.75f, 0.40f });
+        v.amp.reset();
+        v.bright.setSampleRate (sampleRate);
+        v.bright.setParameters ({ 0.002f, 0.35f, 0.25f, 0.20f });
+        v.bright.reset();
+        v.phase = 0.0;
+        v.note = -1;
+    }
+    nextVoice = 0;
 
     // Different L/R delay times give the single sine voice a stereo field.
     delayLineL.assign ((size_t) juce::jmax (1, (int) (sampleRate * 0.32)), 0.0f);
@@ -255,7 +262,9 @@ juce::String AleaAudioProcessor::getStandaloneOutput() const
     return synthOn.load() ? "synth" : getMidiOutputId();
 }
 
-// Mono sine voice following our own note stream, into stereo delay + reverb.
+// Polyphonic additive voices following our own note stream, into stereo
+// delay + reverb. Velocity opens the brightness envelope (upper partials),
+// not just the volume.
 void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi)
 {
     const double sampleRate = getSampleRate();
@@ -268,14 +277,28 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
     int pos = 0;
     auto renderTo = [&] (int end)
     {
-        for (; pos < end; ++pos)
+        for (auto& v : voices)
         {
-            const float env = synthEnv.getNextSample();
-            left[pos] = 0.22f * synthGain * env * (float) std::sin (synthPhase);
-            synthPhase += juce::MathConstants<double>::twoPi * synthFreq / sampleRate;
+            if (! v.amp.isActive())
+                continue;
+            const double phaseInc = juce::MathConstants<double>::twoPi * v.freq / sampleRate;
+            for (int n = pos; n < end; ++n)
+            {
+                const float env = v.amp.getNextSample();
+                const float brightness = v.velocity * v.bright.getNextSample();
+                const auto p = v.phase;
+                // Partials fade in with brightness; a soft velocity stays a sine.
+                const float s = (float) std::sin (p)
+                              + brightness * (0.60f * (float) std::sin (2.0 * p)
+                                            + 0.35f * (float) std::sin (3.0 * p)
+                                            + 0.20f * (float) std::sin (4.0 * p));
+                left[n] += 0.20f * v.gain * env * s / (1.0f + brightness);
+                v.phase += phaseInc;
+            }
+            if (v.phase > juce::MathConstants<double>::twoPi * 1024.0)
+                v.phase = std::fmod (v.phase, juce::MathConstants<double>::twoPi);
         }
-        if (synthPhase > juce::MathConstants<double>::twoPi * 1024.0)
-            synthPhase = std::fmod (synthPhase, juce::MathConstants<double>::twoPi);
+        pos = end;
     };
 
     for (const auto metadata : midi)
@@ -284,13 +307,42 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
         const auto msg = metadata.getMessage();
         if (msg.isNoteOn())
         {
-            synthFreq = juce::MidiMessage::getMidiNoteInHertz (msg.getNoteNumber());
-            synthGain = juce::jmax (0.1f, msg.getFloatVelocity());
-            synthEnv.noteOn();
+            // Prefer an idle voice; otherwise round-robin steal, so releases
+            // ring out under the following notes.
+            SynthVoice* voice = nullptr;
+            for (auto& v : voices)
+                if (! v.amp.isActive())
+                    { voice = &v; break; }
+            if (voice == nullptr)
+            {
+                voice = &voices[(size_t) nextVoice];
+                nextVoice = (nextVoice + 1) % (int) voices.size();
+            }
+            voice->freq = juce::MidiMessage::getMidiNoteInHertz (msg.getNoteNumber());
+            voice->velocity = msg.getFloatVelocity();
+            voice->gain = 0.35f + 0.65f * msg.getFloatVelocity();
+            voice->note = msg.getNoteNumber();
+            voice->amp.noteOn();
+            voice->bright.noteOn();
         }
-        else if (msg.isNoteOff() || msg.isAllNotesOff())
+        else if (msg.isNoteOff())
         {
-            synthEnv.noteOff();
+            for (auto& v : voices)
+                if (v.note == msg.getNoteNumber())
+                {
+                    v.amp.noteOff();
+                    v.bright.noteOff();
+                    v.note = -1;
+                }
+        }
+        else if (msg.isAllNotesOff())
+        {
+            for (auto& v : voices)
+            {
+                v.amp.noteOff();
+                v.bright.noteOff();
+                v.note = -1;
+            }
         }
     }
     renderTo (numSamples);
@@ -469,6 +521,22 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         const double legPpq = sweepLegPpq (bpm);
         if (legPpq > 1.0e-9)
             sweepAnchorPpq = ppqStart - inverseCurve (scrub / 100.0, (int) pMorphCurve->load()) * legPpq;
+    }
+
+    // Shrinking the interval must pull an already-scheduled event closer:
+    // dragging the Free slider through large values (or leaving a long Sync
+    // division) schedules a far-future note that a later, smaller setting
+    // never revisits - the "silence after slider drag" stall. Random mode is
+    // exempt (re-rolling here would burn rng draws and break determinism).
+    {
+        const int im = (int) pIntervalMode->load();
+        if (im != params::random)
+        {
+            const double curInterval = im == params::free
+                ? juce::jmax (0.001, (double) pIntervalFree->load() * bpm / 60.0)
+                : params::divisionBars[(size_t) pIntervalSync->load()] * 4.0;
+            nextEventPpq = juce::jmin (nextEventPpq, juce::jmax (ppqStart, restEndPpq) + curInterval);
+        }
     }
 
     morphPercent.store (morphAt (ppqStart, bpm) * 100.0);

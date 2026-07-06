@@ -102,11 +102,20 @@ private:
     std::unique_ptr<juce::MidiOutput> midiOutput;
     juce::String midiOutputId;
 
-    // Internal synth (standalone): mono sine voice + stereo delay + reverb.
+    // Internal synth (standalone): polyphonic so releases ring out under the
+    // next note. Each voice is additive sine partials whose upper partials
+    // are opened by a velocity-scaled brightness envelope (a filter-envelope
+    // feel without filtering a harmonic-free sine), into delay + reverb.
     void renderSynth (juce::AudioBuffer<float>&, const juce::MidiBuffer&);
-    juce::ADSR synthEnv;
-    double synthPhase = 0.0, synthFreq = 440.0;
-    float synthGain = 0.0f;
+    struct SynthVoice
+    {
+        juce::ADSR amp, bright;
+        double phase = 0.0, freq = 440.0;
+        float gain = 0.0f, velocity = 0.0f;
+        int note = -1; // -1 = released (may still be ringing)
+    };
+    std::array<SynthVoice, 8> voices;
+    int nextVoice = 0;
     std::vector<float> delayLineL, delayLineR;
     int delayPosL = 0, delayPosR = 0;
     juce::Reverb reverb;
