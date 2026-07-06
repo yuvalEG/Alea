@@ -20,8 +20,10 @@ FetchContent_Declare(clap-juce-extensions
     GIT_TAG        main)
 FetchContent_MakeAvailable(clap-juce-extensions)
 
-# Embedded UI assets (header wordmark)
-juce_add_binary_data(AleaAssets SOURCES Assets/logo.png)
+# Embedded UI assets (header wordmark + UI font, Space Grotesk, SIL OFL)
+juce_add_binary_data(AleaAssets SOURCES
+    Assets/logo.png
+    Assets/fonts/SpaceGrotesk-Medium.ttf)
 
 # App/plugin icon: picked up automatically once Assets/icon.png exists.
 set(ALEA_ICON_ARGS "")

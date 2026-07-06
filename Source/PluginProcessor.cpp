@@ -532,16 +532,23 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
     lastPpqEnd = ppqEnd;
     hostPpq.store (ppqStart);
 
-    // Engaging auto-sweep mid-play anchors the sweep here, so it always
-    // starts its journey from A at the moment you turn it on. Disengaging
-    // parks the morph where the sweep left it - stopping the journey must
-    // not teleport the position.
+    // Engaging auto-sweep mid-play resumes the journey from wherever the
+    // morph currently sits (inverse-curve anchoring, same math as scrubbing).
+    // Disengaging parks the morph where the sweep left it - toggling the
+    // sweep never teleports the position in either direction.
     const bool sweepOn = pAutoSweep->load() > 0.5f;
     if (sweepOn && ! lastSweepOn)
-        sweepAnchorPpq = ppqStart;
+    {
+        const double legPpq = sweepLegPpq (bpm);
+        sweepAnchorPpq = legPpq > 1.0e-9
+            ? ppqStart - inverseCurve (pMorphPos->load() / 100.0, (int) pMorphCurve->load()) * legPpq
+            : ppqStart;
+    }
     else if (! sweepOn && lastSweepOn)
+    {
         if (auto* p = apvts.getParameter ("morphPos"))
             p->setValueNotifyingHost (p->convertTo0to1 ((float) morphPercent.load()));
+    }
     lastSweepOn = sweepOn;
 
     // Scrub during auto-sweep (spec 4.3.2): re-anchor so the sweep sits at
@@ -684,8 +691,9 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         lastNote.store (note);
         activeSource.store (source);
         activeNote.store (note);
+        activeVelocity.store ((int) velocity);
         activeRest.store (-1);
-        history[(size_t) (historyCount.load() % historyCapacity)].store (note | (source << 8));
+        history[(size_t) (historyCount.load() % historyCapacity)].store (note | (source << 8) | ((int) velocity << 10));
         historyCount.fetch_add (1);
     }
 }

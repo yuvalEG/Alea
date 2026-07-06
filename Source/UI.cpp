@@ -181,6 +181,8 @@ void PianoKeyboard::paint (juce::Graphics& g)
     const int active = alea.activeNote.load();
     const bool mine = active >= 0 && alea.activeSource.load() == sourceIndex;
     const int activePc = active >= 0 ? active % 12 : -1;
+    // The green flash carries velocity: soft notes glow faintly, hard notes blaze.
+    const auto playColour = colors::playing.withAlpha (0.35f + 0.65f * (float) alea.activeVelocity.load() / 127.0f);
 
     for (int pc = 0; pc < 12; ++pc)
     {
@@ -188,12 +190,12 @@ void PianoKeyboard::paint (juce::Graphics& g)
             continue;
         const auto key = whiteKeyBounds (whiteSlot[pc]).reduced (1.0f);
         const bool isPlayingKey = mine && pc == activePc;
-        const auto fill = isPlayingKey ? colors::playing
+        const auto fill = isPlayingKey ? playColour
                                        : selected[pc] ? accent
                                                       : accent.withAlpha (0.10f);
-        if (isPlayingKey || selected[pc]) // subtle top-lit gradient on lit keys
-            g.setGradientFill (juce::ColourGradient (fill.brighter (0.08f), key.getX(), key.getY(),
-                                                     fill.darker (0.12f), key.getX(), key.getBottom(), false));
+        if (isPlayingKey || selected[pc]) // top-lit gradient on lit keys
+            g.setGradientFill (juce::ColourGradient (fill.brighter (0.18f), key.getX(), key.getY(),
+                                                     fill.darker (0.25f), key.getX(), key.getBottom(), false));
         else
             g.setColour (fill);
         g.fillRoundedRectangle (key, 3.0f);
@@ -212,12 +214,12 @@ void PianoKeyboard::paint (juce::Graphics& g)
             continue;
         const auto key = blackKeyBounds (pc);
         const bool isPlayingKey = mine && pc == activePc;
-        const auto fill = isPlayingKey ? colors::playing
+        const auto fill = isPlayingKey ? playColour
                                        : selected[pc] ? accent
                                                       : juce::Colour (0xff08080c);
         if (isPlayingKey || selected[pc])
-            g.setGradientFill (juce::ColourGradient (fill.brighter (0.08f), key.getX(), key.getY(),
-                                                     fill.darker (0.12f), key.getX(), key.getBottom(), false));
+            g.setGradientFill (juce::ColourGradient (fill.brighter (0.18f), key.getX(), key.getY(),
+                                                     fill.darker (0.25f), key.getX(), key.getBottom(), false));
         else
             g.setColour (fill);
         g.fillRoundedRectangle (key, 3.0f);
@@ -267,8 +269,8 @@ void RestSelector::paint (juce::Graphics& g)
         const auto cell = juce::Rectangle<float> (w * (float) r, 0.0f, w, (float) getHeight()).reduced (2.0f);
         const auto fill = resting ? colors::playing : selected[r] ? accent : colors::control;
         if (resting || selected[r])
-            g.setGradientFill (juce::ColourGradient (fill.brighter (0.08f), cell.getX(), cell.getY(),
-                                                     fill.darker (0.12f), cell.getX(), cell.getBottom(), false));
+            g.setGradientFill (juce::ColourGradient (fill.brighter (0.18f), cell.getX(), cell.getY(),
+                                                     fill.darker (0.25f), cell.getX(), cell.getBottom(), false));
         else
             g.setColour (fill);
         g.fillRoundedRectangle (cell, 4.0f);
@@ -485,6 +487,18 @@ void OutputPanel::paint (juce::Graphics& g)
         g.setColour (srcColour);
         g.setFont (juce::FontOptions (36.0f, juce::Font::bold));
         g.drawText (noteName (active), noteRow, juce::Justification::centredLeft);
+
+        // Velocity readout: number + bar at the row's right edge
+        const int vel = alea.activeVelocity.load();
+        const auto barArea = juce::Rectangle<int> (getWidth() - 64, noteRow.getCentreY() - 4, 56, 8).toFloat();
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+        g.drawText ("VEL " + juce::String (vel), getWidth() - 120, noteRow.getCentreY() - 20, 112, 14,
+                    juce::Justification::centredRight);
+        g.setColour (colors::control);
+        g.fillRoundedRectangle (barArea, 3.0f);
+        g.setColour (colors::playing.withAlpha (0.35f + 0.65f * (float) vel / 127.0f));
+        g.fillRoundedRectangle (barArea.withWidth (barArea.getWidth() * (float) vel / 127.0f), 3.0f);
     }
     else if (rest >= 0)
     {
@@ -523,7 +537,9 @@ void OutputPanel::paint (juce::Graphics& g)
             if (isBlack (note))
                 continue;
             const auto key = juce::Rectangle<float> (strip.getX() + ww * (float) whiteIndex, strip.getY(), ww, strip.getHeight());
-            g.setColour (note == active ? srcColour : colors::text.withAlpha (0.14f));
+            g.setColour (note == active
+                             ? srcColour.withAlpha (0.40f + 0.60f * (float) alea.activeVelocity.load() / 127.0f)
+                             : colors::text.withAlpha (0.14f));
             g.fillRect (key.reduced (0.5f, 0.0f));
             ++whiteIndex;
         }
@@ -553,8 +569,6 @@ void OutputPanel::paint (juce::Graphics& g)
     g.drawText ("HISTORY", historyLabelRow, juce::Justification::centredLeft);
 
     const auto ticker = juce::Rectangle<int> (0, getHeight() - 54, getWidth(), 26).toFloat();
-    const juce::Font tickerFont { juce::FontOptions (16.0f, juce::Font::bold) };
-    g.setFont (tickerFont);
 
     const int total = alea.historyCount.load();
     float xRight = ticker.getRight();
@@ -564,7 +578,11 @@ void OutputPanel::paint (juce::Graphics& g)
         const bool isRest = (packed & 0x200) != 0;
         const auto name = isRest ? "(" + params::restNames[packed & 0xff] + ")"
                                  : noteName (packed & 0xff);
-        const float w = juce::GlyphArrangement::getStringWidth (tickerFont, name);
+        // Notes are sized by their velocity: loud notes literally bigger.
+        const float vel = (float) ((packed >> 10) & 0x7f) / 127.0f;
+        const juce::Font font { juce::FontOptions (isRest ? 13.0f : 12.0f + 8.0f * vel, juce::Font::bold) };
+        g.setFont (font);
+        const float w = juce::GlyphArrangement::getStringWidth (font, name);
         xRight -= w + 10.0f;
         if (xRight < ticker.getX())
             break;

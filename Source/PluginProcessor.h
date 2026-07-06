@@ -47,6 +47,7 @@ public:
     std::atomic<int>    activeSource { 0 };   // 0 = Scale A, 1 = Scale B (spec 5.4)
     std::atomic<int>    activeRest { -1 };    // rest slot (0-4) currently "sounding"
     std::atomic<int>    activeRestSource { 0 };
+    std::atomic<int>    activeVelocity { 0 };   // velocity of the sounding note (0-127)
     std::atomic<int>    lastRandomInterval { -1 }; // pool index picked by Random mode
     std::atomic<int>    lastRandomLength { -1 };
     std::atomic<bool>   panicRequested { false };
@@ -65,8 +66,8 @@ public:
     std::atomic<int>    morphCC { -1 };          // learned controller number
 
     // Event history ring buffer (spec 9.1: last 50). Entries pack
-    // note | (source << 8), or restIndex | (source << 8) | 0x200 for rests;
-    // total written count in historyCount.
+    // note | (source << 8) | (velocity << 10), or restIndex | (source << 8)
+    // | 0x200 for rests; total written count in historyCount.
     static constexpr int historyCapacity = 64;
     std::array<std::atomic<int>, historyCapacity> history {};
     std::atomic<int> historyCount { 0 };

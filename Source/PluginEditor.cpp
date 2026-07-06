@@ -114,6 +114,11 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
       standalone (p.wrapperType == juce::AudioProcessor::wrapperType_Standalone),
       output (p)
 {
+    // Space Grotesk everywhere - geometric, matches the wordmark.
+    static const auto aleaTypeface = juce::Typeface::createSystemTypefaceFor (
+        BinaryData::SpaceGroteskMedium_ttf, BinaryData::SpaceGroteskMedium_ttfSize);
+    juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypeface (aleaTypeface);
+
     addAndMakeVisible (keyboardA);
     addAndMakeVisible (keyboardB);
     addAndMakeVisible (restsA);
