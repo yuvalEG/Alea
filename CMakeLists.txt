@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Alea VERSION 0.1.0)
+project(Alea VERSION 0.2.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,6 +12,13 @@ FetchContent_Declare(JUCE
     GIT_TAG        8.0.14
     GIT_SHALLOW    TRUE)
 FetchContent_MakeAvailable(JUCE)
+
+# CLAP support: JUCE has no native CLAP target; this wrapper adds one on top
+# of the existing processor (https://github.com/free-audio/clap-juce-extensions).
+FetchContent_Declare(clap-juce-extensions
+    GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git
+    GIT_TAG        main)
+FetchContent_MakeAvailable(clap-juce-extensions)
 
 # App/plugin icon: picked up automatically once Assets/icon.png exists.
 set(ALEA_ICON_ARGS "")
@@ -29,7 +36,7 @@ juce_add_plugin(Alea
     # Classified as an instrument (not a "MIDI effect"): Ableton Live refuses
     # VST3s with no audio output and has no slot for third-party MIDI effects,
     # so like other MIDI generators Alea is an instrument with a silent output.
-    FORMATS VST3 Standalone
+    FORMATS VST3 AU Standalone
     IS_SYNTH TRUE
     IS_MIDI_EFFECT FALSE
     NEEDS_MIDI_INPUT TRUE
@@ -55,6 +62,11 @@ target_link_libraries(Alea
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+# CLAP build of the same plugin (for Bitwig, Reaper, and other CLAP hosts).
+clap_juce_extensions_plugin(TARGET Alea
+    CLAP_ID "com.alea-audio.alea"
+    CLAP_FEATURES instrument "note-effect" generator)
 
 # Dev tool: renders the editor to a PNG for layout checks (not shipped).
 juce_add_console_app(AleaUISnapshot PRODUCT_NAME "AleaUISnapshot")

@@ -94,7 +94,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
             text->setFont (juce::FontOptions (14.5f));
             text->setText (juce::String::fromUTF8 (
                 "Aleatoric Scale Shifter\n"
-                "Version 0.1.0\n\n\n"
+                "Version 0.2.0\n\n\n"
                 "HOW TO USE\n\n"
                 "Alea generates MIDI notes - it makes no sound of its own.\n\n"
                 "1. Load Alea on a MIDI track.\n"

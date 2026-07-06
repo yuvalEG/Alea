@@ -36,12 +36,14 @@ Notion spec; build deltas tracked in the Notion "Build Addendum" page).
 
 ## Status
 
-**v0.1** - VST3 on macOS, milestones M1–M4 complete (engine, host sync, full
-UI, presets & controls). Every build passes
-[pluginval](https://github.com/Tracktion/pluginval) at strictness 10.
+**v0.2** - VST3, AU and CLAP plugins plus a standalone app, on macOS. All
+six milestones complete: engine, host sync, full UI, presets & controls,
+standalone transport with a built-in synth, and the three plugin formats.
+Every build passes [pluginval](https://github.com/Tracktion/pluginval) at
+strictness 10; the AU passes Apple's auval.
 
-Planned: standalone app with its own transport and direct MIDI device output
-(M5), AU and CLAP formats (M6).
+`scripts/make_installer.sh` builds a pkg installer with selectable
+components (unsigned for now).
 
 ## Building
 
@@ -53,9 +55,9 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-The VST3 is copied to `~/Library/Audio/Plug-Ins/VST3/` after a successful
-build, so it shows up in your DAW's next plugin scan. The standalone app ends
-up under `build/Alea_artefacts/`.
+The VST3 and AU are copied to `~/Library/Audio/Plug-Ins/` after a successful
+build, so they show up in your DAW's next plugin scan. The CLAP and the
+standalone app end up under `build/Alea_artefacts/Release/`.
 
 ## Using it in a DAW
 
