@@ -31,9 +31,6 @@ diatonic scale to complete dodecaphony over time.
 - Deterministic per session: loop playback re-rolls the same choices, so what
   you heard is what you'll hear again.
 
-Full product spec: [docs/SPEC.md](docs/SPEC.md) (snapshot of the canonical
-Notion spec; build deltas tracked in the Notion "Build Addendum" page).
-
 ## Status
 
 **v0.2** - VST3, AU and CLAP plugins plus a standalone app, on macOS. All

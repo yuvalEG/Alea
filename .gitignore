@@ -17,3 +17,6 @@ _deps/
 xcuserdata/
 compile_commands.json
 .cache/
+
+# Internal product spec stays out of the public repo
+docs/SPEC.md
