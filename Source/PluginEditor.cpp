@@ -139,7 +139,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     addAndMakeVisible (menuButton);
 
     // Standalone: no host transport, so PLAY/STOP lives where the Host/
-    // Free-Run selector would be (the clock is always internal there).
+    // Free-Run selector would be (the clock is always internal there),
+    // with spacebar as the shortcut - like any DAW. The plugin never
+    // takes keyboard focus; space belongs to the host there.
+    setWantsKeyboardFocus (standalone);
     tempoSource.setVisible (! standalone);
     playButton.setClickingTogglesState (true);
     playButton.setColour (juce::TextButton::buttonColourId, colors::control);
@@ -157,7 +160,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
 
     // Plugin only: the most common support question is routing, so the
     // answer lives one click away. The standalone synth needs no routing.
-    helpLink.setButtonText ("No sound? Routing help");
+    helpLink.setButtonText ("No sound? Routing Help");
     helpLink.setURL (juce::URL ("https://github.com/yuvalEG/Alea#troubleshooting"));
     helpLink.setFont (juce::FontOptions (12.0f), false, juce::Justification::centredRight);
     helpLink.setColour (juce::HyperlinkButton::textColourId, colors::secondary);
@@ -382,6 +385,16 @@ void AleaAudioProcessorEditor::resized()
     }
 
     helpLink.setBounds (getWidth() - 250, getHeight() - 22, 240, 18);
+}
+
+bool AleaAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
+{
+    if (standalone && key == juce::KeyPress::spaceKey)
+    {
+        playButton.triggerClick(); // toggles and fires onClick
+        return true;
+    }
+    return false;
 }
 
 void AleaAudioProcessorEditor::timerCallback()
