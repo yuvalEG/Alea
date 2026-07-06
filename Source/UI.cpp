@@ -50,7 +50,7 @@ void SegmentedSelector::paint (juce::Graphics& g)
         {
             g.setColour (colors::secondary);
         }
-        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
         g.drawText (options[i], seg, juce::Justification::centred);
     }
 
@@ -284,7 +284,7 @@ void RestSelector::paint (juce::Graphics& g)
         g.setColour (colors::border);
         g.drawRoundedRectangle (cell, 4.0f, 1.0f);
         g.setColour (selected[r] || resting ? juce::Colours::black.withAlpha (0.75f) : colors::secondary);
-        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
         g.drawText (params::restNames[r], cell, juce::Justification::centred);
     }
 }
@@ -538,7 +538,7 @@ void OutputPanel::paint (juce::Graphics& g)
         const int vel = alea.activeVelocity.load();
         const auto barArea = juce::Rectangle<int> (getWidth() - 64, noteRow.getCentreY() - 4, 56, 8).toFloat();
         g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
         g.drawText ("VEL " + juce::String (vel), getWidth() - 120, noteRow.getCentreY() - 21, 112, 14,
                     juce::Justification::centredRight);
         g.setColour (colors::control);
@@ -622,7 +622,7 @@ void OutputPanel::paint (juce::Graphics& g)
 
     const int total = alea.historyCount.load();
     float xRight = ticker.getRight();
-    const juce::Font tickerFont { juce::FontOptions (16.0f, juce::Font::bold) };
+    const juce::Font tickerFont { juce::FontOptions (17.0f, juce::Font::bold) };
     g.setFont (tickerFont);
 
     for (int i = total - 1; i >= juce::jmax (0, total - 50) && xRight > ticker.getX(); --i)

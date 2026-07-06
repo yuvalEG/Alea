@@ -48,7 +48,7 @@ private:
 
     // Timing panel
     ui::SegmentedSelector intervalMode, lengthMode;
-    juce::ComboBox intervalSync, lengthSync;
+    juce::Slider intervalSync, lengthSync; // discrete division sliders
     juce::Slider intervalFree, lengthFree;
     juce::Slider transposeSlider; // global output transpose
 

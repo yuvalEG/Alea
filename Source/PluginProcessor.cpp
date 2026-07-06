@@ -298,9 +298,13 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
             {
                 const float env = v.amp.getNextSample();
                 const float shimmer = 0.16f * v.velocity * v.bright.getNextSample();
-                const float s = 0.55f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
-                              + shimmer * (float) std::sin (2.0 * v.phase);
-                left[n] += 0.13f * master * v.gain * env * s / (1.0f + shimmer);
+                // Detuned pair + sub-octave + a fixed touch of 2nd/3rd give
+                // the held tone real synth body; shimmer rides on velocity.
+                const float s = 0.50f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
+                              + 0.32f * (float) std::sin (0.5 * v.phase)
+                              + (0.20f + shimmer) * (float) std::sin (2.0 * v.phase)
+                              + 0.09f * (float) std::sin (3.0 * v.phase);
+                left[n] += 0.18f * master * v.gain * env * s / (1.0f + shimmer);
                 v.phase += inc1;
                 v.phase2 += inc2;
             }
@@ -469,8 +473,14 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         // the bar was showing (same rule as during playback).
         const bool sweepOnNow = pAutoSweep->load() > 0.5f;
         if (! sweepOnNow && lastSweepOn)
+        {
             if (auto* p = apvts.getParameter ("morphPos"))
                 p->setValueNotifyingHost (p->convertTo0to1 ((float) morphPercent.load()));
+        }
+        else if (sweepOnNow && ! lastSweepOn)
+        {
+            morphPercent.store (pMorphPos->load()); // bar shows the parked position while stopped
+        }
         lastSweepOn = sweepOnNow;
 
         activeRest.store (-1);
@@ -548,9 +558,14 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
     if (sweepOn && ! lastSweepOn)
     {
         const double legPpq = sweepLegPpq (bpm);
-        sweepAnchorPpq = legPpq > 1.0e-9
-            ? ppqStart - inverseCurve (pMorphPos->load() / 100.0, (int) pMorphCurve->load()) * legPpq
-            : ppqStart;
+        const double pos = pMorphPos->load() / 100.0;
+        // A completed One-Shot re-engages from A - resuming at 100% would
+        // pin the morph at B and the button would appear dead. Anything
+        // mid-journey resumes exactly where it parked.
+        if (legPpq <= 1.0e-9 || ((int) pMorphMode->load() == params::oneShot && pos >= 0.999))
+            sweepAnchorPpq = ppqStart;
+        else
+            sweepAnchorPpq = ppqStart - inverseCurve (pos, (int) pMorphCurve->load()) * legPpq;
     }
     else if (! sweepOn && lastSweepOn)
     {

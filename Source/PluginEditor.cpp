@@ -114,10 +114,23 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
       standalone (p.wrapperType == juce::AudioProcessor::wrapperType_Standalone),
       output (p)
 {
-    // Space Grotesk everywhere - geometric, matches the wordmark.
-    static const auto aleaTypeface = juce::Typeface::createSystemTypefaceFor (
-        BinaryData::SpaceGroteskMedium_ttf, BinaryData::SpaceGroteskMedium_ttfSize);
-    juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypeface (aleaTypeface);
+    // Space Grotesk everywhere, sized up: buttons, combos, menus, textboxes.
+    struct AleaLookAndFeel : juce::LookAndFeel_V4
+    {
+        AleaLookAndFeel()
+        {
+            setDefaultSansSerifTypeface (juce::Typeface::createSystemTypefaceFor (
+                BinaryData::SpaceGroteskMedium_ttf, BinaryData::SpaceGroteskMedium_ttfSize));
+        }
+        juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override
+        { return juce::FontOptions (juce::jmin (16.5f, (float) buttonHeight * 0.62f)); }
+        juce::Font getComboBoxFont (juce::ComboBox&) override { return juce::FontOptions (16.0f); }
+        juce::Font getPopupMenuFont() override { return juce::FontOptions (16.0f); }
+        juce::Font getLabelFont (juce::Label& label) override
+        { return juce::FontOptions (juce::jmin (15.5f, (float) label.getHeight() * 0.72f)); }
+    };
+    static AleaLookAndFeel aleaLnf; // process lifetime: dialogs may outlive the editor
+    juce::LookAndFeel::setDefaultLookAndFeel (&aleaLnf);
 
     content.addAndMakeVisible (keyboardA);
     content.addAndMakeVisible (keyboardB);
@@ -143,13 +156,30 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     setupSlider (internalTempo, "internalTempo", colors::green);
 
     // Sync divisions are fractions of a bar; in 4/4 that maps 1:1 onto note
-    // values (display only - the musical glyphs aren't in the UI font, so
-    // the word "note" it is).
-    const juce::StringArray divisionDisplay {
+    // values. Discrete sliders (like the octave controls): drag through the
+    // divisions, the readout names them.
+    static const juce::StringArray divisionDisplay {
         "1/64 note", "1/32 note", "1/16 note", "1/8 note", "1/4 note", "1/2 note",
         "1 bar", "2 bars", "4 bars" };
-    setupCombo (intervalSync, "intervalSync", divisionDisplay);
-    setupCombo (lengthSync, "lengthSync", divisionDisplay);
+    for (auto& [slider, id] : { std::pair<juce::Slider*, const char*> { &intervalSync, "intervalSync" },
+                                { &lengthSync, "lengthSync" } })
+    {
+        slider->setSliderStyle (juce::Slider::LinearHorizontal);
+        slider->setTextBoxStyle (juce::Slider::TextBoxLeft, false, 92, 22);
+        slider->setColour (juce::Slider::thumbColourId, colors::text.withAlpha (0.85f));
+        slider->setColour (juce::Slider::trackColourId, colors::control);
+        slider->setColour (juce::Slider::backgroundColourId, colors::control);
+        slider->setColour (juce::Slider::textBoxTextColourId, colors::text);
+        slider->setColour (juce::Slider::textBoxOutlineColourId, colors::border);
+        content.addAndMakeVisible (*slider);
+        sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            alea.apvts, id, *slider));
+        // After attaching: the attachment installs the parameter's own text
+        // function ("1/16"); ours names the note value.
+        slider->textFromValueFunction = [] (double v)
+        { return divisionDisplay[juce::jlimit (0, divisionDisplay.size() - 1, (int) std::lround (v))]; };
+        slider->updateText();
+    }
     setupCombo (morphDurBars, "morphDurBars", juce::StringArray {
         "1 bar", "2 bars", "4 bars", "8 bars", "16 bars", "32 bars", "64 bars" });
     setupCombo (morphDurUnit, "morphDurUnit");
@@ -160,7 +190,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     for (auto* rp : { &rootABox, &rootBBox })
     {
         for (int i = 0; i < 12; ++i)
-            rp->addItem ("Root " + params::pitchClassNames[i], i + 1);
+            rp->addItem (params::pitchClassNames[i], i + 1);
         rp->setColour (juce::ComboBox::backgroundColourId, colors::control);
         rp->setColour (juce::ComboBox::textColourId, colors::text);
         rp->setColour (juce::ComboBox::outlineColourId, colors::border);
@@ -319,7 +349,6 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     layoutMain();
 
     setResizable (true, true);
-    getConstrainer()->setFixedAspectRatio ((double) kWidth / (double) viewHeight);
     setResizeLimits (kWidth * 3 / 5, viewHeight * 3 / 5, kWidth * 2, viewHeight * 2);
     setSize (kWidth, viewHeight);
 
@@ -422,7 +451,7 @@ void AleaAudioProcessorEditor::layoutMain()
     {
         const int x = panel.getX() + 12, w = panel.getWidth() - 24;
         kb.setBounds (x, panel.getY() + 30, w, 96);
-        rests.setBounds (x + 44, panel.getY() + 132, w - 44 - 84, 26);
+        rests.setBounds (x + 44, panel.getY() + 132, w - 44 - 110, 26);
         const int half = (w - 52) / 2;
         octMin.setBounds (x + 44, panel.getY() + 168, half, 24);
         octMax.setBounds (x + 52 + half, panel.getY() + 168, half, 24);
@@ -430,8 +459,8 @@ void AleaAudioProcessorEditor::layoutMain()
         velMax.setBounds (x + 52 + half, panel.getY() + 202, half, 24);
     };
 
-    rootABox.setBounds (scaleAPanel.getRight() - 12 - 78, scaleAPanel.getY() + 132, 78, 26);
-    rootBBox.setBounds (scaleBPanel.getRight() - 12 - 78, scaleBPanel.getY() + 132, 78, 26);
+    rootABox.setBounds (scaleAPanel.getRight() - 12 - 58, scaleAPanel.getY() + 132, 58, 26);
+    rootBBox.setBounds (scaleBPanel.getRight() - 12 - 58, scaleBPanel.getY() + 132, 58, 26);
 
     scaleControls (scaleAPanel, keyboardA, restsA, aOctMin, aOctMax, aVelMin, aVelMax);
     scaleControls (scaleBPanel, keyboardB, restsB, bOctMin, bOctMax, bVelMin, bVelMax);
@@ -603,8 +632,13 @@ void AleaAudioProcessorEditor::updateModeVisibility()
 
 void AleaAudioProcessorEditor::resized()
 {
-    // Uniform scale: the fixed-size view stretches with the window.
-    content.setTransform (juce::AffineTransform::scale ((float) getWidth() / (float) kWidth));
+    // Free resize: the view scales uniformly to fit and centers, so the
+    // window follows the mouse in any direction without fighting a ratio.
+    const float scale = juce::jmin ((float) getWidth() / (float) kWidth,
+                                    (float) getHeight() / (float) viewHeight);
+    content.setTransform (juce::AffineTransform::scale (scale)
+                              .translated (((float) getWidth() - (float) kWidth * scale) * 0.5f,
+                                           ((float) getHeight() - (float) viewHeight * scale) * 0.5f));
 }
 
 void AleaAudioProcessorEditor::paint (juce::Graphics& g)
@@ -642,7 +676,7 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
         g.setColour (colors::border);
         g.drawRoundedRectangle (r.toFloat().reduced (0.5f), 8.0f, 1.0f);
         g.setColour (accent);
-        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
         g.drawText (title, r.getX() + 12, r.getY() + 8, r.getWidth() - 24, 18, juce::Justification::centredLeft);
     };
 
@@ -653,18 +687,19 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     drawPanel (outputPanel, "OUTPUT", colors::green);
     drawPanel (presetsPanel, "", colors::secondary);
     g.setColour (colors::secondary);
-    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+    g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
     g.drawText ("PRESETS", presetsPanel.getX() + 12, presetsPanel.getY(), 76, presetsPanel.getHeight(),
                 juce::Justification::centredLeft);
 
     // Small row labels
     g.setColour (colors::secondary);
-    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+    g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
 
     for (const auto& [panel, alpha] : { std::pair { &scaleAPanel, alphaA }, std::pair { &scaleBPanel, alphaB } })
     {
         g.setColour (colors::secondary.withMultipliedAlpha (alpha));
         g.drawText ("RESTS", panel->getX() + 12, panel->getY() + 132, 40, 26, juce::Justification::centredLeft);
+        g.drawText ("ROOT", panel->getRight() - 12 - 58 - 44, panel->getY() + 132, 40, 26, juce::Justification::centredRight);
         g.drawText ("OCT",   panel->getX() + 12, panel->getY() + 168, 40, 24, juce::Justification::centredLeft);
         g.drawText ("VEL",   panel->getX() + 12, panel->getY() + 202, 40, 24, juce::Justification::centredLeft);
     }
@@ -678,10 +713,10 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     auto drawRandomPick = [&g] (int y, int poolIndex)
     {
         g.setColour (colors::text.withAlpha (0.85f));
-        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
         g.drawText (poolIndex >= 0 ? "now: " + params::randomPoolNames[poolIndex] : "now: -",
                     timingPanel.getX() + 12, y, timingPanel.getWidth() - 24, 26, juce::Justification::centred);
-        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
         g.setColour (colors::secondary);
     };
 
