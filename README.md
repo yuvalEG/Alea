@@ -127,3 +127,9 @@ I'll be more than happy to hear your feedback, ideas, and music made with
 Alea - open an issue here or write to yuvalprod@gmail.com.
 
 Plugin made by Yuval Egozi.
+
+## License
+
+Alea is open source under the [GPLv3](LICENSE) (it is built on
+[JUCE](https://juce.com), whose free tier requires it). The Space Grotesk
+font is embedded under the SIL Open Font License.

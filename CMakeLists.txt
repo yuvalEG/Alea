@@ -17,7 +17,7 @@ FetchContent_MakeAvailable(JUCE)
 # of the existing processor (https://github.com/free-audio/clap-juce-extensions).
 FetchContent_Declare(clap-juce-extensions
     GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git
-    GIT_TAG        main)
+    GIT_TAG        16e9d4ca7b1e86c76e04584b2c08e85a764bcda8) # pinned for reproducible builds
 FetchContent_MakeAvailable(clap-juce-extensions)
 
 # Embedded UI assets (header wordmark + UI font, Space Grotesk, SIL OFL)
