@@ -26,6 +26,9 @@ AleaAudioProcessor::AleaAudioProcessor()
     // sessions overwrite this via setStateInformation right after.
     presets::apply (apvts, presets::factory()[0]);
     currentPreset.store (0);
+
+    // Standalone makes sound out of the box; plugins default to pure MIDI.
+    synthOn.store (wrapperType == wrapperType_Standalone);
 }
 
 void AleaAudioProcessor::cacheScaleRefs (char scale, ScaleRefs& refs)
@@ -73,17 +76,17 @@ void AleaAudioProcessor::prepareToPlay (double sampleRate, int)
     internalPpq = 0.0;
     wasPlaying = false;
 
-    // Internal synth chain. Long release makes the polyphonic overlap
-    // audible - tails ring well into the following notes.
+    // Internal synth chain: a warm pad voicing. Soft attack, high sustain,
+    // long release so tails ring well into the following notes.
     for (auto& v : voices)
     {
         v.amp.setSampleRate (sampleRate);
-        v.amp.setParameters ({ 0.004f, 0.15f, 0.65f, 1.30f });
+        v.amp.setParameters ({ 0.012f, 0.25f, 0.80f, 2.20f });
         v.amp.reset();
         v.bright.setSampleRate (sampleRate);
-        v.bright.setParameters ({ 0.002f, 0.45f, 0.30f, 0.80f });
+        v.bright.setParameters ({ 0.002f, 0.50f, 0.25f, 1.00f });
         v.bright.reset();
-        v.phase = 0.0;
+        v.phase = v.phase2 = 0.0;
         v.note = -1;
     }
     nextVoice = 0;
@@ -95,10 +98,10 @@ void AleaAudioProcessor::prepareToPlay (double sampleRate, int)
 
     reverb.setSampleRate (sampleRate);
     juce::Reverb::Parameters rv;
-    rv.roomSize = 0.55f;
-    rv.damping = 0.40f;
-    rv.wetLevel = 0.25f;
-    rv.dryLevel = 0.90f;
+    rv.roomSize = 0.70f;
+    rv.damping = 0.35f;
+    rv.wetLevel = 0.33f;
+    rv.dryLevel = 0.85f;
     rv.width = 1.0f;
     reverb.setParameters (rv);
     reverb.reset();
@@ -246,7 +249,7 @@ juce::String AleaAudioProcessor::getMidiOutputId() const
 
 void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
 {
-    if (choice == "synth" || choice.isEmpty())
+    if (choice == "synth")
     {
         synthOn.store (true);
         setMidiOutputDevice ({});
@@ -254,7 +257,9 @@ void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
     else
     {
         synthOn.store (false);
-        setMidiOutputDevice (choice);
+        // Device output only exists in the standalone; in a DAW the host
+        // owns MIDI routing.
+        setMidiOutputDevice (wrapperType == wrapperType_Standalone ? choice : juce::String());
     }
 }
 
@@ -282,20 +287,26 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
         {
             if (! v.amp.isActive())
                 continue;
-            const double phaseInc = juce::MathConstants<double>::twoPi * v.freq / sampleRate;
+            // Two sines a few cents apart beat slowly against each other -
+            // the warmth comes from the detune, not from added harmonics.
+            // Velocity adds only a whisper of octave shimmer on top.
+            const double inc1 = juce::MathConstants<double>::twoPi * v.freq / sampleRate;
+            const double inc2 = inc1 * 1.0035;
             for (int n = pos; n < end; ++n)
             {
                 const float env = v.amp.getNextSample();
-                const float shimmer = 0.45f * v.velocity * v.bright.getNextSample();
-                const auto p = v.phase;
-                // Velocity fades in a single octave-up shimmer - consonant by
-                // construction, so it stays pretty at every velocity.
-                const float s = (float) std::sin (p) + shimmer * (float) std::sin (2.0 * p);
+                const float shimmer = 0.16f * v.velocity * v.bright.getNextSample();
+                const float s = 0.55f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
+                              + shimmer * (float) std::sin (2.0 * v.phase);
                 left[n] += 0.17f * v.gain * env * s / (1.0f + shimmer);
-                v.phase += phaseInc;
+                v.phase += inc1;
+                v.phase2 += inc2;
             }
             if (v.phase > juce::MathConstants<double>::twoPi * 1024.0)
+            {
                 v.phase = std::fmod (v.phase, juce::MathConstants<double>::twoPi);
+                v.phase2 = std::fmod (v.phase2, juce::MathConstants<double>::twoPi);
+            }
         }
         pos = end;
     };
@@ -373,17 +384,14 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 {
     generateBlock (buffer, midi);
 
-    if (wrapperType != wrapperType_Standalone)
-        return;
-
-    // Standalone output: the built-in synth, or a mirror of everything
-    // (including note-offs from early returns) to the chosen MIDI device.
-    // Try-lock so device swaps never stall the audio thread.
+    // The built-in synth renders in any wrapper when chosen (the MIDI still
+    // flows to the host alongside). The device mirror is standalone-only,
+    // with a try-lock so device swaps never stall the audio thread.
     if (synthOn.load())
     {
         renderSynth (buffer, midi);
     }
-    else if (! midi.isEmpty())
+    else if (wrapperType == wrapperType_Standalone && ! midi.isEmpty())
     {
         const juce::ScopedTryLock sl (midiOutLock);
         if (sl.isLocked() && midiOutput != nullptr)
@@ -691,11 +699,11 @@ void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
                 currentPreset.store ((int) presetProp);
             }
 
-            // Restore the remembered output (standalone settings restore
-            // arrives on the message thread; skip anywhere else).
-            if (wrapperType == wrapperType_Standalone
-                && juce::MessageManager::getInstance()->isThisTheMessageThread())
-                setStandaloneOutput (apvts.state.getProperty ("standaloneOutput", "synth").toString());
+            // Restore the remembered output (device opening needs the
+            // message thread; skip anywhere else).
+            if (juce::MessageManager::getInstance()->isThisTheMessageThread())
+                setStandaloneOutput (apvts.state.getProperty ("standaloneOutput",
+                    wrapperType == wrapperType_Standalone ? "synth" : "").toString());
         }
 }
 

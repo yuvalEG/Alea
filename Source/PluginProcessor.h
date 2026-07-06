@@ -52,13 +52,13 @@ public:
     std::atomic<bool>   panicRequested { false };
     std::atomic<int>    currentPreset { -1 };  // lit factory-preset bubble; -1 = custom
 
-    // Standalone (spec section 10): internal transport + output choice.
-    // Output is either the built-in synth (default - sound with zero setup)
-    // or a MIDI device. In a DAW these are inert - the host rules.
-    std::atomic<bool> standaloneTransport { false };
-    std::atomic<bool> synthOn { true };
-    void setStandaloneOutput (const juce::String& choice); // "synth" or device identifier; message thread only
-    juce::String getStandaloneOutput() const;              // "synth" or the open device's identifier
+    // Output choice. Standalone: built-in synth (default) or a MIDI device.
+    // Plugin: MIDI to the host (default) or the built-in synth - the synth
+    // matters most for the AU, since Live and Logic can't route AU MIDI out.
+    std::atomic<bool> standaloneTransport { false }; // standalone PLAY/STOP
+    std::atomic<bool> synthOn { false };
+    void setStandaloneOutput (const juce::String& choice); // "synth", device identifier, or "" = MIDI to host; message thread only
+    juce::String getStandaloneOutput() const;              // "synth", device identifier, or ""
     juce::String getMidiOutputId() const;
     std::atomic<float>  scrubRequest { -1.0f };  // 0-100: re-anchor auto-sweep here
     std::atomic<bool>   ccLearnArmed { false };  // next incoming CC binds Morph Position
@@ -110,7 +110,7 @@ private:
     struct SynthVoice
     {
         juce::ADSR amp, bright;
-        double phase = 0.0, freq = 440.0;
+        double phase = 0.0, phase2 = 0.0, freq = 440.0; // two detuned sines
         float gain = 0.0f, velocity = 0.0f;
         int note = -1; // -1 = released (may still be ringing)
     };

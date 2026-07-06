@@ -79,6 +79,13 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     menuButton.onClick = [this]
     {
         juce::PopupMenu m;
+        m.addItem ("Check for Updates...", []
+        {
+            // v1: opens the releases page; compare against the version in
+            // About. An in-app version check can come once the repo is public.
+            juce::URL ("https://github.com/yuvalEG/Alea/releases").launchInDefaultBrowser();
+        });
+        m.addSeparator();
         m.addItem ("About Alea...", []
         {
             // A custom dialog rather than an AlertWindow: wider, and the text

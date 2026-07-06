@@ -12,10 +12,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION=$(sed -n 's/^project(Alea VERSION \([0-9.]*\))$/\1/p' CMakeLists.txt)
-VST3="build/Alea_artefacts/Release/VST3/Alea.vst3"
-AU="build/Alea_artefacts/Release/AU/Alea.component"
-CLAP="build/Alea_artefacts/Release/CLAP/Alea.clap"
-APP="build/Alea_artefacts/Release/Standalone/Alea.app"
+VST3="build/Alea_artefacts/Release/VST3/Alea Scale Shifter.vst3"
+AU="build/Alea_artefacts/Release/AU/Alea Scale Shifter.component"
+CLAP="build/Alea_artefacts/Release/CLAP/Alea Scale Shifter.clap"
+APP="build/Alea_artefacts/Release/Standalone/Alea Scale Shifter.app"
 OUT="build/installer"
 
 for artefact in "$VST3" "$AU" "$CLAP" "$APP"; do
@@ -41,11 +41,15 @@ pkgbuild --root "$OUT/claproot" --identifier com.alea-audio.alea.clap \
 pkgbuild --root "$OUT/approot" --identifier com.alea-audio.alea.app \
          --version "$VERSION" --install-location / "$OUT/Alea-App.pkg" > /dev/null
 
+cp Assets/icon.png "$OUT/background.png"
+
 cat > "$OUT/distribution.xml" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1">
     <title>Alea $VERSION</title>
     <options customize="always" require-scripts="false" rootVolumeOnly="true"/>
+    <background file="background.png" mime-type="image/png" alignment="left" scaling="proportional"/>
+    <background-darkAqua file="background.png" mime-type="image/png" alignment="left" scaling="proportional"/>
     <welcome language="en" mime-type="text/plain">Alea - Aleatoric Scale Shifter. Choose which versions to install.</welcome>
     <choices-outline>
         <line choice="vst3"/>
@@ -72,7 +76,7 @@ cat > "$OUT/distribution.xml" <<EOF
 </installer-gui-script>
 EOF
 
-productbuild --distribution "$OUT/distribution.xml" --package-path "$OUT" \
+productbuild --distribution "$OUT/distribution.xml" --package-path "$OUT" --resources "$OUT" \
              "build/Alea-$VERSION.pkg" > /dev/null
 
 echo "Built build/Alea-$VERSION.pkg (unsigned)"

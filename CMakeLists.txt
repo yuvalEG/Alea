@@ -27,7 +27,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png")
 endif()
 
 juce_add_plugin(Alea
-    PRODUCT_NAME "Alea"
+    PRODUCT_NAME "Alea Scale Shifter"
     COMPANY_NAME "Alea Audio"
     BUNDLE_ID com.alea-audio.alea
     PLUGIN_MANUFACTURER_CODE Alau
