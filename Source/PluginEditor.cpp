@@ -178,7 +178,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     // divisions, the readout names them. Long left, short right.
     static const juce::StringArray divisionDisplay {
         "4 bars", "2 bars", "1 bar", "1/2 note", "1/4 note", "1/8 note",
-        "1/16 note", "1/32 note", "1/64 note" };
+        "1/16 note", "1/32 note", "1/64 note", "1/128 note" };
     for (auto& [slider, id] : { std::pair<juce::Slider*, const char*> { &intervalSync, "intervalSync" },
                                 { &lengthSync, "lengthSync" } })
     {
@@ -429,10 +429,11 @@ void AleaAudioProcessorEditor::layoutMain()
 
     presetsPanel = { 10, 64, vw - 20, 76 };
     const int scaleW = (vw - 30) / 2;
-    scaleAPanel = { 10, 148, scaleW, 240 };
-    scaleBPanel = { 20 + scaleW, 148, vw - 30 - scaleW, 240 };
+    const int scaleH = 240 + juce::jmax (0, vh - kHeight) * 2 / 5; // keyboards grow on big windows
+    scaleAPanel = { 10, 148, scaleW, scaleH };
+    scaleBPanel = { 20 + scaleW, 148, vw - 30 - scaleW, scaleH };
 
-    const int by = 398;
+    const int by = 148 + scaleH + 10;
     const int bh = juce::jmax (208, vh - by - footer);
     const int avail = vw - 40;
     const int tw = avail * 29 / 90;
@@ -459,17 +460,17 @@ void AleaAudioProcessorEditor::layoutMain()
                                  juce::Slider& velMin, juce::Slider& velMax)
     {
         const int x = panel.getX() + 12, w = panel.getWidth() - 24;
-        kb.setBounds (x, panel.getY() + 30, w, 96);
-        rests.setBounds (x + 44, panel.getY() + 132, w - 44 - 110, 26);
+        kb.setBounds (x, panel.getY() + 30, w, panel.getHeight() - 144);
+        rests.setBounds (x + 44, panel.getBottom() - 108, w - 44 - 110, 26);
         const int half = (w - 52) / 2;
-        octMin.setBounds (x + 44, panel.getY() + 168, half, 24);
-        octMax.setBounds (x + 52 + half, panel.getY() + 168, half, 24);
-        velMin.setBounds (x + 44, panel.getY() + 202, half, 24);
-        velMax.setBounds (x + 52 + half, panel.getY() + 202, half, 24);
+        octMin.setBounds (x + 44, panel.getBottom() - 72, half, 24);
+        octMax.setBounds (x + 52 + half, panel.getBottom() - 72, half, 24);
+        velMin.setBounds (x + 44, panel.getBottom() - 38, half, 24);
+        velMax.setBounds (x + 52 + half, panel.getBottom() - 38, half, 24);
     };
 
-    rootABox.setBounds (scaleAPanel.getRight() - 12 - 58, scaleAPanel.getY() + 132, 58, 26);
-    rootBBox.setBounds (scaleBPanel.getRight() - 12 - 58, scaleBPanel.getY() + 132, 58, 26);
+    rootABox.setBounds (scaleAPanel.getRight() - 12 - 58, scaleAPanel.getBottom() - 108, 58, 26);
+    rootBBox.setBounds (scaleBPanel.getRight() - 12 - 58, scaleBPanel.getBottom() - 108, 58, 26);
 
     scaleControls (scaleAPanel, keyboardA, restsA, aOctMin, aOctMax, aVelMin, aVelMax);
     scaleControls (scaleBPanel, keyboardB, restsB, bOctMin, bOctMax, bVelMin, bVelMax);
@@ -695,7 +696,7 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     drawPanel (scaleBPanel, "SCALE B", colors::cyan.withMultipliedAlpha (alphaB));
     drawPanel (timingPanel, "TIMING", colors::text.withAlpha (0.9f));
     drawPanel (morphPanel, "SCALE MORPH", colors::text.withAlpha (0.9f));
-    drawPanel (outputPanel, "OUTPUT", colors::green);
+    drawPanel (outputPanel, "OUTPUT", colors::text.withAlpha (0.9f));
     drawPanel (presetsPanel, "", colors::secondary);
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
@@ -709,10 +710,10 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     for (const auto& [panel, alpha] : { std::pair { &scaleAPanel, alphaA }, std::pair { &scaleBPanel, alphaB } })
     {
         g.setColour (colors::secondary.withMultipliedAlpha (alpha));
-        g.drawText ("RESTS", panel->getX() + 12, panel->getY() + 132, 40, 26, juce::Justification::centredLeft);
-        g.drawText ("ROOT", panel->getRight() - 12 - 58 - 44, panel->getY() + 132, 40, 26, juce::Justification::centredRight);
-        g.drawText ("OCT",   panel->getX() + 12, panel->getY() + 168, 40, 24, juce::Justification::centredLeft);
-        g.drawText ("VEL",   panel->getX() + 12, panel->getY() + 202, 40, 24, juce::Justification::centredLeft);
+        g.drawText ("RESTS", panel->getX() + 12, panel->getBottom() - 108, 40, 26, juce::Justification::centredLeft);
+        g.drawText ("ROOT", panel->getRight() - 12 - 58 - 44, panel->getBottom() - 108, 40, 26, juce::Justification::centredRight);
+        g.drawText ("OCT",   panel->getX() + 12, panel->getBottom() - 72, 40, 24, juce::Justification::centredLeft);
+        g.drawText ("VEL",   panel->getX() + 12, panel->getBottom() - 38, 40, 24, juce::Justification::centredLeft);
     }
     g.setColour (colors::secondary);
 

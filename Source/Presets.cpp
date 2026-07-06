@@ -47,15 +47,15 @@ const std::vector<Factory>& factory()
               triad, m ({ 3, 8, 11 }), 0, 0,  3, 4, 3, 4,  65, 100, 65, 100,
               0, 4,  0, 4,  1, 0, 3, 30.0f, 0, 2, 2, 0, 8 },
 
+            { "Sweeps", "Soft \xe2\x86\x92 Loud", // velocity-only sweep
+              major, major, 0, 0,  3, 5, 3, 5,  25, 45, 105, 127,
+              0, 6,  0, 6,  1, 0, 1, 30.0f, 0, 2, 2 },
             { "Sweeps", "Major \xe2\x86\x92 Minor",
               major, minor, 0, 0,  3, 5, 3, 5,  80, 110, 80, 110,
               0, 4,  0, 5,  1, 0, 3, 30.0f, 0, 2, 0 },
             { "Sweeps", "Sparse \xe2\x86\x92 Dense",
               m ({ 0, 7 }), chromatic, m ({ 1, 2, 3 }), 0,  2, 4, 3, 6,  60, 90, 90, 120,
               0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 1 },
-            { "Sweeps", "Soft \xe2\x86\x92 Loud", // velocity-only sweep
-              major, major, 0, 0,  3, 5, 3, 5,  25, 45, 105, 127,
-              0, 6,  0, 6,  1, 0, 1, 30.0f, 0, 2, 2 },
             { "Sweeps", "Five \xe2\x86\x92 One", // A minor pentatonic collapsing to a single C
               m ({ 9, 0, 2, 4, 7 }), m ({ 0 }), 0, 0,  3, 3, 3, 3,  70, 100, 70, 100,
               0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 0, 9, 0 },

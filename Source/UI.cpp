@@ -500,7 +500,7 @@ void OutputPanel::resized()
     outputBox->setBounds (0, 0, synth ? getWidth() - 92 : getWidth(), 26);
     volSlider.setBounds (getWidth() - 82, 2, 44, 44);
     volSlider.setVisible (synth);
-    transposeSlider.setBounds (0, 46, getWidth(), 20);
+    transposeSlider.setBounds (0, 54, getWidth(), 20);
 }
 
 void OutputPanel::paint (juce::Graphics& g)
@@ -547,10 +547,10 @@ void OutputPanel::paint (juce::Graphics& g)
     auto area = getLocalBounds();
     if (outputBox != nullptr)
     {
-        area.removeFromTop (70); // chooser row + transpose line
+        area.removeFromTop (78); // chooser row + transpose line
         g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-        g.drawText ("TRANSPOSE", 0, 32, 90, 12, juce::Justification::centredLeft);
+        g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+        g.drawText ("TRANSPOSE", 0, 36, 100, 14, juce::Justification::centredLeft);
     }
 
     // Note displays are colored by the scale the note came from, matching
@@ -558,7 +558,7 @@ void OutputPanel::paint (juce::Graphics& g)
     const auto srcColour = alea.activeSource.load() == 1 ? colors::cyan : colors::purple;
 
     // Activity LED + big note display (shows the sounding rest, too)
-    auto noteRow = area.removeFromTop (outputBox != nullptr ? 34 : 56);
+    auto noteRow = area.removeFromTop (outputBox != nullptr ? 30 : 56);
     g.setColour (active >= 0 ? colors::playing : colors::control);
     g.fillEllipse (noteRow.removeFromLeft (26).withSizeKeepingCentre (14, 14).toFloat());
 
