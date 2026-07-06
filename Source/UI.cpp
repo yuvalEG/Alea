@@ -12,11 +12,21 @@ juce::String noteName (int midiNote)
 
 //==============================================================================
 SegmentedSelector::SegmentedSelector (juce::RangedAudioParameter& param,
-                                      const juce::StringArray& opts, juce::Colour accentColour)
-    : options (opts), accent (accentColour),
+                                      const juce::StringArray& opts, juce::Colour accentColour,
+                                      const juce::StringArray& tips)
+    : options (opts), tooltips (tips), accent (accentColour),
       attachment (param, [this] (float v) { value = (int) v; repaint(); })
 {
     attachment.sendInitialUpdate();
+}
+
+juce::String SegmentedSelector::getTooltip()
+{
+    if (tooltips.isEmpty())
+        return {};
+    const int idx = juce::jlimit (0, tooltips.size() - 1,
+                                  (int) ((float) getMouseXYRelative().x / ((float) getWidth() / (float) options.size())));
+    return tooltips[idx];
 }
 
 void SegmentedSelector::paint (juce::Graphics& g)
@@ -118,6 +128,16 @@ void CurveSelector::mouseDown (const juce::MouseEvent& e)
 {
     const int idx = juce::jlimit (0, 3, (int) (e.position.x / ((float) getWidth() / 4.0f)));
     attachment.setValueAsCompleteGesture ((float) idx);
+}
+
+juce::String CurveSelector::getTooltip()
+{
+    static const juce::StringArray tips {
+        "Linear - steady pace",
+        "Exponential - starts slow, ends fast",
+        "S-Curve - eases in and out",
+        "Logarithmic - starts fast, ends slow" };
+    return tips[juce::jlimit (0, 3, (int) ((float) getMouseXYRelative().x / ((float) getWidth() / 4.0f)))];
 }
 
 //==============================================================================
@@ -366,18 +386,7 @@ void MorphBar::mouseUp (const juce::MouseEvent&)
 }
 
 //==============================================================================
-OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
-{
-    panicButton.setColour (juce::TextButton::buttonColourId, colors::red.withAlpha (0.85f));
-    panicButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
-    panicButton.onClick = [this] { alea.panicRequested.store (true); };
-    addAndMakeVisible (panicButton);
-}
-
-void OutputPanel::resized()
-{
-    panicButton.setBounds (getWidth() - 70, 0, 70, 26);
-}
+OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p) {}
 
 void OutputPanel::paint (juce::Graphics& g)
 {
@@ -423,9 +432,44 @@ void OutputPanel::paint (juce::Graphics& g)
     g.drawText ("BAR " + juce::String (playing ? bar : 1)
                 + "  BEAT " + juce::String (playing ? beat : 1), row, juce::Justification::centredLeft);
 
+    // 88-key monitor (A0-C8): the sounding note lights green, like on the
+    // scale keyboards. Rests deliberately don't show here - silence has no
+    // key; the LED going dark and the history ticker cover it.
+    {
+        const auto strip = juce::Rectangle<float> (0.0f, (float) getHeight() - 124.0f, (float) getWidth(), 40.0f);
+        const float ww = strip.getWidth() / 52.0f;
+        auto isBlack = [] (int note) { const int pc = note % 12; return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
 
-    // History: a single readable ticker, newest note entering on the right,
-    // sequence reading left-to-right, colored by source scale.
+        int whiteIndex = 0;
+        for (int note = 21; note <= 108; ++note)
+        {
+            if (isBlack (note))
+                continue;
+            const auto key = juce::Rectangle<float> (strip.getX() + ww * (float) whiteIndex, strip.getY(), ww, strip.getHeight());
+            g.setColour (note == active ? colors::playing : colors::text.withAlpha (0.14f));
+            g.fillRect (key.reduced (0.5f, 0.0f));
+            ++whiteIndex;
+        }
+
+        whiteIndex = 0;
+        for (int note = 21; note <= 108; ++note)
+        {
+            if (! isBlack (note))
+            {
+                ++whiteIndex;
+                continue;
+            }
+            const float bw = ww * 0.7f;
+            const auto key = juce::Rectangle<float> (strip.getX() + ww * (float) whiteIndex - bw * 0.5f,
+                                                     strip.getY(), bw, strip.getHeight() * 0.62f);
+            g.setColour (note == active ? colors::playing : colors::background);
+            g.fillRect (key);
+        }
+    }
+
+    // History: a single readable ticker, newest event entering on the right,
+    // sequence reading left-to-right, colored by source scale. Rests appear
+    // as their duration in parentheses - they're events too.
     auto historyLabelRow = juce::Rectangle<int> (0, getHeight() - 76, getWidth(), 18);
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (11.0f));
@@ -440,13 +484,16 @@ void OutputPanel::paint (juce::Graphics& g)
     for (int i = total - 1; i >= juce::jmax (0, total - 50) && xRight > ticker.getX(); --i)
     {
         const int packed = alea.history[(size_t) (i % AleaAudioProcessor::historyCapacity)].load();
-        const auto name = noteName (packed & 0xff);
+        const bool isRest = (packed & 0x200) != 0;
+        const auto name = isRest ? "(" + params::restNames[packed & 0xff] + ")"
+                                 : noteName (packed & 0xff);
         const float w = juce::GlyphArrangement::getStringWidth (tickerFont, name);
         xRight -= w + 10.0f;
         if (xRight < ticker.getX())
             break;
         const float age = (float) (total - 1 - i);
-        g.setColour (((packed >> 8) & 1 ? colors::cyan : colors::purple).withAlpha (juce::jmax (0.35f, 1.0f - age * 0.06f)));
+        const float alpha = juce::jmax (0.35f, 1.0f - age * 0.06f) * (isRest ? 0.55f : 1.0f);
+        g.setColour (((packed >> 8) & 1 ? colors::cyan : colors::purple).withAlpha (alpha));
         g.drawText (name, juce::Rectangle<float> (xRight, ticker.getY(), w + 2.0f, ticker.getHeight()),
                     juce::Justification::centredLeft);
     }

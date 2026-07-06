@@ -377,10 +377,13 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         if (pick >= src.numPitchClasses) // a rest: silence for the rest's own duration
         {
             const int slot = src.rests[pick - src.numPitchClasses];
+            const int restSource = &src == &snapA ? 0 : 1;
             restEndPpq = eventPpq + params::restBars[(size_t) slot] * 4.0;
             nextEventPpq = restEndPpq;
             activeRest.store (slot);
-            activeRestSource.store (&src == &snapA ? 0 : 1);
+            activeRestSource.store (restSource);
+            history[(size_t) (historyCount.load() % historyCapacity)].store (0x200 | (restSource << 8) | slot);
+            historyCount.fetch_add (1);
             continue;
         }
 

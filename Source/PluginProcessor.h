@@ -54,8 +54,9 @@ public:
     std::atomic<bool>   ccLearnArmed { false };  // next incoming CC binds Morph Position
     std::atomic<int>    morphCC { -1 };          // learned controller number
 
-    // Note history ring buffer (spec 9.1: last 50 notes). Entries pack
-    // note | (source << 8); total written count in historyCount.
+    // Event history ring buffer (spec 9.1: last 50). Entries pack
+    // note | (source << 8), or restIndex | (source << 8) | 0x200 for rests;
+    // total written count in historyCount.
     static constexpr int historyCapacity = 64;
     std::array<std::atomic<int>, historyCapacity> history {};
     std::atomic<int> historyCount { 0 };

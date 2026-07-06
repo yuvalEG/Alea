@@ -24,16 +24,20 @@ namespace colors
 
 juce::String noteName (int midiNote); // C3 = 60 display convention
 
-// A row of mutually exclusive segments bound to a choice parameter.
-class SegmentedSelector : public juce::Component
+// A row of mutually exclusive segments bound to a choice parameter. The
+// hovered segment's tooltip (when provided) names/explains that option.
+class SegmentedSelector : public juce::Component,
+                          public juce::TooltipClient
 {
 public:
-    SegmentedSelector (juce::RangedAudioParameter&, const juce::StringArray& options, juce::Colour accent);
+    SegmentedSelector (juce::RangedAudioParameter&, const juce::StringArray& options, juce::Colour accent,
+                       const juce::StringArray& tooltips = {});
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
+    juce::String getTooltip() override;
 
 private:
-    juce::StringArray options;
+    juce::StringArray options, tooltips;
     juce::Colour accent;
     int value = 0;
     juce::ParameterAttachment attachment;
@@ -41,13 +45,16 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SegmentedSelector)
 };
 
-// Four segments, each drawing its morph curve shape (no math notation).
-class CurveSelector : public juce::Component
+// Four segments, each drawing its morph curve shape (no math notation);
+// hovering names the curve.
+class CurveSelector : public juce::Component,
+                      public juce::TooltipClient
 {
 public:
     CurveSelector (juce::RangedAudioParameter&, juce::Colour accent);
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
+    juce::String getTooltip() override;
 
 private:
     juce::Colour accent;
@@ -125,19 +132,17 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MorphBar)
 };
 
-// Output panel: activity LED, playing note, bar/beat, note history
-// (last 50), Panic (spec 9.1). Freeze lives in the header, well away
-// from Panic - they do opposite jobs.
+// Output panel: pure monitoring - activity LED, playing note, bar/beat,
+// an 88-key strip lighting the sounding note, and event history including
+// rests (spec 9.1). Freeze and Panic live in the header.
 class OutputPanel : public juce::Component
 {
 public:
     explicit OutputPanel (AleaAudioProcessor&);
     void paint (juce::Graphics&) override;
-    void resized() override;
 
 private:
     AleaAudioProcessor& alea;
-    juce::TextButton panicButton { "PANIC" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputPanel)
 };

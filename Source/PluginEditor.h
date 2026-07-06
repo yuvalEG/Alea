@@ -48,14 +48,13 @@ private:
     juce::Slider internalTempo;
     juce::TextButton menuButton;
     juce::TextButton freezeButton { "FREEZE" };
+    juce::TextButton panicButton { "PANIC" };
 
     // Output panel
     ui::OutputPanel output;
 
-    // Presets row: featured presets as bubbles, everything in the dropdown
-    juce::ComboBox presetBox;
-    std::vector<int> featuredIdx;
-    std::vector<std::unique_ptr<juce::TextButton>> featuredBtns;
+    // Presets panel: every preset is a bubble; the lit one is active
+    std::vector<std::unique_ptr<juce::TextButton>> presetBtns;
     juce::TextButton savePreset { "Save" }, loadPreset { "Load" };
     std::unique_ptr<juce::FileChooser> fileChooser;
     std::vector<float> presetSnapshot; // param values right after a preset applied; divergence clears the mark
@@ -66,6 +65,8 @@ private:
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> comboAttachments;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> sweepAttachment, freezeAttachment;
+
+    juce::TooltipWindow tooltipWindow { this, 400 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AleaAudioProcessorEditor)
 };

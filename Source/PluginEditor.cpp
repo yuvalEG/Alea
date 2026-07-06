@@ -1,20 +1,18 @@
 #include "PluginEditor.h"
 #include "Presets.h"
 
-#include <cstring>
-
 using namespace ui;
 
 namespace
 {
-    constexpr int kWidth = 940, kHeight = 646;
+    constexpr int kWidth = 940, kHeight = 674;
 
-    const juce::Rectangle<int> scaleAPanel   { 10,  64, 455, 240 };
-    const juce::Rectangle<int> scaleBPanel   { 475, 64, 455, 240 };
-    const juce::Rectangle<int> timingPanel   { 10,  314, 290, 266 };
-    const juce::Rectangle<int> morphPanel    { 310, 314, 330, 266 };
-    const juce::Rectangle<int> outputPanel   { 650, 314, 280, 266 };
-    const juce::Rectangle<int> presetsPanel  { 10,  590, 920, 46 };
+    const juce::Rectangle<int> presetsPanel  { 10,  64, 920, 76 };
+    const juce::Rectangle<int> scaleAPanel   { 10,  148, 455, 240 };
+    const juce::Rectangle<int> scaleBPanel   { 475, 148, 455, 240 };
+    const juce::Rectangle<int> timingPanel   { 10,  398, 290, 266 };
+    const juce::Rectangle<int> morphPanel    { 310, 398, 330, 266 };
+    const juce::Rectangle<int> outputPanel   { 650, 398, 280, 266 };
 }
 
 AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
@@ -31,7 +29,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                  juce::StringArray { juce::String::fromUTF8 ("A \xe2\x86\x92 B"),
                                      juce::String::fromUTF8 ("A \xe2\x86\x92 B \xe2\x86\xbb"),
                                      juce::String::fromUTF8 ("A \xe2\x87\x84 B") },
-                 colors::text.withAlpha (0.9f)),
+                 colors::text.withAlpha (0.9f),
+                 juce::StringArray { "One-Shot: travel to B, then stay there",
+                                     "Loop: travel to B, jump back to A, repeat",
+                                     "Bounce: back and forth between A and B" }),
       morphCurve (*p.apvts.getParameter ("morphCurve"), colors::text.withAlpha (0.9f)),
       tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, colors::text.withAlpha (0.9f)),
       output (p)
@@ -112,8 +113,13 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     };
     addAndMakeVisible (menuButton);
 
+    panicButton.setColour (juce::TextButton::buttonColourId, colors::red.withAlpha (0.85f));
+    panicButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
+    panicButton.onClick = [this] { alea.panicRequested.store (true); };
+    addAndMakeVisible (panicButton);
+
     // Freeze is a performance control and Panic an escape hatch - they live
-    // far apart (header vs. output panel) so neither is hit by accident.
+    // far apart in the header so neither is hit by accident.
     freezeButton.setClickingTogglesState (true);
     freezeButton.setColour (juce::TextButton::buttonColourId, colors::control);
     freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan.withAlpha (0.9f));
@@ -134,49 +140,19 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     sweepAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         alea.apvts, "autoSweep", autoSweep);
 
-    // Presets row: a categorized dropdown - the selected name doubles as the
-    // "which preset am I on" mark, and clears once any knob diverges.
+    // Every preset is a one-click bubble; the active one stays lit.
+    for (size_t i = 0; i < presets::factory().size(); ++i)
     {
-        juce::String category;
-        for (size_t i = 0; i < presets::factory().size(); ++i)
-        {
-            const auto& f = presets::factory()[i];
-            if (category != f.category)
-            {
-                category = f.category;
-                presetBox.addSectionHeading (category);
-            }
-            presetBox.addItem (juce::String::fromUTF8 (f.name), (int) i + 1);
-        }
+        auto b = std::make_unique<juce::TextButton> (juce::String::fromUTF8 (presets::factory()[i].name));
+        b->setColour (juce::TextButton::buttonColourId, colors::control);
+        b->setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.9f));
+        b->setColour (juce::TextButton::textColourOffId, colors::text);
+        b->setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+        const int idx = (int) i;
+        b->onClick = [this, idx] { applyPresetAndMark (idx); };
+        addAndMakeVisible (*b);
+        presetBtns.push_back (std::move (b));
     }
-    presetBox.setTextWhenNothingSelected ("Select a preset...");
-    presetBox.setColour (juce::ComboBox::backgroundColourId, colors::control);
-    presetBox.setColour (juce::ComboBox::textColourId, colors::text);
-    presetBox.setColour (juce::ComboBox::outlineColourId, colors::border);
-    presetBox.setColour (juce::ComboBox::arrowColourId, colors::secondary);
-    presetBox.onChange = [this]
-    {
-        if (presetBox.getSelectedId() > 0)
-            applyPresetAndMark (presetBox.getSelectedId() - 1);
-    };
-    addAndMakeVisible (presetBox);
-
-    // The most-reached-for presets also get one-click bubbles.
-    for (const char* featured : { "Just an Arp", "Major \xe2\x86\x92 Minor", "Diatonic \xe2\x86\x92 Dodecaphony" })
-        for (size_t i = 0; i < presets::factory().size(); ++i)
-            if (std::strcmp (presets::factory()[i].name, featured) == 0)
-            {
-                auto b = std::make_unique<juce::TextButton> (juce::String::fromUTF8 (featured));
-                b->setColour (juce::TextButton::buttonColourId, colors::control);
-                b->setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.9f));
-                b->setColour (juce::TextButton::textColourOffId, colors::text);
-                b->setColour (juce::TextButton::textColourOnId, juce::Colours::black);
-                const int idx = (int) i;
-                b->onClick = [this, idx] { applyPresetAndMark (idx); };
-                addAndMakeVisible (*b);
-                featuredIdx.push_back (idx);
-                featuredBtns.push_back (std::move (b));
-            }
 
     for (auto* b : { &savePreset, &loadPreset })
     {
@@ -238,9 +214,8 @@ void AleaAudioProcessorEditor::applyPresetAndMark (int index)
 
 void AleaAudioProcessorEditor::markPreset (int index)
 {
-    presetBox.setSelectedId (index + 1, juce::dontSendNotification);
-    for (size_t k = 0; k < featuredBtns.size(); ++k)
-        featuredBtns[k]->setToggleState (featuredIdx[k] == index, juce::dontSendNotification);
+    for (size_t k = 0; k < presetBtns.size(); ++k)
+        presetBtns[k]->setToggleState ((int) k == index, juce::dontSendNotification);
 }
 
 void AleaAudioProcessorEditor::setupSlider (juce::Slider& s, const juce::String& paramID, juce::Colour accent,
@@ -286,9 +261,10 @@ void AleaAudioProcessorEditor::setupCombo (juce::ComboBox& c, const juce::String
 void AleaAudioProcessorEditor::resized()
 {
     // Header
-    freezeButton.setBounds (398, 16, 84, 26);
-    tempoSource.setBounds (586, 16, 150, 26);
-    internalTempo.setBounds (746, 16, 148, 26);
+    freezeButton.setBounds (380, 16, 80, 26);
+    tempoSource.setBounds (530, 16, 140, 26);
+    internalTempo.setBounds (678, 16, 130, 26);
+    panicButton.setBounds (820, 16, 72, 26);
     menuButton.setBounds (902, 16, 28, 26);
 
     auto scaleControls = [] (const juce::Rectangle<int>& panel, PianoKeyboard& kb, RestSelector& rests,
@@ -335,20 +311,19 @@ void AleaAudioProcessorEditor::resized()
     output.setBounds (outputPanel.getX() + 12, outputPanel.getY() + 34,
                       outputPanel.getWidth() - 24, outputPanel.getHeight() - 46);
 
-    // Presets row: bubbles, then the full dropdown, Save/Load at the right
+    // Presets panel: two rows of four bubbles, Save/Load stacked at the right
     {
-        const int y = presetsPanel.getY() + 10;
-        const int widths[] = { 96, 112, 172 };
-        int x = presetsPanel.getX() + 90;
-        for (size_t k = 0; k < featuredBtns.size(); ++k)
+        const int x0 = presetsPanel.getX() + 90;
+        const int rowW = presetsPanel.getRight() - 76 - x0;
+        const int perRow = 4;
+        const int w = (rowW - (perRow - 1) * 8) / perRow;
+        for (size_t k = 0; k < presetBtns.size(); ++k)
         {
-            const int w = widths[juce::jmin ((size_t) 2, k)];
-            featuredBtns[k]->setBounds (x, y, w, 26);
-            x += w + 8;
+            const int row = (int) k / perRow, col = (int) k % perRow;
+            presetBtns[k]->setBounds (x0 + col * (w + 8), presetsPanel.getY() + 10 + row * 30, w, 26);
         }
-        presetBox.setBounds (x + 10, y, 210, 26);
-        savePreset.setBounds (presetsPanel.getRight() - 128, y, 58, 26);
-        loadPreset.setBounds (presetsPanel.getRight() - 64, y, 54, 26);
+        savePreset.setBounds (presetsPanel.getRight() - 64, presetsPanel.getY() + 10, 54, 26);
+        loadPreset.setBounds (presetsPanel.getRight() - 64, presetsPanel.getY() + 40, 54, 26);
     }
 }
 
@@ -448,7 +423,7 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (colors::secondary);
     g.drawText (playing ? "playing" : "stopped", 282, 14, 90, 28, juce::Justification::centredLeft);
 
-    g.drawText ("TEMPO", 512, 16, 68, 26, juce::Justification::centredRight);
+    g.drawText ("TEMPO", 462, 16, 60, 26, juce::Justification::centredRight);
 
     auto drawPanel = [&g] (const juce::Rectangle<int>& r, const juce::String& title, juce::Colour accent)
     {
@@ -469,7 +444,7 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
     drawPanel (presetsPanel, "", colors::secondary);
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-    g.drawText ("PRESETS", presetsPanel.getX() + 12, presetsPanel.getY(), 80, presetsPanel.getHeight(),
+    g.drawText ("PRESETS", presetsPanel.getX() + 12, presetsPanel.getY(), 76, presetsPanel.getHeight(),
                 juce::Justification::centredLeft);
 
     // Small row labels
@@ -485,8 +460,8 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
     }
     g.setColour (colors::secondary);
 
-    g.drawText ("INTERVAL", timingPanel.getX() + 12, timingPanel.getY() + 30, 100, 16, juce::Justification::centredLeft);
-    g.drawText ("LENGTH",   timingPanel.getX() + 12, timingPanel.getY() + 128, 100, 16, juce::Justification::centredLeft);
+    g.drawText ("NOTE RATE",   timingPanel.getX() + 12, timingPanel.getY() + 30, 120, 16, juce::Justification::centredLeft);
+    g.drawText ("NOTE LENGTH", timingPanel.getX() + 12, timingPanel.getY() + 128, 120, 16, juce::Justification::centredLeft);
 
     // Random-mode monitoring: show what the dice just rolled.
     auto drawRandomPick = [&g] (int y, int poolIndex)
@@ -503,7 +478,7 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
         drawRandomPick (timingPanel.getY() + 80, alea.lastRandomInterval.load());
     if ((int) alea.apvts.getRawParameterValue ("lengthMode")->load() == params::random)
         drawRandomPick (timingPanel.getY() + 178, alea.lastRandomLength.load());
-    g.drawText ("DURATION", morphPanel.getX() + 12, morphPanel.getY() + 108, 100, 12, juce::Justification::centredLeft);
-    g.drawText ("MODE",     morphPanel.getX() + 12, morphPanel.getY() + 154, 100, 12, juce::Justification::centredLeft);
-    g.drawText ("CURVE",    morphPanel.getX() + 12, morphPanel.getY() + 200, 100, 12, juce::Justification::centredLeft);
+    g.drawText ("MORPH DURATION", morphPanel.getX() + 12, morphPanel.getY() + 108, 130, 12, juce::Justification::centredLeft);
+    g.drawText ("MORPH MODE",     morphPanel.getX() + 12, morphPanel.getY() + 154, 130, 12, juce::Justification::centredLeft);
+    g.drawText ("MORPH CURVE",    morphPanel.getX() + 12, morphPanel.getY() + 200, 130, 12, juce::Justification::centredLeft);
 }
