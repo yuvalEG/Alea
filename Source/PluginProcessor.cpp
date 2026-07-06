@@ -312,6 +312,8 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
                 v.phase2 += inc2;
                 v.phase3 += inc3;
             }
+            if (v.note >= 0)
+                v.heldSamples += end - pos;
             if (v.phase > juce::MathConstants<double>::twoPi * 1024.0)
             {
                 v.phase = std::fmod (v.phase, juce::MathConstants<double>::twoPi);
@@ -345,27 +347,25 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
             // dynamics: a power curve gives soft notes a real pianissimo.
             voice->gain = 0.06f + 0.94f * std::pow (msg.getFloatVelocity(), 1.7f);
             voice->note = msg.getNoteNumber();
+            voice->heldSamples = 0;
             voice->amp.noteOn();
             voice->bright.noteOn();
         }
-        else if (msg.isNoteOff())
+        else if (msg.isNoteOff() || msg.isAllNotesOff())
         {
+            // Release scales with how long the note was held: staccato notes
+            // get a snappy tail, pads ring long.
             for (auto& v : voices)
-                if (v.note == msg.getNoteNumber())
+                if (v.note >= 0 && (msg.isAllNotesOff() || v.note == msg.getNoteNumber()))
                 {
+                    auto params = v.amp.getParameters();
+                    params.release = juce::jlimit (0.12f, 2.2f,
+                                                   1.1f * (float) v.heldSamples / (float) sampleRate);
+                    v.amp.setParameters (params);
                     v.amp.noteOff();
                     v.bright.noteOff();
                     v.note = -1;
                 }
-        }
-        else if (msg.isAllNotesOff())
-        {
-            for (auto& v : voices)
-            {
-                v.amp.noteOff();
-                v.bright.noteOff();
-                v.note = -1;
-            }
         }
     }
     renderTo (numSamples);
@@ -612,9 +612,10 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
     if (pFreeze->load() > 0.5f)
     {
         // With short notes the stream is usually between notes when Freeze
-        // lands - grab the last note and hold it, so Freeze always freezes
-        // something audible.
-        if (! wasFrozen && currentNote < 0 && lastNote.load() >= 0)
+        // lands - grab the last note and hold it, so Freeze freezes
+        // something audible. Freezing during a rest freezes the rest itself:
+        // silence held is still the current moment.
+        if (! wasFrozen && currentNote < 0 && lastNote.load() >= 0 && activeRest.load() < 0)
         {
             const int held = lastNote.load();
             const auto vel = (juce::uint8) juce::jlimit (1, 127, activeVelocity.load());

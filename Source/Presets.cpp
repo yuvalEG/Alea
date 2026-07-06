@@ -41,7 +41,7 @@ const std::vector<Factory>& factory()
             { "Sweeps", "Octave Climb", // octave-only sweep: nothing else moves
               triad, triad, 0, 0,  1, 2, 6, 7,  80, 110, 80, 110,
               0, 5,  0, 6,  1, 0, 5, 30.0f, 0, 2, 3 },
-            { "Sweeps", "Uncanny Valley", // hexatonic pole: C major <-> Ab minor,
+            { "Sweeps", "Hexatonic Pole", // C major <-> Ab minor,
               // maximally smooth voice leading, zero common tones - the classic
               // "beautiful but wrong" progression of late-Romantic and film music
               triad, m ({ 3, 8, 11 }), 0, 0,  3, 4, 3, 4,  65, 100, 65, 100,

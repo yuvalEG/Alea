@@ -123,26 +123,28 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         juce::Font getLabelFont (juce::Label& label) override
         { return juce::FontOptions (juce::jmin (15.5f, (float) label.getHeight() * 0.72f)); }
 
-        // Filled knob: solid body, value arc, pointer - no confusing hole.
+        // Sleek knob: small filled body, hairline value arc, thin pointer.
         void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
                                float startAngle, float endAngle, juce::Slider& slider) override
         {
-            const auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (7.0f);
-            const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
+            const auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (5.0f);
+            const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f - 3.0f;
             const auto centre = bounds.getCentre();
             const float angle = startAngle + pos * (endAngle - startAngle);
 
-            g.setColour (colors::control.brighter (0.25f));
+            g.setColour (colors::control.brighter (0.10f));
             g.fillEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f);
+            g.setColour (colors::border);
+            g.drawEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f, 1.0f);
 
             juce::Path arc;
-            arc.addCentredArc (centre.x, centre.y, radius + 3.5f, radius + 3.5f, 0.0f, startAngle, angle, true);
+            arc.addCentredArc (centre.x, centre.y, radius + 2.5f, radius + 2.5f, 0.0f, startAngle, angle, true);
             g.setColour (slider.findColour (juce::Slider::rotarySliderFillColourId));
-            g.strokePath (arc, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.strokePath (arc, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-            g.setColour (colors::text);
-            g.drawLine (centre.x + std::sin (angle) * radius * 0.30f, centre.y - std::cos (angle) * radius * 0.30f,
-                        centre.x + std::sin (angle) * radius * 0.92f, centre.y - std::cos (angle) * radius * 0.92f, 2.5f);
+            g.setColour (colors::text.withAlpha (0.9f));
+            g.drawLine (centre.x + std::sin (angle) * radius * 0.45f, centre.y - std::cos (angle) * radius * 0.45f,
+                        centre.x + std::sin (angle) * radius * 0.88f, centre.y - std::cos (angle) * radius * 0.88f, 1.8f);
         }
     };
     static AleaLookAndFeel aleaLnf; // process lifetime: dialogs may outlive the editor
@@ -350,7 +352,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     addAndMakeVisible (content);
 
     setResizable (true, true);
-    setResizeLimits (kWidth * 4 / 5, viewHeight * 4 / 5, kWidth * 2, viewHeight * 2);
+    setResizeLimits (kWidth * 4 / 5, 398 + 208 + (standalone ? 10 : 30), kWidth * 2, viewHeight * 2);
     setSize (kWidth, viewHeight); // triggers resized() -> layoutMain()
 
     updateModeVisibility();
@@ -431,13 +433,17 @@ void AleaAudioProcessorEditor::layoutMain()
     scaleBPanel = { 20 + scaleW, 148, vw - 30 - scaleW, 240 };
 
     const int by = 398;
-    const int bh = juce::jmax (240, vh - by - footer);
+    const int bh = juce::jmax (208, vh - by - footer);
     const int avail = vw - 40;
     const int tw = avail * 29 / 90;
     const int mw = avail * 33 / 90;
     timingPanel = { 10, by, tw, bh };
     morphPanel  = { 20 + tw, by, mw, bh };
     outputPanel = { 30 + tw + mw, by, avail - tw - mw, bh };
+
+    // Short windows drop the morph panel's lower rows instead of clipping.
+    morphMode.setVisible (bh >= 206);
+    morphCurve.setVisible (bh >= 252);
 
     // Header
     // Header: left cluster fixed, right cluster anchored to the window edge
@@ -729,6 +735,8 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     if ((int) alea.apvts.getRawParameterValue ("lengthMode")->load() == params::random)
         drawRandomPick (timingPanel.getY() + 178, alea.lastRandomLength.load());
     g.drawText ("MORPH DURATION", morphPanel.getX() + 12, morphPanel.getY() + 108, 130, 12, juce::Justification::centredLeft);
-    g.drawText ("MORPH MODE",     morphPanel.getX() + 12, morphPanel.getY() + 154, 130, 12, juce::Justification::centredLeft);
-    g.drawText ("MORPH CURVE",    morphPanel.getX() + 12, morphPanel.getY() + 200, 130, 12, juce::Justification::centredLeft);
+    if (morphMode.isVisible())
+        g.drawText ("MORPH MODE",  morphPanel.getX() + 12, morphPanel.getY() + 154, 130, 12, juce::Justification::centredLeft);
+    if (morphCurve.isVisible())
+        g.drawText ("MORPH CURVE", morphPanel.getX() + 12, morphPanel.getY() + 200, 130, 12, juce::Justification::centredLeft);
 }

@@ -117,7 +117,8 @@ private:
         juce::ADSR amp, bright;
         double phase = 0.0, phase2 = 0.0, phase3 = 0.0, freq = 440.0; // three detuned oscillators
         float gain = 0.0f, velocity = 0.0f;
-        int note = -1; // -1 = released (may still be ringing)
+        int note = -1;        // -1 = released (may still be ringing)
+        int heldSamples = 0;  // how long the note was held - scales the release
     };
     std::array<SynthVoice, 8> voices;
     int nextVoice = 0;

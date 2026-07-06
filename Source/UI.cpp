@@ -188,11 +188,12 @@ void PianoKeyboard::paint (juce::Graphics& g)
     auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key)
     {
         const auto fill = key.withTop (key.getBottom() - key.getHeight() * juce::jmax (0.12f, velNorm));
-        // Bright mint at the crest fading into deep green - clearly a glow,
-        // not a flat block.
-        g.setGradientFill (juce::ColourGradient (
-            colors::playing.interpolatedWith (juce::Colours::white, 0.45f), fill.getX(), fill.getY(),
-            colors::playing.darker (0.40f), fill.getX(), fill.getBottom(), false));
+        // The fill's upper edge dissolves into the key underneath instead of
+        // ending in a hard line.
+        juce::ColourGradient grad (colors::playing.withAlpha (0.0f), fill.getX(), fill.getY(),
+                                   colors::playing, fill.getX(), fill.getBottom(), false);
+        grad.addColour (0.40, colors::playing.withAlpha (0.85f));
+        g.setGradientFill (grad);
         g.fillRoundedRectangle (fill, 3.0f);
     };
 
@@ -496,10 +497,10 @@ void OutputPanel::resized()
     if (outputBox == nullptr)
         return;
     const bool synth = alea.synthOn.load();
-    outputBox->setBounds (0, 0, synth ? getWidth() - 104 : getWidth(), 26);
-    volSlider.setBounds (getWidth() - 96, 0, 54, 54);
+    outputBox->setBounds (0, 0, synth ? getWidth() - 92 : getWidth(), 26);
+    volSlider.setBounds (getWidth() - 82, 2, 44, 44);
     volSlider.setVisible (synth);
-    transposeSlider.setBounds (96, 34, getWidth() - 96 - (synth ? 104 : 0), 22);
+    transposeSlider.setBounds (0, 46, getWidth(), 20);
 }
 
 void OutputPanel::paint (juce::Graphics& g)
@@ -522,7 +523,7 @@ void OutputPanel::paint (juce::Graphics& g)
     if (lastSynthOn && outputBox != nullptr)
     {
         meterLevel = juce::jmax (alea.synthPeak.load(), meterLevel * 0.82f);
-        const auto meter = juce::Rectangle<float> ((float) getWidth() - 32.0f, 2.0f, 10.0f, 50.0f);
+        const auto meter = juce::Rectangle<float> ((float) getWidth() - 30.0f, 2.0f, 8.0f, 44.0f);
         g.setColour (colors::control);
         g.fillRoundedRectangle (meter, 3.0f);
 
@@ -546,10 +547,10 @@ void OutputPanel::paint (juce::Graphics& g)
     auto area = getLocalBounds();
     if (outputBox != nullptr)
     {
-        area.removeFromTop (62); // chooser row + transpose row
+        area.removeFromTop (70); // chooser row + transpose line
         g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-        g.drawText ("TRANSPOSE", 0, 34, 90, 22, juce::Justification::centredLeft);
+        g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+        g.drawText ("TRANSPOSE", 0, 32, 90, 12, juce::Justification::centredLeft);
     }
 
     // Note displays are colored by the scale the note came from, matching
@@ -557,14 +558,15 @@ void OutputPanel::paint (juce::Graphics& g)
     const auto srcColour = alea.activeSource.load() == 1 ? colors::cyan : colors::purple;
 
     // Activity LED + big note display (shows the sounding rest, too)
-    auto noteRow = area.removeFromTop (outputBox != nullptr ? 42 : 56);
+    auto noteRow = area.removeFromTop (outputBox != nullptr ? 34 : 56);
     g.setColour (active >= 0 ? colors::playing : colors::control);
     g.fillEllipse (noteRow.removeFromLeft (26).withSizeKeepingCentre (14, 14).toFloat());
 
+    const float bigNote = outputBox != nullptr ? 26.0f : 36.0f;
     if (active >= 0)
     {
         g.setColour (srcColour);
-        g.setFont (juce::FontOptions (36.0f, juce::Font::bold));
+        g.setFont (juce::FontOptions (bigNote, juce::Font::bold));
         g.drawText (noteName (active), noteRow, juce::Justification::centredLeft);
     }
     else if (rest >= 0)
@@ -576,7 +578,7 @@ void OutputPanel::paint (juce::Graphics& g)
     else
     {
         g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (36.0f, juce::Font::bold));
+        g.setFont (juce::FontOptions (bigNote, juce::Font::bold));
         g.drawText (noteName (last), noteRow, juce::Justification::centredLeft);
     }
 
@@ -585,7 +587,7 @@ void OutputPanel::paint (juce::Graphics& g)
     const int bar  = juce::jmax (1, (int) std::floor (ppq / 4.0) + 1);
     const int beat = juce::jmax (1, ((int) std::floor (ppq) % 4 + 4) % 4 + 1);
 
-    auto row = area.removeFromTop (22);
+    auto row = area.removeFromTop (20);
     g.setFont (juce::FontOptions (14.0f));
     g.setColour (colors::secondary);
     g.drawText ("BAR " + juce::String (playing ? bar : 1)
@@ -635,6 +637,20 @@ void OutputPanel::paint (juce::Graphics& g)
                                                      strip.getY(), bw, strip.getHeight() * 0.62f);
             g.setColour (note == active ? srcColour : colors::background);
             g.fillRect (key);
+        }
+
+        // Octave extremes and transpose can push notes past the 88 keys -
+        // a small arrow at the edge shows where the sound went.
+        if (active >= 0 && (active < 21 || active > 108))
+        {
+            juce::Path arrow;
+            const float cy = strip.getCentreY();
+            if (active < 21)
+                arrow.addTriangle (strip.getX() + 1.0f, cy, strip.getX() + 9.0f, cy - 7.0f, strip.getX() + 9.0f, cy + 7.0f);
+            else
+                arrow.addTriangle (strip.getRight() - 1.0f, cy, strip.getRight() - 9.0f, cy - 7.0f, strip.getRight() - 9.0f, cy + 7.0f);
+            g.setColour (srcColour);
+            g.fillPath (arrow);
         }
     }
 
