@@ -7,10 +7,13 @@ static void addScale (juce::AudioProcessorValueTreeState::ParameterLayout& layou
                       char scale, const juce::String& prefix,
                       const std::array<bool, 12>& defaultNotes, int defaultRest)
 {
+    // Notes are intervals from the root (slot 1 = the root itself), so the
+    // automation names are degree numbers - letters would lie under any
+    // root but C.
     for (int pc = 0; pc < 12; ++pc)
         layout.add (std::make_unique<juce::AudioParameterBool> (
             juce::ParameterID { noteId (scale, pc), 1 },
-            prefix + " " + pitchClassNames[pc], defaultNotes[(size_t) pc]));
+            prefix + " Note " + juce::String (pc + 1), defaultNotes[(size_t) pc]));
 
     layout.add (std::make_unique<juce::AudioParameterInt> (
         juce::ParameterID { juce::String::charToString (scale) + "OctMin", 1 }, prefix + " Octave Min", 0, 8, 3));
@@ -22,8 +25,8 @@ static void addScale (juce::AudioProcessorValueTreeState::ParameterLayout& layou
             juce::ParameterID { restId (scale, r), 1 },
             prefix + " Rest " + restNames[r], r == defaultRest));
 
-    // The pitch the scale's octave span starts from: root A + octave 3 plays
-    // A3..G#4, not C3..B3.
+    // The scale's key: the shape (intervals) is anchored here. Root A +
+    // octave 3 plays from A3; changing root transposes the whole scale.
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID { juce::String::charToString (scale) + "Root", 1 },
         prefix + " Root", pitchClassNames, 0));

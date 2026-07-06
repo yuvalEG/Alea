@@ -749,10 +749,10 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         const int velMax = juce::jmax (velMin, (int) std::lround (snapA.velMax + (snapB.velMax - snapA.velMax) * m));
 
         const int octave = octMin + rng.nextInt (octMax - octMin + 1);
-        // The octave span starts at the scale's root: root A + octave 3
-        // plays A3..G#4. C3 = 60 convention (spec 5.3), plus global transpose.
-        const int pcOffset = ((src.pitchClasses[pick] - src.root) % 12 + 12) % 12;
-        const int note = 24 + 12 * octave + src.root + pcOffset
+        // Notes are stored as intervals from the scale's root, so the root
+        // IS the key: root D + a major shape plays D major, spanning D..C#
+        // per octave. C3 = 60 convention (spec 5.3), plus global transpose.
+        const int note = 24 + 12 * octave + src.root + src.pitchClasses[pick]
                        + (int) pTranspose->load();
 
         nextEventPpq = eventPpq + intervalPpqAt (bpm);
@@ -761,12 +761,14 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
             continue;
 
         // Origin scale (spec 5.4): the pool it was drawn from, except shared
-        // notes follow morph position. Decides highlight color AND channel.
+        // notes follow morph position. "Shared" compares actual pitches -
+        // intervals only match across scales when their roots agree.
         const int pc = src.pitchClasses[pick];
-        auto contains = [pc] (const ScaleSnapshot& s)
+        const int actualPc = (pc + src.root) % 12;
+        auto contains = [actualPc] (const ScaleSnapshot& s)
         {
             for (int i = 0; i < s.numPitchClasses; ++i)
-                if (s.pitchClasses[i] == pc) return true;
+                if ((s.pitchClasses[i] + s.root) % 12 == actualPc) return true;
             return false;
         };
         const bool inBoth = contains (snapA) && contains (snapB);
@@ -786,7 +788,7 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         lastNote.store (note);
         activeSource.store (source);
         activeNote.store (note);
-        activeSourcePc.store (pc); // pre-transpose: the key to light on the scale keyboards
+        activeSourcePc.store (pc); // the interval slot to light on the scale keyboards
         activeVelocity.store ((int) velocity);
         activeRest.store (-1);
         history[(size_t) (historyCount.load() % historyCapacity)].store (note | (source << 8) | ((int) velocity << 10));

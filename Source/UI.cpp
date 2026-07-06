@@ -201,6 +201,8 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
     const int root = rootRaw != nullptr ? (int) rootRaw->load() : 0;
 
+    // Slot i holds interval i from the root: the shape stays put when the
+    // root changes; the letters (and black/white identity) move instead.
     int whiteSlotCounter = 0;
     for (int i = 0; i < 12; ++i)
     {
@@ -208,9 +210,9 @@ void PianoKeyboard::paint (juce::Graphics& g)
         if (blackPc[pc])
             continue;
         const auto key = whiteKeyBounds (whiteSlotCounter++).reduced (1.0f);
-        const bool isPlayingKey = mine && pc == activePc;
-        const auto fill = selected[pc] ? accent : accent.withAlpha (0.10f);
-        if (selected[pc]) // top-lit gradient on lit keys
+        const bool isPlayingKey = mine && i == activePc;
+        const auto fill = selected[i] ? accent : accent.withAlpha (0.10f);
+        if (selected[i]) // top-lit gradient on lit keys
             g.setGradientFill (juce::ColourGradient (fill.brighter (0.12f), key.getX(), key.getY(),
                                                      fill.darker (0.18f), key.getX(), key.getBottom(), false));
         else
@@ -221,7 +223,7 @@ void PianoKeyboard::paint (juce::Graphics& g)
         g.setColour (colors::border);
         g.drawRoundedRectangle (key, 3.0f, 1.0f);
 
-        g.setColour (selected[pc] || isPlayingKey ? juce::Colours::black.withAlpha (0.75f) : colors::secondary);
+        g.setColour (selected[i] || isPlayingKey ? juce::Colours::black.withAlpha (0.75f) : colors::secondary);
         g.setFont (juce::FontOptions (14.0f));
         g.drawText (params::pitchClassNames[pc],
                     key.withTop (key.getBottom() - 18.0f), juce::Justification::centred);
@@ -237,9 +239,9 @@ void PianoKeyboard::paint (juce::Graphics& g)
             continue;
         }
         const auto key = blackKeyBounds (whitesBefore);
-        const bool isPlayingKey = mine && pc == activePc;
-        const auto fill = selected[pc] ? accent : juce::Colour (0xff08080c);
-        if (selected[pc])
+        const bool isPlayingKey = mine && i == activePc;
+        const auto fill = selected[i] ? accent : juce::Colour (0xff08080c);
+        if (selected[i])
             g.setGradientFill (juce::ColourGradient (fill.brighter (0.12f), key.getX(), key.getY(),
                                                      fill.darker (0.18f), key.getX(), key.getBottom(), false));
         else
@@ -261,7 +263,8 @@ void PianoKeyboard::mouseDown (const juce::MouseEvent& e)
 
     const int root = rootRaw != nullptr ? (int) rootRaw->load() : 0;
 
-    // Blacks first (they sit on top), same root-rotated geometry as paint
+    // Blacks first (they sit on top); clicks toggle the INTERVAL at that
+    // slot, matching paint's geometry.
     int whitesBefore = 0;
     for (int i = 0; i < 12; ++i)
     {
@@ -272,7 +275,7 @@ void PianoKeyboard::mouseDown (const juce::MouseEvent& e)
             continue;
         }
         if (blackKeyBounds (whitesBefore).contains (e.position))
-            return toggle (pc);
+            return toggle (i);
     }
 
     int whiteSlotCounter = 0;
@@ -282,7 +285,7 @@ void PianoKeyboard::mouseDown (const juce::MouseEvent& e)
         if (blackPc[pc])
             continue;
         if (whiteKeyBounds (whiteSlotCounter++).contains (e.position))
-            return toggle (pc);
+            return toggle (i);
     }
 }
 

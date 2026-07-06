@@ -44,7 +44,7 @@ const std::vector<Factory>& factory()
             { "Sweeps", "Hexatonic Pole", // C major <-> Ab minor,
               // maximally smooth voice leading, zero common tones - the classic
               // "beautiful but wrong" progression of late-Romantic and film music
-              triad, m ({ 3, 8, 11 }), 0, 0,  3, 4, 3, 4,  65, 100, 65, 100,
+              triad, m ({ 0, 3, 7 }), 0, 0,  3, 4, 3, 4,  65, 100, 65, 100, // minor shape rooted at Ab
               0, 4,  0, 4,  1, 0, 3, 30.0f, 0, 2, 0, 0, 8 },
 
             { "Sweeps", "Soft \xe2\x86\x92 Loud", // velocity-only sweep
@@ -57,7 +57,7 @@ const std::vector<Factory>& factory()
               m ({ 0, 7 }), chromatic, m ({ 1, 2, 3 }), 0,  2, 4, 3, 6,  60, 90, 90, 120,
               0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 1 },
             { "Sweeps", "Five \xe2\x86\x92 One", // A minor pentatonic collapsing to a single C
-              m ({ 9, 0, 2, 4, 7 }), m ({ 0 }), 0, 0,  3, 3, 3, 3,  70, 100, 70, 100,
+              m ({ 0, 3, 5, 7, 10 }), m ({ 0 }), 0, 0,  3, 3, 3, 3,  70, 100, 70, 100,
               0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 0, 9, 0 },
             { "Sweeps", "Order \xe2\x86\x92 Chaos", // 3-minute journey, 2-bar drones + 2-bar rests, octave 2
               m ({ 0, 2, 4, 5, 7 }), chromatic, m ({ 0 }), m ({ 0 }),  2, 2, 2, 2,  75, 105, 60, 120,
