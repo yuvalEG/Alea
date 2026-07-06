@@ -80,7 +80,10 @@ In Ableton Live:
 1. Alea makes no audio of its own - its MIDI must reach an instrument on
    another track.
 2. On the instrument track, set **MIDI From** to the Alea track and pick
-   **Alea** in the chooser below it (not "Post FX").
+   **Alea** in the chooser below it (not "Post FX"):
+
+   ![Routing Alea to an instrument track in Ableton Live](docs/routing.png)
+
 3. Arm the instrument track (record button) so it receives MIDI.
 4. Press Play - Alea follows the host transport; the dot in Alea's header
    should read "playing".
