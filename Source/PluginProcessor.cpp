@@ -59,12 +59,34 @@ bool AleaAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) con
     return out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono();
 }
 
-void AleaAudioProcessor::prepareToPlay (double, int)
+void AleaAudioProcessor::prepareToPlay (double sampleRate, int)
 {
     currentNote = -1;
     lastPpqEnd = -1.0;
     internalPpq = 0.0;
     wasPlaying = false;
+
+    // Internal synth chain
+    synthEnv.setSampleRate (sampleRate);
+    synthEnv.setParameters ({ 0.004f, 0.08f, 0.75f, 0.30f });
+    synthEnv.reset();
+    synthPhase = 0.0;
+    synthGain = 0.0f;
+
+    // Different L/R delay times give the single sine voice a stereo field.
+    delayLineL.assign ((size_t) juce::jmax (1, (int) (sampleRate * 0.32)), 0.0f);
+    delayLineR.assign ((size_t) juce::jmax (1, (int) (sampleRate * 0.48)), 0.0f);
+    delayPosL = delayPosR = 0;
+
+    reverb.setSampleRate (sampleRate);
+    juce::Reverb::Parameters rv;
+    rv.roomSize = 0.55f;
+    rv.damping = 0.40f;
+    rv.wetLevel = 0.25f;
+    rv.dryLevel = 0.90f;
+    rv.width = 1.0f;
+    reverb.setParameters (rv);
+    reverb.reset();
 }
 
 void AleaAudioProcessor::sendAllNotesOff (juce::MidiBuffer& midi, int sampleOffset)
@@ -207,13 +229,103 @@ juce::String AleaAudioProcessor::getMidiOutputId() const
     return midiOutputId;
 }
 
+void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
+{
+    if (choice == "synth" || choice.isEmpty())
+    {
+        synthOn.store (true);
+        setMidiOutputDevice ({});
+    }
+    else
+    {
+        synthOn.store (false);
+        setMidiOutputDevice (choice);
+    }
+}
+
+juce::String AleaAudioProcessor::getStandaloneOutput() const
+{
+    return synthOn.load() ? "synth" : getMidiOutputId();
+}
+
+// Mono sine voice following our own note stream, into stereo delay + reverb.
+void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi)
+{
+    const double sampleRate = getSampleRate();
+    const int numSamples = buffer.getNumSamples();
+    if (sampleRate <= 0.0 || numSamples <= 0 || buffer.getNumChannels() < 1)
+        return;
+
+    auto* left = buffer.getWritePointer (0);
+
+    int pos = 0;
+    auto renderTo = [&] (int end)
+    {
+        for (; pos < end; ++pos)
+        {
+            const float env = synthEnv.getNextSample();
+            left[pos] = 0.22f * synthGain * env * (float) std::sin (synthPhase);
+            synthPhase += juce::MathConstants<double>::twoPi * synthFreq / sampleRate;
+        }
+        if (synthPhase > juce::MathConstants<double>::twoPi * 1024.0)
+            synthPhase = std::fmod (synthPhase, juce::MathConstants<double>::twoPi);
+    };
+
+    for (const auto metadata : midi)
+    {
+        renderTo (juce::jlimit (0, numSamples, metadata.samplePosition));
+        const auto msg = metadata.getMessage();
+        if (msg.isNoteOn())
+        {
+            synthFreq = juce::MidiMessage::getMidiNoteInHertz (msg.getNoteNumber());
+            synthGain = juce::jmax (0.1f, msg.getFloatVelocity());
+            synthEnv.noteOn();
+        }
+        else if (msg.isNoteOff() || msg.isAllNotesOff())
+        {
+            synthEnv.noteOff();
+        }
+    }
+    renderTo (numSamples);
+
+    // Stereo delay: different L/R times widen the mono voice.
+    auto* right = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
+    for (int n = 0; n < numSamples; ++n)
+    {
+        const float dry = left[n];
+        auto tap = [&] (std::vector<float>& line, int& p) -> float
+        {
+            const float delayed = line[(size_t) p];
+            line[(size_t) p] = dry + delayed * 0.35f;
+            p = (p + 1) % (int) line.size();
+            return delayed;
+        };
+        left[n] = dry + 0.30f * tap (delayLineL, delayPosL);
+        if (right != nullptr)
+            right[n] = dry + 0.30f * tap (delayLineR, delayPosR);
+    }
+
+    if (right != nullptr)
+        reverb.processStereo (left, right, numSamples);
+    else
+        reverb.processMono (left, numSamples);
+}
+
 void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     generateBlock (buffer, midi);
 
-    // Standalone: mirror everything (including note-offs from early returns)
-    // to the chosen MIDI device. Try-lock so device swaps never stall audio.
-    if (wrapperType == wrapperType_Standalone && ! midi.isEmpty())
+    if (wrapperType != wrapperType_Standalone)
+        return;
+
+    // Standalone output: the built-in synth, or a mirror of everything
+    // (including note-offs from early returns) to the chosen MIDI device.
+    // Try-lock so device swaps never stall the audio thread.
+    if (synthOn.load())
+    {
+        renderSynth (buffer, midi);
+    }
+    else if (! midi.isEmpty())
     {
         const juce::ScopedTryLock sl (midiOutLock);
         if (sl.isLocked() && midiOutput != nullptr)
@@ -477,7 +589,7 @@ void AleaAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     auto state = apvts.copyState();
     state.setProperty ("stateVersion", 2, nullptr);
     state.setProperty ("morphCC", morphCC.load(), nullptr);
-    state.setProperty ("midiOutDevice", getMidiOutputId(), nullptr);
+    state.setProperty ("standaloneOutput", getStandaloneOutput(), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -490,11 +602,11 @@ void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
             morphCC.store ((int) apvts.state.getProperty ("morphCC", -1));
 
-            // Reopen the remembered MIDI device (standalone settings restore
+            // Restore the remembered output (standalone settings restore
             // arrives on the message thread; skip anywhere else).
             if (wrapperType == wrapperType_Standalone
                 && juce::MessageManager::getInstance()->isThisTheMessageThread())
-                setMidiOutputDevice (apvts.state.getProperty ("midiOutDevice", juce::String()).toString());
+                setStandaloneOutput (apvts.state.getProperty ("standaloneOutput", "synth").toString());
         }
 }
 

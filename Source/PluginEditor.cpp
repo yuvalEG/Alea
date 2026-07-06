@@ -79,20 +79,6 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     menuButton.onClick = [this]
     {
         juce::PopupMenu m;
-
-        if (standalone)
-        {
-            juce::PopupMenu midiMenu;
-            const auto current = alea.getMidiOutputId();
-            midiMenu.addItem ("Off", true, current.isEmpty(),
-                              [this] { alea.setMidiOutputDevice ({}); });
-            for (const auto& device : juce::MidiOutput::getAvailableDevices())
-                midiMenu.addItem (device.name, true, device.identifier == current,
-                                  [this, id = device.identifier] { alea.setMidiOutputDevice (id); });
-            m.addSubMenu ("MIDI Output", midiMenu);
-            m.addSeparator();
-        }
-
         m.addItem ("About Alea...", []
         {
             // A custom dialog rather than an AlertWindow: wider, and the text

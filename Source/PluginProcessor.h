@@ -51,10 +51,13 @@ public:
     std::atomic<int>    lastRandomLength { -1 };
     std::atomic<bool>   panicRequested { false };
 
-    // Standalone (spec section 10): internal transport + direct MIDI device
-    // output. In a DAW these are inert - the host transport rules.
+    // Standalone (spec section 10): internal transport + output choice.
+    // Output is either the built-in synth (default - sound with zero setup)
+    // or a MIDI device. In a DAW these are inert - the host rules.
     std::atomic<bool> standaloneTransport { false };
-    void setMidiOutputDevice (const juce::String& identifier); // message thread only
+    std::atomic<bool> synthOn { true };
+    void setStandaloneOutput (const juce::String& choice); // "synth" or device identifier; message thread only
+    juce::String getStandaloneOutput() const;              // "synth" or the open device's identifier
     juce::String getMidiOutputId() const;
     std::atomic<float>  scrubRequest { -1.0f };  // 0-100: re-anchor auto-sweep here
     std::atomic<bool>   ccLearnArmed { false };  // next incoming CC binds Morph Position
@@ -93,9 +96,19 @@ private:
     void generateBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&);
 
     // Mirror of the produced MIDI to a hardware/virtual device (standalone).
+    void setMidiOutputDevice (const juce::String& identifier);
     mutable juce::CriticalSection midiOutLock;
     std::unique_ptr<juce::MidiOutput> midiOutput;
     juce::String midiOutputId;
+
+    // Internal synth (standalone): mono sine voice + stereo delay + reverb.
+    void renderSynth (juce::AudioBuffer<float>&, const juce::MidiBuffer&);
+    juce::ADSR synthEnv;
+    double synthPhase = 0.0, synthFreq = 440.0;
+    float synthGain = 0.0f;
+    std::vector<float> delayLineL, delayLineR;
+    int delayPosL = 0, delayPosR = 0;
+    juce::Reverb reverb;
     double intervalPpqAt (double bpm);                  // gap to next event, in beats
     double lengthPpqAt (double bpm);                    // gate length, in beats
     void sendAllNotesOff (juce::MidiBuffer&, int sampleOffset);

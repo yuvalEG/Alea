@@ -133,17 +133,21 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MorphBar)
 };
 
-// Output panel: pure monitoring - activity LED, playing note, bar/beat,
-// an 88-key strip lighting the sounding note, and event history including
-// rests (spec 9.1). Freeze and Panic live in the header.
+// Output panel: monitoring - activity LED, playing note, bar/beat, an
+// 88-key strip lighting the sounding note, and event history including
+// rests (spec 9.1). In the standalone app it also hosts the output
+// chooser: Internal Synth or any MIDI device.
 class OutputPanel : public juce::Component
 {
 public:
     explicit OutputPanel (AleaAudioProcessor&);
     void paint (juce::Graphics&) override;
+    void resized() override;
 
 private:
     AleaAudioProcessor& alea;
+    std::unique_ptr<juce::ComboBox> outputBox; // standalone only
+    juce::Array<juce::MidiDeviceInfo> devices;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputPanel)
 };

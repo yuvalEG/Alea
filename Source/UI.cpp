@@ -387,7 +387,41 @@ void MorphBar::mouseUp (const juce::MouseEvent&)
 }
 
 //==============================================================================
-OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p) {}
+OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
+{
+    if (alea.wrapperType != juce::AudioProcessor::wrapperType_Standalone)
+        return;
+
+    outputBox = std::make_unique<juce::ComboBox>();
+    outputBox->setColour (juce::ComboBox::backgroundColourId, colors::control);
+    outputBox->setColour (juce::ComboBox::textColourId, colors::text);
+    outputBox->setColour (juce::ComboBox::outlineColourId, colors::border);
+    outputBox->setColour (juce::ComboBox::arrowColourId, colors::secondary);
+
+    outputBox->addItem ("Internal Synth", 1);
+    devices = juce::MidiOutput::getAvailableDevices();
+    for (int i = 0; i < devices.size(); ++i)
+        outputBox->addItem ("MIDI: " + devices[i].name, 2 + i);
+
+    const auto current = alea.getStandaloneOutput();
+    outputBox->setSelectedId (1, juce::dontSendNotification);
+    for (int i = 0; i < devices.size(); ++i)
+        if (devices[i].identifier == current)
+            outputBox->setSelectedId (2 + i, juce::dontSendNotification);
+
+    outputBox->onChange = [this]
+    {
+        const int id = outputBox->getSelectedId();
+        alea.setStandaloneOutput (id <= 1 ? "synth" : devices[id - 2].identifier);
+    };
+    addAndMakeVisible (*outputBox);
+}
+
+void OutputPanel::resized()
+{
+    if (outputBox != nullptr)
+        outputBox->setBounds (getWidth() - 150, 0, 150, 24);
+}
 
 void OutputPanel::paint (juce::Graphics& g)
 {
