@@ -45,7 +45,7 @@ const std::vector<Factory>& factory()
               // maximally smooth voice leading, zero common tones - the classic
               // "beautiful but wrong" progression of late-Romantic and film music
               triad, m ({ 3, 8, 11 }), 0, 0,  3, 4, 3, 4,  65, 100, 65, 100,
-              0, 4,  0, 4,  1, 0, 3, 30.0f, 0, 2, 2, 0, 8 },
+              0, 4,  0, 4,  1, 0, 3, 30.0f, 0, 2, 0, 0, 8 },
 
             { "Sweeps", "Soft \xe2\x86\x92 Loud", // velocity-only sweep
               major, major, 0, 0,  3, 5, 3, 5,  25, 45, 105, 127,
