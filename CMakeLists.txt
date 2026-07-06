@@ -13,12 +13,19 @@ FetchContent_Declare(JUCE
     GIT_SHALLOW    TRUE)
 FetchContent_MakeAvailable(JUCE)
 
+# App/plugin icon: picked up automatically once Assets/icon.png exists.
+set(ALEA_ICON_ARGS "")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png")
+    set(ALEA_ICON_ARGS ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png")
+endif()
+
 juce_add_plugin(Alea
     PRODUCT_NAME "Alea"
     COMPANY_NAME "Alea Audio"
     BUNDLE_ID com.alea-audio.alea
     PLUGIN_MANUFACTURER_CODE Alau
     PLUGIN_CODE Alea
+    ${ALEA_ICON_ARGS}
     # Classified as an instrument (not a "MIDI effect"): Ableton Live refuses
     # VST3s with no audio output and has no slot for third-party MIDI effects,
     # so like other MIDI generators Alea is an instrument with a silent output.

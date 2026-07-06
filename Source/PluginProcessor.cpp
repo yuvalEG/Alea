@@ -609,7 +609,20 @@ void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
         {
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
             morphCC.store ((int) apvts.state.getProperty ("morphCC", -1));
-            currentPreset.store ((int) apvts.state.getProperty ("currentPreset", -1));
+
+            // States saved before presets tracked selection have no
+            // currentPreset property: treat them as a fresh boot rather
+            // than showing an unmarked mystery patch.
+            const auto presetProp = apvts.state.getProperty ("currentPreset");
+            if (presetProp.isVoid())
+            {
+                presets::apply (apvts, presets::factory()[0]);
+                currentPreset.store (0);
+            }
+            else
+            {
+                currentPreset.store ((int) presetProp);
+            }
 
             // Restore the remembered output (standalone settings restore
             // arrives on the message thread; skip anywhere else).

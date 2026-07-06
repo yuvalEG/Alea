@@ -239,17 +239,6 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
             });
     };
 
-    // The engine remembers which preset is active (it may have been applied
-    // before this window existed - fresh boot, or a previous editor).
-    {
-        const int cp = alea.currentPreset.load();
-        if (cp >= 0 && cp < (int) presetBtns.size())
-        {
-            markPreset (cp);
-            snapshotCountdown = 2; // arm the divergence check against current state
-        }
-    }
-
     setSize (kWidth, kHeight);
     updateModeVisibility();
     timerCallback(); // apply dimming/visibility state before first paint
@@ -260,6 +249,7 @@ void AleaAudioProcessorEditor::applyPresetAndMark (int index)
 {
     presets::apply (alea.apvts, presets::factory()[(size_t) index]);
     alea.currentPreset.store (index);
+    shownPreset = index;
     // Don't snapshot yet: the host echoes parameter edits back asynchronously
     // with its own rounding, which would read as instant divergence.
     presetSnapshot.clear();
@@ -387,6 +377,20 @@ void AleaAudioProcessorEditor::timerCallback()
 {
     updateModeVisibility();
 
+    // The engine owns "which preset is active" (it survives editor close/
+    // reopen and session reload); the bubbles follow it.
+    {
+        const int cp = alea.currentPreset.load();
+        if (cp != shownPreset)
+        {
+            shownPreset = cp;
+            markPreset (cp);
+            presetSnapshot.clear();
+            if (cp >= 0)
+                snapshotCountdown = 2; // arm the divergence check
+        }
+    }
+
     // A fully one-sided morph means the other scale can't sound - dim it.
     {
         const bool sweep = alea.apvts.getRawParameterValue ("autoSweep")->load() > 0.5f;
@@ -430,6 +434,7 @@ void AleaAudioProcessorEditor::timerCallback()
             {
                 presetSnapshot.clear();
                 alea.currentPreset.store (-1);
+                shownPreset = -1;
                 markPreset (-1);
                 break;
             }

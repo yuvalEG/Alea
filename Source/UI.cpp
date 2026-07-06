@@ -419,8 +419,10 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
 
 void OutputPanel::resized()
 {
+    // Standalone: the output chooser is the panel's full-width top row -
+    // it decides whether the app makes sound at all, so it hides nowhere.
     if (outputBox != nullptr)
-        outputBox->setBounds (getWidth() - 150, 0, 150, 24);
+        outputBox->setBounds (0, 0, getWidth(), 26);
 }
 
 void OutputPanel::paint (juce::Graphics& g)
@@ -432,20 +434,15 @@ void OutputPanel::paint (juce::Graphics& g)
     const bool playing = alea.hostIsPlaying.load();
 
     auto area = getLocalBounds();
+    if (outputBox != nullptr)
+        area.removeFromTop (32); // standalone: output chooser row on top
 
     // Note displays are colored by the scale the note came from, matching
     // the history ticker.
     const auto srcColour = alea.activeSource.load() == 1 ? colors::cyan : colors::purple;
 
-    if (outputBox != nullptr) // standalone: label the output chooser
-    {
-        g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-        g.drawText ("OUT", getWidth() - 184, 0, 30, 24, juce::Justification::centredRight);
-    }
-
     // Activity LED + big note display (shows the sounding rest, too)
-    auto noteRow = area.removeFromTop (56);
+    auto noteRow = area.removeFromTop (outputBox != nullptr ? 42 : 56);
     g.setColour (active >= 0 ? colors::playing : colors::control);
     g.fillEllipse (noteRow.removeFromLeft (26).withSizeKeepingCentre (14, 14).toFloat());
 

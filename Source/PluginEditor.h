@@ -61,6 +61,7 @@ private:
     std::unique_ptr<juce::FileChooser> fileChooser;
     std::vector<float> presetSnapshot; // param values after a preset settles; divergence clears the mark
     int snapshotCountdown = 0;         // ticks until snapshot capture - lets the host echo edits back first
+    int shownPreset = -2;              // last mark painted; -2 forces a sync from the engine on first tick
 
     // Scale panels dim when the morph is fully on the other side
     float alphaA = 1.0f, alphaB = 1.0f;
