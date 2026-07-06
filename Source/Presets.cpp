@@ -47,13 +47,13 @@ const std::vector<Factory>& factory()
             // Single-dimension sweeps: only velocity / only octave moves.
             { "Sweeps", "Soft \xe2\x86\x92 Loud",
               major, major, 0, 0,  3, 5, 3, 5,  25, 45, 105, 127,
-              0, 3,  0, 3,  1, 0, 3, 30.0f, 0, 2, 0 },
+              0, 2,  0, 2,  1, 0, 3, 30.0f, 0, 2, 2 },
             { "Sweeps", "Octave Climb",
               triad, triad, 0, 0,  1, 2, 6, 7,  80, 110, 80, 110,
               0, 3,  0, 2,  1, 0, 5, 30.0f, 0, 2, 3 },
             { "Sweeps", "Diatonic \xe2\x86\x92 Dodecaphony",
-              major, chromatic, 0, 0,  3, 3, 3, 3,  75, 105, 60, 120,
-              0, 5,  0, 6,  1, 1, 5, 3.0f, 1, 0, 0 }, // 3-minute journey, whole-bar notes
+              m ({ 0, 2, 4, 5, 7 }), chromatic, 0, 0,  2, 2, 2, 2,  75, 105, 60, 120,
+              0, 7,  0, 7,  1, 1, 5, 3.0f, 1, 0, 0 }, // 3-minute journey, 2-bar drones, octave 2
         };
     }();
     return list;

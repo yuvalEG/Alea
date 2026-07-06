@@ -107,7 +107,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                     "I'll be more than happy to hear your feedback, ideas and music made "
                     "with ALEA! You can reach me through GitHub or my email: "
                     "yuvalprod@gmail.com\n\n"
-                    "Made by Yuval Egozi"));
+                    "Plugin Made By Yuval Egozi"));
         });
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton));
     };
@@ -206,9 +206,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
 void AleaAudioProcessorEditor::applyPresetAndMark (int index)
 {
     presets::apply (alea.apvts, presets::factory()[(size_t) index]);
+    // Don't snapshot yet: the host echoes parameter edits back asynchronously
+    // with its own rounding, which would read as instant divergence.
     presetSnapshot.clear();
-    for (auto* param : alea.getParameters())
-        presetSnapshot.push_back (param->getValue());
+    snapshotCountdown = 4;
     markPreset (index);
 }
 
@@ -356,13 +357,21 @@ void AleaAudioProcessorEditor::timerCallback()
         }
     }
 
-    // Any manual tweak after applying a preset un-marks it.
-    if (! presetSnapshot.empty())
+    // Any manual tweak after applying a preset un-marks it. The snapshot is
+    // captured a few ticks after apply (host echoes settle), and compared
+    // with a tolerance well above echo jitter but below any human tweak.
+    if (snapshotCountdown > 0)
+    {
+        if (--snapshotCountdown == 0)
+            for (auto* param : alea.getParameters())
+                presetSnapshot.push_back (param->getValue());
+    }
+    else if (! presetSnapshot.empty())
     {
         const auto& ps = alea.getParameters();
         for (size_t i = 0; i < (size_t) ps.size() && i < presetSnapshot.size(); ++i)
         {
-            if (std::abs (ps[(int) i]->getValue() - presetSnapshot[i]) > 1.0e-4f)
+            if (std::abs (ps[(int) i]->getValue() - presetSnapshot[i]) > 4.0e-3f)
             {
                 presetSnapshot.clear();
                 markPreset (-1);

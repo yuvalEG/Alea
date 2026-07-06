@@ -57,7 +57,8 @@ private:
     std::vector<std::unique_ptr<juce::TextButton>> presetBtns;
     juce::TextButton savePreset { "Save" }, loadPreset { "Load" };
     std::unique_ptr<juce::FileChooser> fileChooser;
-    std::vector<float> presetSnapshot; // param values right after a preset applied; divergence clears the mark
+    std::vector<float> presetSnapshot; // param values after a preset settles; divergence clears the mark
+    int snapshotCountdown = 0;         // ticks until snapshot capture - lets the host echo edits back first
 
     // Scale panels dim when the morph is fully on the other side
     float alphaA = 1.0f, alphaB = 1.0f;

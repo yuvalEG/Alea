@@ -398,6 +398,10 @@ void OutputPanel::paint (juce::Graphics& g)
 
     auto area = getLocalBounds();
 
+    // Note displays are colored by the scale the note came from, matching
+    // the history ticker.
+    const auto srcColour = alea.activeSource.load() == 1 ? colors::cyan : colors::purple;
+
     // Activity LED + big note display (shows the sounding rest, too)
     auto noteRow = area.removeFromTop (56);
     g.setColour (active >= 0 ? colors::playing : colors::control);
@@ -405,7 +409,7 @@ void OutputPanel::paint (juce::Graphics& g)
 
     if (active >= 0)
     {
-        g.setColour (colors::playing);
+        g.setColour (srcColour);
         g.setFont (juce::FontOptions (36.0f, juce::Font::bold));
         g.drawText (noteName (active), noteRow, juce::Justification::centredLeft);
     }
@@ -432,8 +436,8 @@ void OutputPanel::paint (juce::Graphics& g)
     g.drawText ("BAR " + juce::String (playing ? bar : 1)
                 + "  BEAT " + juce::String (playing ? beat : 1), row, juce::Justification::centredLeft);
 
-    // 88-key monitor (A0-C8): the sounding note lights green, like on the
-    // scale keyboards. Rests deliberately don't show here - silence has no
+    // 88-key monitor (A0-C8): the sounding note lights in its source
+    // scale's color. Rests deliberately don't show here - silence has no
     // key; the LED going dark and the history ticker cover it.
     {
         const auto strip = juce::Rectangle<float> (0.0f, (float) getHeight() - 124.0f, (float) getWidth(), 40.0f);
@@ -446,7 +450,7 @@ void OutputPanel::paint (juce::Graphics& g)
             if (isBlack (note))
                 continue;
             const auto key = juce::Rectangle<float> (strip.getX() + ww * (float) whiteIndex, strip.getY(), ww, strip.getHeight());
-            g.setColour (note == active ? colors::playing : colors::text.withAlpha (0.14f));
+            g.setColour (note == active ? srcColour : colors::text.withAlpha (0.14f));
             g.fillRect (key.reduced (0.5f, 0.0f));
             ++whiteIndex;
         }
@@ -462,7 +466,7 @@ void OutputPanel::paint (juce::Graphics& g)
             const float bw = ww * 0.7f;
             const auto key = juce::Rectangle<float> (strip.getX() + ww * (float) whiteIndex - bw * 0.5f,
                                                      strip.getY(), bw, strip.getHeight() * 0.62f);
-            g.setColour (note == active ? colors::playing : colors::background);
+            g.setColour (note == active ? srcColour : colors::background);
             g.fillRect (key);
         }
     }
