@@ -73,6 +73,25 @@ In Ableton Live:
 4. Arm the instrument track and press Play - you'll hear notes drawn from
    Scale A. Pick a preset, or hit AUTO-SWEEP and let it travel.
 
+## Troubleshooting
+
+**No sound from the plugin?**
+
+1. Alea makes no audio of its own - its MIDI must reach an instrument on
+   another track.
+2. On the instrument track, set **MIDI From** to the Alea track and pick
+   **Alea** in the chooser below it (not "Post FX").
+3. Arm the instrument track (record button) so it receives MIDI.
+4. Press Play - Alea follows the host transport; the dot in Alea's header
+   should read "playing".
+5. Still nothing? Check the morph bar: at 100% B with an empty Scale B there
+   is nothing to play. Hit PANIC once if a note seems stuck.
+6. Alea missing from Live's browser? Settings > Plug-Ins, hold Alt and click
+   Rescan (Live caches plugins that previously failed to load).
+
+**Standalone app silent?** Pick **Internal Synth** in the OUT dropdown
+(OUTPUT panel) and press PLAY.
+
 ## Feedback
 
 I'll be more than happy to hear your feedback, ideas, and music made with

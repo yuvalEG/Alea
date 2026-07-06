@@ -155,6 +155,15 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     addChildComponent (playButton);
     playButton.setVisible (standalone);
 
+    // Plugin only: the most common support question is routing, so the
+    // answer lives one click away. The standalone synth needs no routing.
+    helpLink.setButtonText ("No sound? Routing help");
+    helpLink.setURL (juce::URL ("https://github.com/yuvalEG/Alea#troubleshooting"));
+    helpLink.setFont (juce::FontOptions (12.0f), false, juce::Justification::centredRight);
+    helpLink.setColour (juce::HyperlinkButton::textColourId, colors::secondary);
+    addChildComponent (helpLink);
+    helpLink.setVisible (! standalone);
+
     panicButton.setColour (juce::TextButton::buttonColourId, colors::red.withAlpha (0.85f));
     panicButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
     panicButton.onClick = [this] { alea.panicRequested.store (true); };
@@ -239,7 +248,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
             });
     };
 
-    setSize (kWidth, kHeight);
+    setSize (kWidth, standalone ? kHeight : kHeight + 20); // plugin: footer row for the help link
     updateModeVisibility();
     timerCallback(); // apply dimming/visibility state before first paint
     startTimerHz (15);
@@ -371,6 +380,8 @@ void AleaAudioProcessorEditor::resized()
         savePreset.setBounds (presetsPanel.getRight() - 64, presetsPanel.getY() + 10, 54, 26);
         loadPreset.setBounds (presetsPanel.getRight() - 64, presetsPanel.getY() + 40, 54, 26);
     }
+
+    helpLink.setBounds (getWidth() - 250, getHeight() - 22, 240, 18);
 }
 
 void AleaAudioProcessorEditor::timerCallback()

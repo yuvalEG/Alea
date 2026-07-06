@@ -50,6 +50,7 @@ private:
     juce::TextButton freezeButton { "FREEZE" };
     juce::TextButton panicButton { "PANIC" };
     juce::TextButton playButton { "PLAY" }; // standalone transport
+    juce::HyperlinkButton helpLink;         // plugin only: routing help in the README
     const bool standalone;
 
     // Output panel
