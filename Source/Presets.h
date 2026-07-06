@@ -18,7 +18,10 @@ namespace presets
         int intervalMode, intervalSyncIdx;    // mode: 0 sync / 1 free / 2 random
         int lengthMode, lengthSyncIdx;
         int autoSweep;
+        int durMode;                          // 0 sync (bars) / 1 free (time)
         int durBarsIdx;                       // index into params::morphDurBarNames
+        float durFree;                        // free-mode duration value
+        int durUnit;                          // 0 seconds / 1 minutes
         int morphMode, morphCurve;
     };
 

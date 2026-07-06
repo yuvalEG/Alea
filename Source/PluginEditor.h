@@ -16,6 +16,8 @@ public:
 private:
     void timerCallback() override;
     void updateModeVisibility();
+    void applyPresetAndMark (int index);
+    void markPreset (int index); // -1 = nothing selected
 
     void setupSlider (juce::Slider&, const juce::String& paramID, juce::Colour accent, bool positionStyle = false);
     void setupCombo (juce::ComboBox&, const juce::String& paramID, const juce::StringArray& customLabels = {});
@@ -50,8 +52,10 @@ private:
     // Output panel
     ui::OutputPanel output;
 
-    // Presets row
+    // Presets row: featured presets as bubbles, everything in the dropdown
     juce::ComboBox presetBox;
+    std::vector<int> featuredIdx;
+    std::vector<std::unique_ptr<juce::TextButton>> featuredBtns;
     juce::TextButton savePreset { "Save" }, loadPreset { "Load" };
     std::unique_ptr<juce::FileChooser> fileChooser;
     std::vector<float> presetSnapshot; // param values right after a preset applied; divergence clears the mark

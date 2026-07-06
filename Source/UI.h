@@ -138,7 +138,6 @@ public:
 private:
     AleaAudioProcessor& alea;
     juce::TextButton panicButton { "PANIC" };
-    juce::TextButton clearButton { "CLEAR" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputPanel)
 };

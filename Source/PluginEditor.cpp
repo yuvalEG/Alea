@@ -1,6 +1,8 @@
 #include "PluginEditor.h"
 #include "Presets.h"
 
+#include <cstring>
+
 using namespace ui;
 
 namespace
@@ -57,9 +59,16 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     setupSlider (morphDurFree, "morphDurFree", colors::amber);
     setupSlider (internalTempo, "internalTempo", colors::green);
 
-    setupCombo (intervalSync, "intervalSync");
-    setupCombo (lengthSync, "lengthSync");
-    setupCombo (morphDurBars, "morphDurBars");
+    // Sync divisions are fractions of a bar; in 4/4 that maps 1:1 onto note
+    // values (display only - the musical glyphs aren't in the UI font, so
+    // the word "note" it is).
+    const juce::StringArray divisionDisplay {
+        "1/64 note", "1/32 note", "1/16 note", "1/8 note", "1/4 note", "1/2 note",
+        "1 bar", "2 bars", "4 bars" };
+    setupCombo (intervalSync, "intervalSync", divisionDisplay);
+    setupCombo (lengthSync, "lengthSync", divisionDisplay);
+    setupCombo (morphDurBars, "morphDurBars", juce::StringArray {
+        "1 bar", "2 bars", "4 bars", "8 bars", "16 bars", "32 bars", "64 bars" });
     setupCombo (morphDurUnit, "morphDurUnit");
 
     menuButton.setButtonText (juce::String::fromUTF8 ("\xe2\x8b\xaf"));
@@ -147,15 +156,27 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     presetBox.setColour (juce::ComboBox::arrowColourId, colors::secondary);
     presetBox.onChange = [this]
     {
-        const int id = presetBox.getSelectedId();
-        if (id <= 0)
-            return;
-        presets::apply (alea.apvts, presets::factory()[(size_t) id - 1]);
-        presetSnapshot.clear();
-        for (auto* param : alea.getParameters())
-            presetSnapshot.push_back (param->getValue());
+        if (presetBox.getSelectedId() > 0)
+            applyPresetAndMark (presetBox.getSelectedId() - 1);
     };
     addAndMakeVisible (presetBox);
+
+    // The most-reached-for presets also get one-click bubbles.
+    for (const char* featured : { "Just an Arp", "Major \xe2\x86\x92 Minor", "Diatonic \xe2\x86\x92 Dodecaphony" })
+        for (size_t i = 0; i < presets::factory().size(); ++i)
+            if (std::strcmp (presets::factory()[i].name, featured) == 0)
+            {
+                auto b = std::make_unique<juce::TextButton> (juce::String::fromUTF8 (featured));
+                b->setColour (juce::TextButton::buttonColourId, colors::control);
+                b->setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.9f));
+                b->setColour (juce::TextButton::textColourOffId, colors::text);
+                b->setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+                const int idx = (int) i;
+                b->onClick = [this, idx] { applyPresetAndMark (idx); };
+                addAndMakeVisible (*b);
+                featuredIdx.push_back (idx);
+                featuredBtns.push_back (std::move (b));
+            }
 
     for (auto* b : { &savePreset, &loadPreset })
     {
@@ -204,6 +225,22 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     updateModeVisibility();
     timerCallback(); // apply dimming/visibility state before first paint
     startTimerHz (15);
+}
+
+void AleaAudioProcessorEditor::applyPresetAndMark (int index)
+{
+    presets::apply (alea.apvts, presets::factory()[(size_t) index]);
+    presetSnapshot.clear();
+    for (auto* param : alea.getParameters())
+        presetSnapshot.push_back (param->getValue());
+    markPreset (index);
+}
+
+void AleaAudioProcessorEditor::markPreset (int index)
+{
+    presetBox.setSelectedId (index + 1, juce::dontSendNotification);
+    for (size_t k = 0; k < featuredBtns.size(); ++k)
+        featuredBtns[k]->setToggleState (featuredIdx[k] == index, juce::dontSendNotification);
 }
 
 void AleaAudioProcessorEditor::setupSlider (juce::Slider& s, const juce::String& paramID, juce::Colour accent,
@@ -298,10 +335,18 @@ void AleaAudioProcessorEditor::resized()
     output.setBounds (outputPanel.getX() + 12, outputPanel.getY() + 34,
                       outputPanel.getWidth() - 24, outputPanel.getHeight() - 46);
 
-    // Presets row
+    // Presets row: bubbles, then the full dropdown, Save/Load at the right
     {
         const int y = presetsPanel.getY() + 10;
-        presetBox.setBounds (presetsPanel.getX() + 90, y, 320, 26);
+        const int widths[] = { 96, 112, 172 };
+        int x = presetsPanel.getX() + 90;
+        for (size_t k = 0; k < featuredBtns.size(); ++k)
+        {
+            const int w = widths[juce::jmin ((size_t) 2, k)];
+            featuredBtns[k]->setBounds (x, y, w, 26);
+            x += w + 8;
+        }
+        presetBox.setBounds (x + 10, y, 210, 26);
         savePreset.setBounds (presetsPanel.getRight() - 128, y, 58, 26);
         loadPreset.setBounds (presetsPanel.getRight() - 64, y, 54, 26);
     }
@@ -345,7 +390,7 @@ void AleaAudioProcessorEditor::timerCallback()
             if (std::abs (ps[(int) i]->getValue() - presetSnapshot[i]) > 1.0e-4f)
             {
                 presetSnapshot.clear();
-                presetBox.setSelectedId (0, juce::dontSendNotification);
+                markPreset (-1);
                 break;
             }
         }
@@ -419,7 +464,7 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
     drawPanel (scaleAPanel, "SCALE A", colors::purple.withMultipliedAlpha (alphaA));
     drawPanel (scaleBPanel, "SCALE B", colors::cyan.withMultipliedAlpha (alphaB));
     drawPanel (timingPanel, "TIMING", colors::text.withAlpha (0.9f));
-    drawPanel (morphPanel, "MORPH", colors::text.withAlpha (0.9f));
+    drawPanel (morphPanel, "SCALE MORPH", colors::text.withAlpha (0.9f));
     drawPanel (outputPanel, "OUTPUT", colors::green);
     drawPanel (presetsPanel, "", colors::secondary);
     g.setColour (colors::secondary);

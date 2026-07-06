@@ -372,17 +372,11 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
     panicButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
     panicButton.onClick = [this] { alea.panicRequested.store (true); };
     addAndMakeVisible (panicButton);
-
-    clearButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    clearButton.setColour (juce::TextButton::textColourOffId, colors::secondary);
-    clearButton.onClick = [this] { alea.historyCount.store (0); repaint(); };
-    addAndMakeVisible (clearButton);
 }
 
 void OutputPanel::resized()
 {
     panicButton.setBounds (getWidth() - 70, 0, 70, 26);
-    clearButton.setBounds (getWidth() - 56, getHeight() - 76, 56, 18);
 }
 
 void OutputPanel::paint (juce::Graphics& g)

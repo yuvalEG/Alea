@@ -26,30 +26,34 @@ const std::vector<Factory>& factory()
         const int chromatic  = 0xfff;
 
         // Fields: category name aNotes bNotes aRests bRests aOct bOct aVel bVel
-        //         intMode intSync lenMode lenSync sweep dur mode curve
+        //         intMode intSync lenMode lenSync sweep durMode durBars durFree durUnit mode curve
         return std::vector<Factory> {
             { "Static", "Just an Arp",
               maj9, minPent, m ({ 3, 4 }), 0,  4, 6, 4, 6,  70, 115, 70, 115,
-              0, 2,  0, 2,  0, 3, 0, 0 },
+              0, 2,  0, 2,  0, 0, 3, 30.0f, 0, 0, 0 },
             { "Static", "Dice Roll",
               wholeTone, chromatic, m ({ 2 }), 0,  3, 5, 3, 5,  50, 120, 50, 120,
-              2, 3,  2, 3,  0, 3, 0, 0 },
+              2, 3,  2, 3,  0, 0, 3, 30.0f, 0, 0, 0 },
 
             { "Sweeps", "Major \xe2\x86\x92 Minor",
               major, minor, 0, 0,  3, 5, 3, 5,  80, 110, 80, 110,
-              0, 4,  0, 3,  1, 3, 2, 0 },
+              0, 4,  0, 3,  1, 0, 3, 30.0f, 0, 2, 0 },
             { "Sweeps", "Pentatonic Drift",
               majPent, minPent, 0, 0,  3, 5, 4, 6,  70, 100, 70, 100,
-              0, 3,  0, 2,  1, 4, 1, 2 },
+              0, 3,  0, 2,  1, 0, 4, 30.0f, 0, 1, 2 },
             { "Sweeps", "Sparse \xe2\x86\x92 Dense",
               m ({ 0, 7 }), chromatic, m ({ 0, 1, 2 }), 0,  2, 4, 3, 6,  60, 90, 90, 120,
-              0, 3,  0, 3,  1, 4, 0, 1 },
+              0, 3,  0, 3,  1, 0, 4, 30.0f, 0, 0, 1 },
+            // Single-dimension sweeps: only velocity / only octave moves.
+            { "Sweeps", "Soft \xe2\x86\x92 Loud",
+              major, major, 0, 0,  3, 5, 3, 5,  25, 45, 105, 127,
+              0, 3,  0, 3,  1, 0, 3, 30.0f, 0, 2, 0 },
             { "Sweeps", "Octave Climb",
               triad, triad, 0, 0,  1, 2, 6, 7,  80, 110, 80, 110,
-              0, 3,  0, 2,  1, 5, 2, 3 },
+              0, 3,  0, 2,  1, 0, 5, 30.0f, 0, 2, 3 },
             { "Sweeps", "Diatonic \xe2\x86\x92 Dodecaphony",
               major, chromatic, 0, 0,  3, 3, 3, 3,  75, 105, 60, 120,
-              0, 4,  0, 3,  1, 5, 0, 0 },
+              0, 5,  0, 6,  1, 1, 5, 3.0f, 1, 0, 0 }, // 3-minute journey, whole-bar notes
         };
     }();
     return list;
@@ -90,7 +94,10 @@ void apply (juce::AudioProcessorValueTreeState& apvts, const Factory& f)
     set ("intervalSync", (float) f.intervalSyncIdx);
     set ("lengthMode",   (float) f.lengthMode);
     set ("lengthSync",   (float) f.lengthSyncIdx);
+    set ("morphDurMode", (float) f.durMode);
     set ("morphDurBars", (float) f.durBarsIdx);
+    set ("morphDurFree", f.durFree);
+    set ("morphDurUnit", (float) f.durUnit);
     set ("morphMode",    (float) f.morphMode);
     set ("morphCurve",   (float) f.morphCurve);
     set ("morphPos",     0.0f);

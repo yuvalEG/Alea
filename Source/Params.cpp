@@ -70,9 +70,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         juce::ParameterID { "autoSweep", 1 }, "Auto-Sweep", false));
     layout.add (choice ("morphDurMode", "Morph Duration Mode", morphDurModes, 0));
     layout.add (choice ("morphDurBars", "Morph Duration (bars)", morphDurBarNames, 3)); // 8 bars
+    // Whole numbers display clean (the skewed range makes "19" round-trip to
+    // 18.9999981 internally); anything else gets two decimals.
+    const auto tidyNumber = juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+        [] (float v, int)
+        {
+            if (std::abs (v - std::round (v)) < 0.005f)
+                return juce::String ((int) std::lround (v));
+            return juce::String (v, 2);
+        });
+
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "morphDurFree", 1 }, "Morph Duration (time)",
-        juce::NormalisableRange<float> (0.0f, 600.0f, 0.0f, 0.35f), 30.0f)); // skewed: most of the travel serves short durations
+        juce::NormalisableRange<float> (0.0f, 600.0f, 0.0f, 0.35f), 30.0f, // skewed: most of the travel serves short durations
+        tidyNumber));
     layout.add (choice ("morphDurUnit", "Morph Duration Unit", morphDurUnits, 0));
     layout.add (choice ("morphMode", "Morph Mode", morphModes, oneShot));
     layout.add (choice ("morphCurve", "Morph Curve", morphCurves, linear));
