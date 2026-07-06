@@ -22,7 +22,7 @@ namespace
             text.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
             text.setColour (juce::TextEditor::textColourId, colors::text);
             text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
-            text.setFont (juce::FontOptions (14.5f));
+            text.setFont (juce::FontOptions (17.0f));
             text.setText (juce::String::fromUTF8 (
                 "Aleatoric Scale Shifter - Version 0.2.0\n\n\n"
                 "HOW TO USE\n\n"
@@ -55,7 +55,7 @@ namespace
                 "Plugin Made By Yuval Egozi"),
                 juce::dontSendNotification);
             addAndMakeVisible (text);
-            setSize (640, 620);
+            setSize (780, 720);
         }
 
         void paint (juce::Graphics& g) override
@@ -83,12 +83,6 @@ namespace
         juce::TextEditor text;
     };
 
-    const juce::Rectangle<int> presetsPanel  { 10,  64, 920, 76 };
-    const juce::Rectangle<int> scaleAPanel   { 10,  148, 455, 240 };
-    const juce::Rectangle<int> scaleBPanel   { 475, 148, 455, 240 };
-    const juce::Rectangle<int> timingPanel   { 10,  398, 290, 266 };
-    const juce::Rectangle<int> morphPanel    { 310, 398, 330, 266 };
-    const juce::Rectangle<int> outputPanel   { 650, 398, 280, 266 };
 }
 
 AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
@@ -157,10 +151,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
 
     // Sync divisions are fractions of a bar; in 4/4 that maps 1:1 onto note
     // values. Discrete sliders (like the octave controls): drag through the
-    // divisions, the readout names them.
+    // divisions, the readout names them. Long left, short right.
     static const juce::StringArray divisionDisplay {
-        "1/64 note", "1/32 note", "1/16 note", "1/8 note", "1/4 note", "1/2 note",
-        "1 bar", "2 bars", "4 bars" };
+        "4 bars", "2 bars", "1 bar", "1/2 note", "1/4 note", "1/8 note",
+        "1/16 note", "1/32 note", "1/64 note" };
     for (auto& [slider, id] : { std::pair<juce::Slider*, const char*> { &intervalSync, "intervalSync" },
                                 { &lengthSync, "lengthSync" } })
     {
@@ -185,22 +179,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     setupCombo (morphDurUnit, "morphDurUnit");
     setupSlider (transposeSlider, "transpose", colors::text.withAlpha (0.6f));
 
-    // Root pickers: rotate the whole pitch-class set to a new root. The
-    // keyboard always shows the actual notes; this is a transform tool.
-    for (auto* rp : { &rootABox, &rootBBox })
-    {
-        for (int i = 0; i < 12; ++i)
-            rp->addItem (params::pitchClassNames[i], i + 1);
-        rp->setColour (juce::ComboBox::backgroundColourId, colors::control);
-        rp->setColour (juce::ComboBox::textColourId, colors::text);
-        rp->setColour (juce::ComboBox::outlineColourId, colors::border);
-        rp->setColour (juce::ComboBox::arrowColourId, colors::secondary);
-        content.addAndMakeVisible (*rp);
-    }
-    rootABox.setSelectedId (alea.rootA.load() + 1, juce::dontSendNotification);
-    rootBBox.setSelectedId (alea.rootB.load() + 1, juce::dontSendNotification);
-    rootABox.onChange = [this] { rotateScale ('a', rootABox, alea.rootA); };
-    rootBBox.onChange = [this] { rotateScale ('b', rootBBox, alea.rootB); };
+    // Root pickers: the pitch each scale's octave span starts from (a real
+    // parameter - root A + octave 3 plays A3..G#4).
+    setupCombo (rootABox, "aRoot");
+    setupCombo (rootBBox, "bRoot");
 
     menuButton.setButtonText (juce::String::fromUTF8 ("\xe2\x8b\xaf"));
     menuButton.setColour (juce::TextButton::buttonColourId, colors::control);
@@ -344,44 +326,23 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     };
 
     viewHeight = standalone ? kHeight : kHeight + 20; // plugin: footer row for the help link
-    content.setBounds (0, 0, kWidth, viewHeight);
     addAndMakeVisible (content);
-    layoutMain();
 
     setResizable (true, true);
-    setResizeLimits (kWidth * 3 / 5, viewHeight * 3 / 5, kWidth * 2, viewHeight * 2);
-    setSize (kWidth, viewHeight);
+    setResizeLimits (kWidth * 4 / 5, viewHeight * 4 / 5, kWidth * 2, viewHeight * 2);
+    setSize (kWidth, viewHeight); // triggers resized() -> layoutMain()
 
     updateModeVisibility();
     timerCallback(); // apply dimming/visibility state before first paint
     startTimerHz (15);
 }
 
-void AleaAudioProcessorEditor::rotateScale (char scaleId, juce::ComboBox& box, std::atomic<int>& rootStore)
-{
-    const int newRoot = box.getSelectedId() - 1;
-    const int delta = ((newRoot - rootStore.load()) % 12 + 12) % 12;
-    rootStore.store (newRoot);
-    if (delta == 0)
-        return;
-
-    bool vals[12];
-    for (int pc = 0; pc < 12; ++pc)
-        vals[pc] = alea.apvts.getRawParameterValue (params::noteId (scaleId, pc))->load() > 0.5f;
-    for (int pc = 0; pc < 12; ++pc)
-        if (auto* param = alea.apvts.getParameter (params::noteId (scaleId, (pc + delta) % 12)))
-            param->setValueNotifyingHost (vals[pc] ? 1.0f : 0.0f);
-}
 
 void AleaAudioProcessorEditor::applyPresetAndMark (int index)
 {
     presets::apply (alea.apvts, presets::factory()[(size_t) index]);
     alea.currentPreset.store (index);
     shownPreset = index;
-    alea.rootA.store (0);
-    alea.rootB.store (0);
-    rootABox.setSelectedId (1, juce::dontSendNotification);
-    rootBBox.setSelectedId (1, juce::dontSendNotification);
     // Don't snapshot yet: the host echoes parameter edits back asynchronously
     // with its own rounding, which would read as instant divergence.
     presetSnapshot.clear();
@@ -437,13 +398,34 @@ void AleaAudioProcessorEditor::setupCombo (juce::ComboBox& c, const juce::String
 
 void AleaAudioProcessorEditor::layoutMain()
 {
+    // Responsive geometry: panels stretch with the window, controls keep
+    // their size. Extra height goes to the bottom row (monitoring benefits).
+    const int vw = juce::jmax (kWidth * 4 / 5, content.getWidth());
+    const int vh = juce::jmax (kHeight * 4 / 5, content.getHeight());
+    const int footer = standalone ? 8 : 28;
+
+    presetsPanel = { 10, 64, vw - 20, 76 };
+    const int scaleW = (vw - 30) / 2;
+    scaleAPanel = { 10, 148, scaleW, 240 };
+    scaleBPanel = { 20 + scaleW, 148, vw - 30 - scaleW, 240 };
+
+    const int by = 398;
+    const int bh = juce::jmax (240, vh - by - footer);
+    const int avail = vw - 40;
+    const int tw = avail * 29 / 90;
+    const int mw = avail * 33 / 90;
+    timingPanel = { 10, by, tw, bh };
+    morphPanel  = { 20 + tw, by, mw, bh };
+    outputPanel = { 30 + tw + mw, by, avail - tw - mw, bh };
+
     // Header
+    // Header: left cluster fixed, right cluster anchored to the window edge
     freezeButton.setBounds (380, 16, 80, 26);
-    tempoSource.setBounds (530, 16, 140, 26);
-    playButton.setBounds (566, 16, 104, 26);
-    internalTempo.setBounds (678, 16, 130, 26);
-    panicButton.setBounds (820, 16, 72, 26);
-    menuButton.setBounds (902, 16, 28, 26);
+    menuButton.setBounds (vw - 38, 16, 28, 26);
+    panicButton.setBounds (vw - 120, 16, 72, 26);
+    internalTempo.setBounds (vw - 262, 16, 130, 26);
+    tempoSource.setBounds (vw - 410, 16, 140, 26);
+    playButton.setBounds (vw - 410, 16, 140, 26);
 
     auto scaleControls = [] (const juce::Rectangle<int>& panel, PianoKeyboard& kb, RestSelector& rests,
                                  juce::Slider& octMin, juce::Slider& octMax,
@@ -508,7 +490,7 @@ void AleaAudioProcessorEditor::layoutMain()
         loadPreset.setBounds (presetsPanel.getRight() - 64, presetsPanel.getY() + 40, 54, 26);
     }
 
-    helpLink.setBounds (kWidth - 250, viewHeight - 22, 240, 18);
+    helpLink.setBounds (vw - 250, vh - 22, 240, 18);
 }
 
 bool AleaAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
@@ -589,19 +571,13 @@ void AleaAudioProcessorEditor::timerCallback()
         }
     }
 
-    // Root pickers follow the engine (session restore happens behind us)
-    if (rootABox.getSelectedId() != alea.rootA.load() + 1)
-        rootABox.setSelectedId (alea.rootA.load() + 1, juce::dontSendNotification);
-    if (rootBBox.getSelectedId() != alea.rootB.load() + 1)
-        rootBBox.setSelectedId (alea.rootB.load() + 1, juce::dontSendNotification);
-
     keyboardA.repaint();
     keyboardB.repaint();
     restsA.repaint();
     restsB.repaint();
     morphBar.repaint();
     output.repaint();
-    content.repaint (0, 0, kWidth, 60); // header status dot
+    content.repaint (0, 0, content.getWidth(), 60); // header status dot
 
     // Random-mode "current pick" readouts live in the timing panel
     if ((int) alea.apvts.getRawParameterValue ("intervalMode")->load() == params::random
@@ -632,13 +608,9 @@ void AleaAudioProcessorEditor::updateModeVisibility()
 
 void AleaAudioProcessorEditor::resized()
 {
-    // Free resize: the view scales uniformly to fit and centers, so the
-    // window follows the mouse in any direction without fighting a ratio.
-    const float scale = juce::jmin ((float) getWidth() / (float) kWidth,
-                                    (float) getHeight() / (float) viewHeight);
-    content.setTransform (juce::AffineTransform::scale (scale)
-                              .translated (((float) getWidth() - (float) kWidth * scale) * 0.5f,
-                                           ((float) getHeight() - (float) viewHeight * scale) * 0.5f));
+    // Responsive: the view fills the window and re-lays itself out.
+    content.setBounds (getLocalBounds());
+    layoutMain();
 }
 
 void AleaAudioProcessorEditor::paint (juce::Graphics& g)
@@ -667,7 +639,8 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     g.setColour (colors::secondary);
     g.drawText (playing ? "playing" : "stopped", 282, 14, 90, 28, juce::Justification::centredLeft);
 
-    g.drawText ("TEMPO", 462, 16, 60, 26, juce::Justification::centredRight);
+    g.drawText ("TEMPO", (standalone ? playButton.getX() : tempoSource.getX()) - 68, 16, 60, 26,
+                juce::Justification::centredRight);
 
     auto drawPanel = [&g] (const juce::Rectangle<int>& r, const juce::String& title, juce::Colour accent)
     {
@@ -710,7 +683,7 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     g.drawText ("TRANSPOSE",   timingPanel.getX() + 12, timingPanel.getY() + 214, 120, 14, juce::Justification::centredLeft);
 
     // Random-mode monitoring: show what the dice just rolled.
-    auto drawRandomPick = [&g] (int y, int poolIndex)
+    auto drawRandomPick = [&] (int y, int poolIndex)
     {
         g.setColour (colors::text.withAlpha (0.85f));
         g.setFont (juce::FontOptions (15.0f, juce::Font::bold));

@@ -31,29 +31,29 @@ const std::vector<Factory>& factory()
         return std::vector<Factory> {
             { "Static", "Just an Arp",
               maj9, minPent, m ({ 4, 5 }), 0,  4, 6, 4, 6,  70, 115, 70, 115,
-              0, 2,  0, 2,  0, 0, 3, 30.0f, 0, 0, 0 },
+              0, 6,  0, 6,  0, 0, 3, 30.0f, 0, 0, 0 },
             { "Static", "Dice Roll",
               wholeTone, chromatic, m ({ 3 }), 0,  3, 5, 3, 5,  50, 120, 50, 120,
-              2, 3,  2, 3,  0, 0, 3, 30.0f, 0, 0, 0 },
+              2, 5,  2, 5,  0, 0, 3, 30.0f, 0, 0, 0 },
             { "Sweeps", "Pentatonic Drift",
               majPent, minPent, 0, 0,  3, 5, 4, 6,  70, 100, 70, 100,
-              0, 3,  0, 2,  1, 0, 4, 30.0f, 0, 1, 2 },
+              0, 5,  0, 6,  1, 0, 4, 30.0f, 0, 1, 2 },
             { "Sweeps", "Octave Climb", // octave-only sweep: nothing else moves
               triad, triad, 0, 0,  1, 2, 6, 7,  80, 110, 80, 110,
-              0, 3,  0, 2,  1, 0, 5, 30.0f, 0, 2, 3 },
+              0, 5,  0, 6,  1, 0, 5, 30.0f, 0, 2, 3 },
 
             { "Sweeps", "Major \xe2\x86\x92 Minor",
               major, minor, 0, 0,  3, 5, 3, 5,  80, 110, 80, 110,
-              0, 4,  0, 3,  1, 0, 3, 30.0f, 0, 2, 0 },
+              0, 4,  0, 5,  1, 0, 3, 30.0f, 0, 2, 0 },
             { "Sweeps", "Sparse \xe2\x86\x92 Dense",
               m ({ 0, 7 }), chromatic, m ({ 1, 2, 3 }), 0,  2, 4, 3, 6,  60, 90, 90, 120,
-              0, 3,  0, 3,  1, 0, 4, 30.0f, 0, 0, 1 },
+              0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 1 },
             { "Sweeps", "Soft \xe2\x86\x92 Loud", // velocity-only sweep
               major, major, 0, 0,  3, 5, 3, 5,  25, 45, 105, 127,
-              0, 2,  0, 2,  1, 0, 3, 30.0f, 0, 2, 2 },
+              0, 6,  0, 6,  1, 0, 3, 30.0f, 0, 2, 2 },
             { "Sweeps", "Order \xe2\x86\x92 Chaos", // 3-minute journey, 2-bar drones + 2-bar rests, octave 2
               m ({ 0, 2, 4, 5, 7 }), chromatic, m ({ 0 }), m ({ 0 }),  2, 2, 2, 2,  75, 105, 60, 120,
-              0, 7,  0, 7,  1, 1, 5, 3.0f, 1, 0, 0 },
+              0, 1,  0, 1,  1, 1, 5, 3.0f, 1, 0, 0 },
         };
     }();
     return list;

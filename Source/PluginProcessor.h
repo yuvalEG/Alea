@@ -50,7 +50,6 @@ public:
     std::atomic<int>    activeVelocity { 0 };   // velocity of the sounding note (0-127)
     std::atomic<int>    activeSourcePc { -1 };  // pre-transpose pitch class, for scale keyboard highlights
     std::atomic<float>  synthPeak { 0.0f };     // internal synth output peak (post-limiter), per block
-    std::atomic<int>    rootA { 0 }, rootB { 0 }; // scale root pickers (UI transform state, persisted)
     std::atomic<int>    lastRandomInterval { -1 }; // pool index picked by Random mode
     std::atomic<int>    lastRandomLength { -1 };
     std::atomic<bool>   panicRequested { false };
@@ -82,6 +81,7 @@ private:
         int pitchClasses[12]; int numPitchClasses = 0;
         int rests[params::numRests]; int numRests = 0;
         int octMin = 0, octMax = 0, velMin = 1, velMax = 127;
+        int root = 0; // pitch the octave span starts from
     };
 
     // Cached raw-value pointers into the APVTS (audio-thread safe).
@@ -91,6 +91,7 @@ private:
         std::atomic<float>* rests[params::numRests] {};
         std::atomic<float>* octMin {}; std::atomic<float>* octMax {};
         std::atomic<float>* velMin {}; std::atomic<float>* velMax {};
+        std::atomic<float>* root {};
     };
 
     void cacheScaleRefs (char scale, ScaleRefs&);
@@ -114,7 +115,7 @@ private:
     struct SynthVoice
     {
         juce::ADSR amp, bright;
-        double phase = 0.0, phase2 = 0.0, freq = 440.0; // two detuned sines
+        double phase = 0.0, phase2 = 0.0, phase3 = 0.0, freq = 440.0; // three detuned oscillators
         float gain = 0.0f, velocity = 0.0f;
         int note = -1; // -1 = released (may still be ringing)
     };

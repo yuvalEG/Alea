@@ -187,8 +187,10 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
     auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key)
     {
-        g.setColour (colors::playing);
-        g.fillRoundedRectangle (key.withTop (key.getBottom() - key.getHeight() * juce::jmax (0.12f, velNorm)), 3.0f);
+        const auto fill = key.withTop (key.getBottom() - key.getHeight() * juce::jmax (0.12f, velNorm));
+        g.setGradientFill (juce::ColourGradient (colors::playing.brighter (0.30f), fill.getX(), fill.getY(),
+                                                 colors::playing.darker (0.25f), fill.getX(), fill.getBottom(), false));
+        g.fillRoundedRectangle (fill, 3.0f);
     };
 
     for (int pc = 0; pc < 12; ++pc)
@@ -459,13 +461,14 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
 
     addAndMakeVisible (*outputBox);
 
-    // Synth volume + meter share the top row with the chooser when the
+    // Synth volume knob + vertical meter sit beside the chooser when the
     // internal synth is the output.
-    volSlider.setSliderStyle (juce::Slider::LinearBar);
-    volSlider.setColour (juce::Slider::trackColourId, colors::green.withAlpha (0.45f));
-    volSlider.setColour (juce::Slider::backgroundColourId, colors::control);
-    volSlider.setColour (juce::Slider::textBoxTextColourId, colors::text);
-    volSlider.setColour (juce::Slider::textBoxOutlineColourId, colors::border);
+    volSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    volSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    volSlider.setPopupDisplayEnabled (true, true, this);
+    volSlider.setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
+    volSlider.setColour (juce::Slider::rotarySliderOutlineColourId, colors::control);
+    volSlider.setColour (juce::Slider::thumbColourId, colors::text);
     addChildComponent (volSlider);
     volAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         alea.apvts, "synthVol", volSlider);
@@ -473,14 +476,14 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
 
 void OutputPanel::resized()
 {
-    // The output chooser is the panel's full-width top row - it decides
-    // whether Alea makes sound at all, so it hides nowhere. With the synth
-    // active it shares the row with volume and a meter.
+    // The output chooser is the panel's top row - it decides whether Alea
+    // makes sound at all, so it hides nowhere. With the synth active it
+    // shares the top-right corner with a volume knob and a vertical meter.
     if (outputBox == nullptr)
         return;
     const bool synth = alea.synthOn.load();
-    outputBox->setBounds (0, 0, synth ? getWidth() - 160 : getWidth(), 26);
-    volSlider.setBounds (getWidth() - 152, 0, 92, 26);
+    outputBox->setBounds (0, 0, synth ? getWidth() - 92 : getWidth(), 26);
+    volSlider.setBounds (getWidth() - 56, 0, 56, 54);
     volSlider.setVisible (synth);
 }
 
@@ -499,17 +502,30 @@ void OutputPanel::paint (juce::Graphics& g)
         resized();
     }
 
-    // Output meter (internal synth): falling peak, green -> amber -> red.
+    // Output meter (internal synth): vertical falling peak with green /
+    // amber / red zones - amber warns, red means the limiter is working.
     if (lastSynthOn && outputBox != nullptr)
     {
         meterLevel = juce::jmax (alea.synthPeak.load(), meterLevel * 0.82f);
-        const auto meter = juce::Rectangle<float> ((float) getWidth() - 52.0f, 8.0f, 52.0f, 10.0f);
+        const auto meter = juce::Rectangle<float> ((float) getWidth() - 78.0f, 2.0f, 10.0f, 50.0f);
         g.setColour (colors::control);
         g.fillRoundedRectangle (meter, 3.0f);
+
         const float db = juce::Decibels::gainToDecibels (meterLevel, -48.0f);
         const float frac = juce::jlimit (0.0f, 1.0f, (db + 48.0f) / 48.0f);
-        g.setColour (frac > 0.92f ? colors::red : frac > 0.75f ? colors::amber : colors::green);
-        g.fillRoundedRectangle (meter.withWidth (meter.getWidth() * frac), 3.0f);
+        struct Zone { float from, to; juce::Colour colour; };
+        for (const auto& z : { Zone { 0.00f, 0.70f, colors::green },
+                               Zone { 0.70f, 0.90f, colors::amber },
+                               Zone { 0.90f, 1.00f, colors::red } })
+        {
+            const float lit = juce::jmin (frac, z.to) - z.from;
+            if (lit <= 0.0f)
+                continue;
+            g.setColour (z.colour);
+            g.fillRect (juce::Rectangle<float> (meter.getX(),
+                                                meter.getBottom() - (z.from + lit) * meter.getHeight(),
+                                                meter.getWidth(), lit * meter.getHeight()));
+        }
     }
 
     auto area = getLocalBounds();
@@ -531,21 +547,6 @@ void OutputPanel::paint (juce::Graphics& g)
         g.setFont (juce::FontOptions (36.0f, juce::Font::bold));
         g.drawText (noteName (active), noteRow, juce::Justification::centredLeft);
     }
-
-    // Velocity readout: persistent (holds the last note's value), no blink.
-    if (last >= 0 || active >= 0)
-    {
-        const int vel = alea.activeVelocity.load();
-        const auto barArea = juce::Rectangle<int> (getWidth() - 64, noteRow.getCentreY() - 4, 56, 8).toFloat();
-        g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-        g.drawText ("VEL " + juce::String (vel), getWidth() - 120, noteRow.getCentreY() - 21, 112, 14,
-                    juce::Justification::centredRight);
-        g.setColour (colors::control);
-        g.fillRoundedRectangle (barArea, 3.0f);
-        g.setColour (colors::playing);
-        g.fillRoundedRectangle (barArea.withWidth (barArea.getWidth() * (float) vel / 127.0f), 3.0f);
-    }
     else if (rest >= 0)
     {
         g.setColour (colors::secondary);
@@ -559,7 +560,8 @@ void OutputPanel::paint (juce::Graphics& g)
         g.drawText (noteName (last), noteRow, juce::Justification::centredLeft);
     }
 
-    // Bar / beat / morph source
+    // Bar / beat, with a persistent velocity readout (white, no blink) at
+    // the row's right.
     const int bar  = juce::jmax (1, (int) std::floor (ppq / 4.0) + 1);
     const int beat = juce::jmax (1, ((int) std::floor (ppq) % 4 + 4) % 4 + 1);
 
@@ -568,6 +570,19 @@ void OutputPanel::paint (juce::Graphics& g)
     g.setColour (colors::secondary);
     g.drawText ("BAR " + juce::String (playing ? bar : 1)
                 + "  BEAT " + juce::String (playing ? beat : 1), row, juce::Justification::centredLeft);
+
+    if (last >= 0 || active >= 0)
+    {
+        const int vel = alea.activeVelocity.load();
+        g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+        g.drawText ("VEL " + juce::String (vel), row.removeFromRight (getWidth() / 2).withTrimmedRight (66),
+                    juce::Justification::centredRight);
+        const auto barArea = juce::Rectangle<float> ((float) getWidth() - 60.0f, (float) row.getCentreY() - 4.0f, 60.0f, 8.0f);
+        g.setColour (colors::control);
+        g.fillRoundedRectangle (barArea, 3.0f);
+        g.setColour (colors::text.withAlpha (0.9f));
+        g.fillRoundedRectangle (barArea.withWidth (barArea.getWidth() * (float) vel / 127.0f), 3.0f);
+    }
 
     // 88-key monitor (A0-C8): the sounding note lights in its source
     // scale's color. Rests deliberately don't show here - silence has no
@@ -642,13 +657,17 @@ void OutputPanel::paint (juce::Graphics& g)
         g.drawText (name, juce::Rectangle<float> (xRight, ticker.getY(), w + 2.0f, ticker.getHeight()),
                     juce::Justification::centredLeft);
 
-        // A slim bar beside each note shows its velocity.
+        // A slim bar beside each note shows its velocity: the faint track is
+        // the full range, the solid part is the actual hit.
         if (! isRest)
         {
             const float vel = (float) ((packed >> 10) & 0x7f) / 127.0f;
-            const float barH = juce::jmax (2.0f, (ticker.getHeight() - 6.0f) * vel);
-            g.fillRect (juce::Rectangle<float> (xRight + w + 4.0f,
-                                                ticker.getBottom() - 3.0f - barH, 3.0f, barH));
+            const auto track = juce::Rectangle<float> (xRight + w + 4.0f, ticker.getY() + 3.0f,
+                                                       3.0f, ticker.getHeight() - 6.0f);
+            g.setColour (colour.withMultipliedAlpha (0.22f));
+            g.fillRect (track);
+            g.setColour (colour);
+            g.fillRect (track.withTop (track.getBottom() - juce::jmax (2.0f, track.getHeight() * vel)));
         }
     }
 }

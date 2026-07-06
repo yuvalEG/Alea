@@ -44,6 +44,7 @@ void AleaAudioProcessor::cacheScaleRefs (char scale, ScaleRefs& refs)
     refs.octMax = raw ((s + "OctMax").toRawUTF8());
     refs.velMin = raw ((s + "VelMin").toRawUTF8());
     refs.velMax = raw ((s + "VelMax").toRawUTF8());
+    refs.root   = raw ((s + "Root").toRawUTF8());
 }
 
 void AleaAudioProcessor::readSnapshot (const ScaleRefs& refs, ScaleSnapshot& snap) const
@@ -62,6 +63,7 @@ void AleaAudioProcessor::readSnapshot (const ScaleRefs& refs, ScaleSnapshot& sna
     snap.octMax = juce::jmax ((int) refs.octMax->load(), snap.octMin); // Max auto-clamps >= Min (spec 4.1)
     snap.velMin = juce::jmax (1, (int) refs.velMin->load());           // never emit velocity 0 (spec 4.1)
     snap.velMax = juce::jmax ((int) refs.velMax->load(), snap.velMin);
+    snap.root   = (int) refs.root->load();
 }
 
 bool AleaAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -87,7 +89,7 @@ void AleaAudioProcessor::prepareToPlay (double sampleRate, int)
         v.bright.setSampleRate (sampleRate);
         v.bright.setParameters ({ 0.002f, 0.50f, 0.25f, 1.00f });
         v.bright.reset();
-        v.phase = v.phase2 = 0.0;
+        v.phase = v.phase2 = v.phase3 = 0.0;
         v.note = -1;
     }
     nextVoice = 0;
@@ -289,29 +291,31 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
         {
             if (! v.amp.isActive())
                 continue;
-            // Two sines a few cents apart beat slowly against each other -
-            // the warmth comes from the detune, not from added harmonics.
-            // Velocity adds only a whisper of octave shimmer on top.
+            // Three fundamentals a few cents apart (center, up, down) plus a
+            // sub-octave and a fixed touch of 2nd/3rd: fat sustained tone
+            // from detune beating, normalized so eight ringing voices stay
+            // clear of the limiter instead of leaning on it.
             const double inc1 = juce::MathConstants<double>::twoPi * v.freq / sampleRate;
-            const double inc2 = inc1 * 1.0035;
+            const double inc2 = inc1 * 1.004;
+            const double inc3 = inc1 * 0.996;
             for (int n = pos; n < end; ++n)
             {
                 const float env = v.amp.getNextSample();
-                const float shimmer = 0.16f * v.velocity * v.bright.getNextSample();
-                // Detuned pair + sub-octave + a fixed touch of 2nd/3rd give
-                // the held tone real synth body; shimmer rides on velocity.
-                const float s = 0.50f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
-                              + 0.32f * (float) std::sin (0.5 * v.phase)
-                              + (0.20f + shimmer) * (float) std::sin (2.0 * v.phase)
-                              + 0.09f * (float) std::sin (3.0 * v.phase);
-                left[n] += 0.18f * master * v.gain * env * s / (1.0f + shimmer);
+                const float shimmer = 0.14f * v.velocity * v.bright.getNextSample();
+                const float s = (0.38f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2) + (float) std::sin (v.phase3))
+                               + 0.30f * (float) std::sin (0.5 * v.phase)
+                               + (0.24f + shimmer) * (float) std::sin (2.0 * v.phase)
+                               + 0.10f * (float) std::sin (3.0 * v.phase)) / 1.55f;
+                left[n] += 0.16f * master * v.gain * env * s;
                 v.phase += inc1;
                 v.phase2 += inc2;
+                v.phase3 += inc3;
             }
             if (v.phase > juce::MathConstants<double>::twoPi * 1024.0)
             {
                 v.phase = std::fmod (v.phase, juce::MathConstants<double>::twoPi);
                 v.phase2 = std::fmod (v.phase2, juce::MathConstants<double>::twoPi);
+                v.phase3 = std::fmod (v.phase3, juce::MathConstants<double>::twoPi);
             }
         }
         pos = end;
@@ -681,8 +685,11 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         const int velMax = juce::jmax (velMin, (int) std::lround (snapA.velMax + (snapB.velMax - snapA.velMax) * m));
 
         const int octave = octMin + rng.nextInt (octMax - octMin + 1);
-        const int note = 24 + 12 * octave + src.pitchClasses[pick] // C3 = 60 convention (spec 5.3)
-                       + (int) pTranspose->load();                 // global transpose
+        // The octave span starts at the scale's root: root A + octave 3
+        // plays A3..G#4. C3 = 60 convention (spec 5.3), plus global transpose.
+        const int pcOffset = ((src.pitchClasses[pick] - src.root) % 12 + 12) % 12;
+        const int note = 24 + 12 * octave + src.root + pcOffset
+                       + (int) pTranspose->load();
 
         nextEventPpq = eventPpq + intervalPpqAt (bpm);
 
@@ -730,8 +737,6 @@ void AleaAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("morphCC", morphCC.load(), nullptr);
     state.setProperty ("standaloneOutput", getStandaloneOutput(), nullptr);
     state.setProperty ("currentPreset", currentPreset.load(), nullptr);
-    state.setProperty ("rootA", rootA.load(), nullptr);
-    state.setProperty ("rootB", rootB.load(), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -743,8 +748,6 @@ void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
         {
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
             morphCC.store ((int) apvts.state.getProperty ("morphCC", -1));
-            rootA.store ((int) apvts.state.getProperty ("rootA", 0));
-            rootB.store ((int) apvts.state.getProperty ("rootB", 0));
 
             // States saved before presets tracked selection have no
             // currentPreset property: treat them as a fresh boot rather

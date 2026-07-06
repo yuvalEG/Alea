@@ -21,7 +21,6 @@ private:
     void markPreset (int index); // -1 = nothing selected
     void layoutMain();
     void paintMain (juce::Graphics&);
-    void rotateScale (char scaleId, juce::ComboBox&, std::atomic<int>& rootStore);
 
     void setupSlider (juce::Slider&, const juce::String& paramID, juce::Colour accent, bool positionStyle = false);
     void setupCombo (juce::ComboBox&, const juce::String& paramID, const juce::StringArray& customLabels = {});
@@ -38,6 +37,11 @@ private:
     };
     MainView content { *this };
     int viewHeight = 0;
+
+    // Panel geometry, recomputed on every resize (responsive layout: panels
+    // stretch, controls keep their size).
+    juce::Rectangle<int> presetsPanel, scaleAPanel, scaleBPanel,
+                         timingPanel, morphPanel, outputPanel;
 
     // Scale panels
     ui::PianoKeyboard keyboardA, keyboardB;

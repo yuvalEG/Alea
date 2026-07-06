@@ -22,6 +22,12 @@ static void addScale (juce::AudioProcessorValueTreeState::ParameterLayout& layou
             juce::ParameterID { restId (scale, r), 1 },
             prefix + " Rest " + restNames[r], r == defaultRest));
 
+    // The pitch the scale's octave span starts from: root A + octave 3 plays
+    // A3..G#4, not C3..B3.
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { juce::String::charToString (scale) + "Root", 1 },
+        prefix + " Root", pitchClassNames, 0));
+
     layout.add (std::make_unique<juce::AudioParameterInt> (
         juce::ParameterID { juce::String::charToString (scale) + "VelMin", 1 }, prefix + " Velocity Min", 0, 127, 80));
     layout.add (std::make_unique<juce::AudioParameterInt> (
@@ -58,7 +64,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         juce::NormalisableRange<float> (0.01f, 60.0f, 0.0f, 0.3f), 0.5f, secondsText));
 
     layout.add (choice ("lengthMode", "Length Mode", timingModes, sync));
-    layout.add (choice ("lengthSync", "Note Length", divisionNames, 3)); // 1/8 bar
+    layout.add (choice ("lengthSync", "Note Length", divisionNames, 5)); // 1/8 bar
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "lengthFree", 1 }, "Length (Free)",
         juce::NormalisableRange<float> (0.01f, 60.0f, 0.0f, 0.3f), 0.25f, secondsText));
