@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Presets.h"
 
 // A silent stereo output bus is required: Ableton Live (and some other hosts)
 // won't open a VST3 that has no audio outputs, so Alea presents as an
@@ -19,6 +20,12 @@ AleaAudioProcessor::AleaAudioProcessor()
     pMorphMode    = raw ("morphMode");    pMorphCurve   = raw ("morphCurve");
     pTempoSource  = raw ("tempoSource");  pInternalTempo = raw ("internalTempo");
     pFreeze       = raw ("freeze");
+
+    // Fresh instances boot into the first factory preset, marked as selected,
+    // so there's music (and a lit bubble) before any knob is touched. Saved
+    // sessions overwrite this via setStateInformation right after.
+    presets::apply (apvts, presets::factory()[0]);
+    currentPreset.store (0);
 }
 
 void AleaAudioProcessor::cacheScaleRefs (char scale, ScaleRefs& refs)
@@ -590,6 +597,7 @@ void AleaAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("stateVersion", 2, nullptr);
     state.setProperty ("morphCC", morphCC.load(), nullptr);
     state.setProperty ("standaloneOutput", getStandaloneOutput(), nullptr);
+    state.setProperty ("currentPreset", currentPreset.load(), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -601,6 +609,7 @@ void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
         {
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
             morphCC.store ((int) apvts.state.getProperty ("morphCC", -1));
+            currentPreset.store ((int) apvts.state.getProperty ("currentPreset", -1));
 
             // Restore the remembered output (standalone settings restore
             // arrives on the message thread; skip anywhere else).

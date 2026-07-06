@@ -239,6 +239,17 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
             });
     };
 
+    // The engine remembers which preset is active (it may have been applied
+    // before this window existed - fresh boot, or a previous editor).
+    {
+        const int cp = alea.currentPreset.load();
+        if (cp >= 0 && cp < (int) presetBtns.size())
+        {
+            markPreset (cp);
+            snapshotCountdown = 2; // arm the divergence check against current state
+        }
+    }
+
     setSize (kWidth, kHeight);
     updateModeVisibility();
     timerCallback(); // apply dimming/visibility state before first paint
@@ -248,6 +259,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
 void AleaAudioProcessorEditor::applyPresetAndMark (int index)
 {
     presets::apply (alea.apvts, presets::factory()[(size_t) index]);
+    alea.currentPreset.store (index);
     // Don't snapshot yet: the host echoes parameter edits back asynchronously
     // with its own rounding, which would read as instant divergence.
     presetSnapshot.clear();
@@ -417,6 +429,7 @@ void AleaAudioProcessorEditor::timerCallback()
             if (std::abs (ps[(int) i]->getValue() - presetSnapshot[i]) > 4.0e-3f)
             {
                 presetSnapshot.clear();
+                alea.currentPreset.store (-1);
                 markPreset (-1);
                 break;
             }

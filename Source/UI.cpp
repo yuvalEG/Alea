@@ -437,6 +437,13 @@ void OutputPanel::paint (juce::Graphics& g)
     // the history ticker.
     const auto srcColour = alea.activeSource.load() == 1 ? colors::cyan : colors::purple;
 
+    if (outputBox != nullptr) // standalone: label the output chooser
+    {
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+        g.drawText ("OUT", getWidth() - 184, 0, 30, 24, juce::Justification::centredRight);
+    }
+
     // Activity LED + big note display (shows the sounding rest, too)
     auto noteRow = area.removeFromTop (56);
     g.setColour (active >= 0 ? colors::playing : colors::control);

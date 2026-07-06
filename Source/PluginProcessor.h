@@ -50,6 +50,7 @@ public:
     std::atomic<int>    lastRandomInterval { -1 }; // pool index picked by Random mode
     std::atomic<int>    lastRandomLength { -1 };
     std::atomic<bool>   panicRequested { false };
+    std::atomic<int>    currentPreset { -1 };  // lit factory-preset bubble; -1 = custom
 
     // Standalone (spec section 10): internal transport + output choice.
     // Output is either the built-in synth (default - sound with zero setup)
