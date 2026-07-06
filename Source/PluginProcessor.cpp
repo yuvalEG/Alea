@@ -291,21 +291,22 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
         {
             if (! v.amp.isActive())
                 continue;
-            // Three fundamentals a few cents apart (center, up, down) plus a
-            // sub-octave and a fixed touch of 2nd/3rd: fat sustained tone
-            // from detune beating, normalized so eight ringing voices stay
-            // clear of the limiter instead of leaning on it.
+            // A dominant equal pair ~10 cents apart gives the audible slow
+            // phasing (waves breathing in and out); a third, quieter osc
+            // detuned the other way plus sub and fixed 2nd/3rd fill the tone.
+            // Normalized so eight ringing voices stay clear of the limiter.
             const double inc1 = juce::MathConstants<double>::twoPi * v.freq / sampleRate;
-            const double inc2 = inc1 * 1.004;
-            const double inc3 = inc1 * 0.996;
+            const double inc2 = inc1 * 1.0055;
+            const double inc3 = inc1 * 0.9965;
             for (int n = pos; n < end; ++n)
             {
                 const float env = v.amp.getNextSample();
                 const float shimmer = 0.14f * v.velocity * v.bright.getNextSample();
-                const float s = (0.38f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2) + (float) std::sin (v.phase3))
-                               + 0.30f * (float) std::sin (0.5 * v.phase)
-                               + (0.24f + shimmer) * (float) std::sin (2.0 * v.phase)
-                               + 0.10f * (float) std::sin (3.0 * v.phase)) / 1.55f;
+                const float s = (0.44f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
+                               + 0.16f * (float) std::sin (v.phase3)
+                               + 0.28f * (float) std::sin (0.5 * v.phase)
+                               + (0.22f + shimmer) * (float) std::sin (2.0 * v.phase)
+                               + 0.08f * (float) std::sin (3.0 * v.phase)) / 1.55f;
                 left[n] += 0.16f * master * v.gain * env * s;
                 v.phase += inc1;
                 v.phase2 += inc2;
@@ -610,6 +611,18 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
     // events. Time (and morph) keeps moving; unfreezing re-anchors cleanly.
     if (pFreeze->load() > 0.5f)
     {
+        // With short notes the stream is usually between notes when Freeze
+        // lands - grab the last note and hold it, so Freeze always freezes
+        // something audible.
+        if (! wasFrozen && currentNote < 0 && lastNote.load() >= 0)
+        {
+            const int held = lastNote.load();
+            const auto vel = (juce::uint8) juce::jlimit (1, 127, activeVelocity.load());
+            midi.addEvent (juce::MidiMessage::noteOn (channelA, held, vel), 0);
+            currentNote = held;
+            currentNoteChannel = channelA;
+            activeNote.store (held);
+        }
         wasFrozen = true;
         return;
     }

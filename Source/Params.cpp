@@ -101,7 +101,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (std::make_unique<juce::AudioParameterInt> (
         juce::ParameterID { "transpose", 1 }, "Transpose", -24, 24, 0,
         juce::AudioParameterIntAttributes().withStringFromValueFunction (
-            [] (int v, int) { return (v > 0 ? "+" : "") + juce::String (v) + " st"; })));
+            [] (int v, int) { return (v > 0 ? "+" : "") + juce::String (v) + " semitones"; })));
 
     // Internal synth output volume
     layout.add (std::make_unique<juce::AudioParameterFloat> (

@@ -54,7 +54,6 @@ private:
     ui::SegmentedSelector intervalMode, lengthMode;
     juce::Slider intervalSync, lengthSync; // discrete division sliders
     juce::Slider intervalFree, lengthFree;
-    juce::Slider transposeSlider; // global output transpose
 
     // Morph panel
     ui::MorphBar morphBar;

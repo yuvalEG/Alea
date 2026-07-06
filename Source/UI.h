@@ -149,7 +149,8 @@ private:
     std::unique_ptr<juce::ComboBox> outputBox;
     juce::Array<juce::MidiDeviceInfo> devices;
     juce::Slider volSlider;                    // internal synth volume (dB)
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> volAttachment;
+    juce::Slider transposeSlider;              // global output transpose
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> volAttachment, transposeAttachment;
     bool lastSynthOn = false;
     float meterLevel = 0.0f;                   // falling peak for the output meter
 

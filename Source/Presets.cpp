@@ -41,6 +41,11 @@ const std::vector<Factory>& factory()
             { "Sweeps", "Octave Climb", // octave-only sweep: nothing else moves
               triad, triad, 0, 0,  1, 2, 6, 7,  80, 110, 80, 110,
               0, 5,  0, 6,  1, 0, 5, 30.0f, 0, 2, 3 },
+            { "Sweeps", "Uncanny Valley", // hexatonic pole: C major <-> Ab minor,
+              // maximally smooth voice leading, zero common tones - the classic
+              // "beautiful but wrong" progression of late-Romantic and film music
+              triad, m ({ 3, 8, 11 }), 0, 0,  3, 4, 3, 4,  65, 100, 65, 100,
+              0, 4,  0, 4,  1, 0, 3, 30.0f, 0, 2, 2, 0, 8 },
 
             { "Sweeps", "Major \xe2\x86\x92 Minor",
               major, minor, 0, 0,  3, 5, 3, 5,  80, 110, 80, 110,
@@ -50,7 +55,10 @@ const std::vector<Factory>& factory()
               0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 1 },
             { "Sweeps", "Soft \xe2\x86\x92 Loud", // velocity-only sweep
               major, major, 0, 0,  3, 5, 3, 5,  25, 45, 105, 127,
-              0, 6,  0, 6,  1, 0, 3, 30.0f, 0, 2, 2 },
+              0, 6,  0, 6,  1, 0, 1, 30.0f, 0, 2, 2 },
+            { "Sweeps", "Five \xe2\x86\x92 One", // A minor pentatonic collapsing to a single C
+              m ({ 9, 0, 2, 4, 7 }), m ({ 0 }), 0, 0,  3, 3, 3, 3,  70, 100, 70, 100,
+              0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 0, 9, 0 },
             { "Sweeps", "Order \xe2\x86\x92 Chaos", // 3-minute journey, 2-bar drones + 2-bar rests, octave 2
               m ({ 0, 2, 4, 5, 7 }), chromatic, m ({ 0 }), m ({ 0 }),  2, 2, 2, 2,  75, 105, 60, 120,
               0, 1,  0, 1,  1, 1, 5, 3.0f, 1, 0, 0 },
@@ -102,6 +110,8 @@ void apply (juce::AudioProcessorValueTreeState& apvts, const Factory& f)
     set ("morphCurve",   (float) f.morphCurve);
     set ("morphPos",     0.0f);
     set ("autoSweep",    (float) f.autoSweep);
+    set ("aRoot",        (float) f.aRoot);
+    set ("bRoot",        (float) f.bRoot);
 }
 
 } // namespace presets

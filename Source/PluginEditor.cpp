@@ -6,7 +6,7 @@ using namespace ui;
 
 namespace
 {
-    constexpr int kWidth = 940, kHeight = 674;
+    constexpr int kWidth = 940, kHeight = 704;
 
     // About dialog: wordmark over a subtle vertical gradient, text below.
     struct AboutComponent : juce::Component
@@ -122,6 +122,28 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         juce::Font getPopupMenuFont() override { return juce::FontOptions (16.0f); }
         juce::Font getLabelFont (juce::Label& label) override
         { return juce::FontOptions (juce::jmin (15.5f, (float) label.getHeight() * 0.72f)); }
+
+        // Filled knob: solid body, value arc, pointer - no confusing hole.
+        void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
+                               float startAngle, float endAngle, juce::Slider& slider) override
+        {
+            const auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (7.0f);
+            const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
+            const auto centre = bounds.getCentre();
+            const float angle = startAngle + pos * (endAngle - startAngle);
+
+            g.setColour (colors::control.brighter (0.25f));
+            g.fillEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f);
+
+            juce::Path arc;
+            arc.addCentredArc (centre.x, centre.y, radius + 3.5f, radius + 3.5f, 0.0f, startAngle, angle, true);
+            g.setColour (slider.findColour (juce::Slider::rotarySliderFillColourId));
+            g.strokePath (arc, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+            g.setColour (colors::text);
+            g.drawLine (centre.x + std::sin (angle) * radius * 0.30f, centre.y - std::cos (angle) * radius * 0.30f,
+                        centre.x + std::sin (angle) * radius * 0.92f, centre.y - std::cos (angle) * radius * 0.92f, 2.5f);
+        }
     };
     static AleaLookAndFeel aleaLnf; // process lifetime: dialogs may outlive the editor
     juce::LookAndFeel::setDefaultLookAndFeel (&aleaLnf);
@@ -177,7 +199,6 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     setupCombo (morphDurBars, "morphDurBars", juce::StringArray {
         "1 bar", "2 bars", "4 bars", "8 bars", "16 bars", "32 bars", "64 bars" });
     setupCombo (morphDurUnit, "morphDurUnit");
-    setupSlider (transposeSlider, "transpose", colors::text.withAlpha (0.6f));
 
     // Root pickers: the pitch each scale's octave span starts from (a real
     // parameter - root A + octave 3 plays A3..G#4).
@@ -420,12 +441,12 @@ void AleaAudioProcessorEditor::layoutMain()
 
     // Header
     // Header: left cluster fixed, right cluster anchored to the window edge
-    freezeButton.setBounds (380, 16, 80, 26);
+    freezeButton.setBounds (vw - 560, 16, 80, 26);
     menuButton.setBounds (vw - 38, 16, 28, 26);
     panicButton.setBounds (vw - 120, 16, 72, 26);
     internalTempo.setBounds (vw - 262, 16, 130, 26);
     tempoSource.setBounds (vw - 410, 16, 140, 26);
-    playButton.setBounds (vw - 410, 16, 140, 26);
+    playButton.setBounds (vw - 424, 16, 88, 26);
 
     auto scaleControls = [] (const juce::Rectangle<int>& panel, PianoKeyboard& kb, RestSelector& rests,
                                  juce::Slider& octMin, juce::Slider& octMax,
@@ -456,7 +477,6 @@ void AleaAudioProcessorEditor::layoutMain()
         lengthMode.setBounds (x, timingPanel.getY() + 146, w, 26);
         lengthSync.setBounds (x, timingPanel.getY() + 178, w, 26);
         lengthFree.setBounds (x, timingPanel.getY() + 178, w, 26);
-        transposeSlider.setBounds (x, timingPanel.getY() + 230, w, 24);
     }
 
     // Morph
@@ -479,7 +499,7 @@ void AleaAudioProcessorEditor::layoutMain()
     {
         const int x0 = presetsPanel.getX() + 90;
         const int rowW = presetsPanel.getRight() - 76 - x0;
-        const int perRow = 4;
+        const int perRow = 5;
         const int w = (rowW - (perRow - 1) * 8) / perRow;
         for (size_t k = 0; k < presetBtns.size(); ++k)
         {
@@ -629,17 +649,29 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
             g.drawImage (logo, juce::Rectangle<float> (20.0f, 12.0f, 87.0f, 34.0f),
                          juce::RectanglePlacement::xLeft | juce::RectanglePlacement::yMid);
     }
+    // Subtitle and status text yield at narrow widths - the right cluster
+    // (FREEZE..menu) is anchored to the window edge and must not collide.
+    const bool playing = alea.hostIsPlaying.load();
+    if (freezeButton.getX() >= 378)
+    {
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (14.0f));
+        g.drawText ("Aleatoric Scale Shifter", 120, 16, 180, 28, juce::Justification::centredLeft);
+
+        g.setColour (playing ? colors::green : colors::control);
+        g.fillEllipse (262.0f, 22.0f, 12.0f, 12.0f);
+        g.setColour (colors::secondary);
+        g.drawText (playing ? "playing" : "stopped", 282, 14, 90, 28, juce::Justification::centredLeft);
+    }
+    else
+    {
+        g.setColour (playing ? colors::green : colors::control);
+        g.fillEllipse (126.0f, 22.0f, 12.0f, 12.0f); // dot only, next to the logo
+    }
+
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (14.0f));
-    g.drawText ("Aleatoric Scale Shifter", 120, 16, 180, 28, juce::Justification::centredLeft);
-
-    const bool playing = alea.hostIsPlaying.load();
-    g.setColour (playing ? colors::green : colors::control);
-    g.fillEllipse (262.0f, 22.0f, 12.0f, 12.0f);
-    g.setColour (colors::secondary);
-    g.drawText (playing ? "playing" : "stopped", 282, 14, 90, 28, juce::Justification::centredLeft);
-
-    g.drawText ("TEMPO", (standalone ? playButton.getX() : tempoSource.getX()) - 68, 16, 60, 26,
+    g.drawText ("TEMPO", (standalone ? internalTempo.getX() : tempoSource.getX()) - 66, 16, 58, 26,
                 juce::Justification::centredRight);
 
     auto drawPanel = [&g] (const juce::Rectangle<int>& r, const juce::String& title, juce::Colour accent)
@@ -680,7 +712,6 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
 
     g.drawText ("NOTE RATE",   timingPanel.getX() + 12, timingPanel.getY() + 30, 120, 16, juce::Justification::centredLeft);
     g.drawText ("NOTE LENGTH", timingPanel.getX() + 12, timingPanel.getY() + 128, 120, 16, juce::Justification::centredLeft);
-    g.drawText ("TRANSPOSE",   timingPanel.getX() + 12, timingPanel.getY() + 214, 120, 14, juce::Justification::centredLeft);
 
     // Random-mode monitoring: show what the dice just rolled.
     auto drawRandomPick = [&] (int y, int poolIndex)

@@ -188,8 +188,11 @@ void PianoKeyboard::paint (juce::Graphics& g)
     auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key)
     {
         const auto fill = key.withTop (key.getBottom() - key.getHeight() * juce::jmax (0.12f, velNorm));
-        g.setGradientFill (juce::ColourGradient (colors::playing.brighter (0.30f), fill.getX(), fill.getY(),
-                                                 colors::playing.darker (0.25f), fill.getX(), fill.getBottom(), false));
+        // Bright mint at the crest fading into deep green - clearly a glow,
+        // not a flat block.
+        g.setGradientFill (juce::ColourGradient (
+            colors::playing.interpolatedWith (juce::Colours::white, 0.45f), fill.getX(), fill.getY(),
+            colors::playing.darker (0.40f), fill.getX(), fill.getBottom(), false));
         g.fillRoundedRectangle (fill, 3.0f);
     };
 
@@ -472,19 +475,31 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
     addChildComponent (volSlider);
     volAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         alea.apvts, "synthVol", volSlider);
+
+    // Global transpose: an output transform, so it lives in OUTPUT.
+    transposeSlider.setSliderStyle (juce::Slider::LinearBar);
+    transposeSlider.setColour (juce::Slider::trackColourId, colors::text.withAlpha (0.35f));
+    transposeSlider.setColour (juce::Slider::backgroundColourId, colors::control);
+    transposeSlider.setColour (juce::Slider::textBoxTextColourId, colors::text);
+    transposeSlider.setColour (juce::Slider::textBoxOutlineColourId, colors::border);
+    addAndMakeVisible (transposeSlider);
+    transposeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        alea.apvts, "transpose", transposeSlider);
 }
 
 void OutputPanel::resized()
 {
     // The output chooser is the panel's top row - it decides whether Alea
     // makes sound at all, so it hides nowhere. With the synth active it
-    // shares the top-right corner with a volume knob and a vertical meter.
+    // shares the top-right corner with a volume knob (left) and a vertical
+    // meter (right). TRANSPOSE gets the second row.
     if (outputBox == nullptr)
         return;
     const bool synth = alea.synthOn.load();
-    outputBox->setBounds (0, 0, synth ? getWidth() - 92 : getWidth(), 26);
-    volSlider.setBounds (getWidth() - 56, 0, 56, 54);
+    outputBox->setBounds (0, 0, synth ? getWidth() - 104 : getWidth(), 26);
+    volSlider.setBounds (getWidth() - 96, 0, 54, 54);
     volSlider.setVisible (synth);
+    transposeSlider.setBounds (96, 34, getWidth() - 96 - (synth ? 104 : 0), 22);
 }
 
 void OutputPanel::paint (juce::Graphics& g)
@@ -507,7 +522,7 @@ void OutputPanel::paint (juce::Graphics& g)
     if (lastSynthOn && outputBox != nullptr)
     {
         meterLevel = juce::jmax (alea.synthPeak.load(), meterLevel * 0.82f);
-        const auto meter = juce::Rectangle<float> ((float) getWidth() - 78.0f, 2.0f, 10.0f, 50.0f);
+        const auto meter = juce::Rectangle<float> ((float) getWidth() - 32.0f, 2.0f, 10.0f, 50.0f);
         g.setColour (colors::control);
         g.fillRoundedRectangle (meter, 3.0f);
 
@@ -530,7 +545,12 @@ void OutputPanel::paint (juce::Graphics& g)
 
     auto area = getLocalBounds();
     if (outputBox != nullptr)
-        area.removeFromTop (32); // output chooser row on top
+    {
+        area.removeFromTop (62); // chooser row + transpose row
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+        g.drawText ("TRANSPOSE", 0, 34, 90, 22, juce::Justification::centredLeft);
+    }
 
     // Note displays are colored by the scale the note came from, matching
     // the history ticker.
@@ -571,18 +591,11 @@ void OutputPanel::paint (juce::Graphics& g)
     g.drawText ("BAR " + juce::String (playing ? bar : 1)
                 + "  BEAT " + juce::String (playing ? beat : 1), row, juce::Justification::centredLeft);
 
-    if (last >= 0 || active >= 0)
-    {
-        const int vel = alea.activeVelocity.load();
-        g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-        g.drawText ("VEL " + juce::String (vel), row.removeFromRight (getWidth() / 2).withTrimmedRight (66),
-                    juce::Justification::centredRight);
-        const auto barArea = juce::Rectangle<float> ((float) getWidth() - 60.0f, (float) row.getCentreY() - 4.0f, 60.0f, 8.0f);
-        g.setColour (colors::control);
-        g.fillRoundedRectangle (barArea, 3.0f);
-        g.setColour (colors::text.withAlpha (0.9f));
-        g.fillRoundedRectangle (barArea.withWidth (barArea.getWidth() * (float) vel / 127.0f), 3.0f);
-    }
+
+    // At small window sizes the bottom-anchored monitors would collide with
+    // the rows above - drop them; the essentials stay.
+    if (getHeight() < 250)
+        return;
 
     // 88-key monitor (A0-C8): the sounding note lights in its source
     // scale's color. Rests deliberately don't show here - silence has no
