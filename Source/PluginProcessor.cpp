@@ -73,14 +73,15 @@ void AleaAudioProcessor::prepareToPlay (double sampleRate, int)
     internalPpq = 0.0;
     wasPlaying = false;
 
-    // Internal synth chain
+    // Internal synth chain. Long release makes the polyphonic overlap
+    // audible - tails ring well into the following notes.
     for (auto& v : voices)
     {
         v.amp.setSampleRate (sampleRate);
-        v.amp.setParameters ({ 0.004f, 0.08f, 0.75f, 0.40f });
+        v.amp.setParameters ({ 0.004f, 0.15f, 0.65f, 1.30f });
         v.amp.reset();
         v.bright.setSampleRate (sampleRate);
-        v.bright.setParameters ({ 0.002f, 0.35f, 0.25f, 0.20f });
+        v.bright.setParameters ({ 0.002f, 0.45f, 0.30f, 0.80f });
         v.bright.reset();
         v.phase = 0.0;
         v.note = -1;
@@ -285,14 +286,12 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
             for (int n = pos; n < end; ++n)
             {
                 const float env = v.amp.getNextSample();
-                const float brightness = v.velocity * v.bright.getNextSample();
+                const float shimmer = 0.45f * v.velocity * v.bright.getNextSample();
                 const auto p = v.phase;
-                // Partials fade in with brightness; a soft velocity stays a sine.
-                const float s = (float) std::sin (p)
-                              + brightness * (0.60f * (float) std::sin (2.0 * p)
-                                            + 0.35f * (float) std::sin (3.0 * p)
-                                            + 0.20f * (float) std::sin (4.0 * p));
-                left[n] += 0.20f * v.gain * env * s / (1.0f + brightness);
+                // Velocity fades in a single octave-up shimmer - consonant by
+                // construction, so it stays pretty at every velocity.
+                const float s = (float) std::sin (p) + shimmer * (float) std::sin (2.0 * p);
+                left[n] += 0.17f * v.gain * env * s / (1.0f + shimmer);
                 v.phase += phaseInc;
             }
             if (v.phase > juce::MathConstants<double>::twoPi * 1024.0)
