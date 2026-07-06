@@ -8,8 +8,9 @@ namespace params
 {
     inline const juce::StringArray pitchClassNames { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 
-    inline const juce::StringArray restNames { "1", "1/2", "1/4", "1/8", "1/16" };
-    constexpr std::array<double, 5> restBars { 1.0, 0.5, 0.25, 0.125, 0.0625 };
+    inline const juce::StringArray restNames { "2", "1", "1/2", "1/4", "1/8", "1/16" };
+    constexpr std::array<double, 6> restBars { 2.0, 1.0, 0.5, 0.25, 0.125, 0.0625 };
+    constexpr int numRests = 6;
 
     // Note interval / length divisions, in bars (4/4 fixed in v1, so 1 bar = 4 beats).
     inline const juce::StringArray divisionNames { "1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1", "2", "4" };

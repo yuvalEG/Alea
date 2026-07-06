@@ -66,7 +66,7 @@ private:
     struct ScaleSnapshot
     {
         int pitchClasses[12]; int numPitchClasses = 0;
-        int rests[5];         int numRests = 0;
+        int rests[params::numRests]; int numRests = 0;
         int octMin = 0, octMax = 0, velMin = 1, velMax = 127;
     };
 
@@ -74,7 +74,7 @@ private:
     struct ScaleRefs
     {
         std::atomic<float>* notes[12] {};
-        std::atomic<float>* rests[5] {};
+        std::atomic<float>* rests[params::numRests] {};
         std::atomic<float>* octMin {}; std::atomic<float>* octMax {};
         std::atomic<float>* velMin {}; std::atomic<float>* velMax {};
     };
@@ -99,10 +99,11 @@ private:
 
     juce::Random rng;
 
-    // Scale A notes leave on MIDI channel 1, Scale B notes on channel 2:
-    // hosts with per-channel routing (Live 11+) can isolate either scale,
-    // while "all channels" hears everything exactly once.
-    static constexpr int channelA = 1, channelB = 2;
+    // Per-scale channel split (A -> ch 1, B -> ch 2) is deferred: Live's
+    // track-input chooser only offers channels for external inputs, not for
+    // plugin MIDI taps, so nothing could route it. Everything goes out on
+    // channel 1 until the split gets its own phase.
+    static constexpr int channelA = 1, channelB = 1;
 
     double nextEventPpq = 0.0;   // when the next pick-pool draw happens
     double noteOffPpq = 0.0;     // when the sounding note's gate ends

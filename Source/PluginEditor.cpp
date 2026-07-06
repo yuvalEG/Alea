@@ -80,39 +80,58 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         juce::PopupMenu m;
         m.addItem ("About Alea...", []
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
-                "Alea",
-                juce::String::fromUTF8 (
-                    "Aleatoric Scale Shifter\nVersion 0.1.0\n\n"
-                    "HOW TO USE\n"
-                    "Alea generates MIDI notes - it makes no sound of its own.\n"
-                    "1. Load Alea on a MIDI track.\n"
-                    "2. Create a second MIDI track and put any instrument on it.\n"
-                    "3. Route the instrument track's MIDI input from the Alea track "
-                    "(in Ableton Live: set 'MIDI From' to the Alea track and pick "
-                    "'Alea' in the chooser below it).\n"
-                    "4. Arm the instrument track and press Play - Alea follows the "
-                    "host transport and you should hear notes drawn from Scale A.\n"
-                    "5. From there: pick a preset, set up your own Scale A and "
-                    "Scale B, drag the morph bar to blend between them, or hit "
-                    "AUTO-SWEEP and let Alea travel on its own.\n"
-                    "Hearing nothing? Check the instrument track is armed and the "
-                    "header dot says 'playing'.\n\n"
-                    "SPLIT OUTPUTS\n"
-                    "Alea sends Scale A notes on MIDI channel 1 and Scale B notes "
-                    "on channel 2. Receiving on all channels hears everything; in "
-                    "Live 11+, pick 'Ch. 1' or 'Ch. 2' in the MIDI From chooser to "
-                    "give each scale its own instrument.\n\n"
-                    "ALEA was made with a particular vision in mind: exploring the "
-                    "relationship between an improvising human player and a machine that "
-                    "randomly shifts from a diatonic scale to complete dodecaphony over "
-                    "time (hence the last factory preset).\n\n"
-                    "That said, I'm sure any musician playing with it will have all kinds "
-                    "of ideas, and I hope it can serve your musical aspirations.\n\n"
-                    "I'll be more than happy to hear your feedback, ideas and music made "
-                    "with ALEA! You can reach me through GitHub or my email: "
-                    "yuvalprod@gmail.com\n\n"
-                    "Plugin Made By Yuval Egozi"));
+            // A custom dialog rather than an AlertWindow: wider, and the text
+            // gets room to breathe.
+            auto text = std::make_unique<juce::TextEditor>();
+            text->setMultiLine (true);
+            text->setReadOnly (true);
+            text->setCaretVisible (false);
+            text->setScrollbarsShown (true);
+            text->setColour (juce::TextEditor::backgroundColourId, colors::panel);
+            text->setColour (juce::TextEditor::textColourId, colors::text);
+            text->setColour (juce::TextEditor::outlineColourId, colors::panel);
+            text->setFont (juce::FontOptions (14.5f));
+            text->setText (juce::String::fromUTF8 (
+                "Aleatoric Scale Shifter\n"
+                "Version 0.1.0\n\n\n"
+                "HOW TO USE\n\n"
+                "Alea generates MIDI notes - it makes no sound of its own.\n\n"
+                "1. Load Alea on a MIDI track.\n"
+                "2. Create a second MIDI track and put any instrument on it.\n"
+                "3. Route the instrument track's MIDI input from the Alea track "
+                "(in Ableton Live: set 'MIDI From' to the Alea track and pick "
+                "'Alea' in the chooser below it).\n"
+                "4. Arm the instrument track and press Play - Alea follows the "
+                "host transport and you should hear notes drawn from Scale A.\n"
+                "5. From there: pick a preset, set up your own Scale A and "
+                "Scale B, drag the morph bar to blend between them, or hit "
+                "AUTO-SWEEP and let Alea travel on its own.\n\n"
+                "Hearing nothing? Check the instrument track is armed and the "
+                "header dot says 'playing'.\n\n\n"
+                "THE IDEA\n\n"
+                "ALEA was made with a particular vision in mind: exploring the "
+                "relationship between an improvising human player and a machine "
+                "that randomly shifts from a diatonic scale to complete "
+                "dodecaphony over time (hence the last factory preset).\n\n"
+                "That said, I'm sure any musician playing with it will have all "
+                "kinds of ideas, and I hope it can serve your musical "
+                "aspirations.\n\n\n"
+                "GET IN TOUCH\n\n"
+                "I'll be more than happy to hear your feedback, ideas and music "
+                "made with ALEA! You can reach me through GitHub or my email: "
+                "yuvalprod@gmail.com\n\n\n"
+                "Plugin Made By Yuval Egozi"),
+                juce::dontSendNotification);
+            text->setSize (640, 560);
+
+            juce::DialogWindow::LaunchOptions o;
+            o.content.setOwned (text.release());
+            o.dialogTitle = "About Alea";
+            o.dialogBackgroundColour = colors::panel;
+            o.escapeKeyTriggersCloseButton = true;
+            o.useNativeTitleBar = true;
+            o.resizable = false;
+            o.launchAsync();
         });
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton));
     };

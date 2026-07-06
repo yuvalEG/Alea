@@ -234,7 +234,7 @@ void PianoKeyboard::mouseDown (const juce::MouseEvent& e)
 RestSelector::RestSelector (AleaAudioProcessor& p, char scaleId, int sourceIdx, juce::Colour accentColour)
     : alea (p), sourceIndex (sourceIdx), accent (accentColour)
 {
-    for (int r = 0; r < 5; ++r)
+    for (int r = 0; r < params::numRests; ++r)
     {
         auto* param = p.apvts.getParameter (params::restId (scaleId, r));
         attachments[(size_t) r] = std::make_unique<juce::ParameterAttachment> (
@@ -248,8 +248,8 @@ void RestSelector::paint (juce::Graphics& g)
     const int active = alea.activeRest.load();
     const bool mine = active >= 0 && alea.activeRestSource.load() == sourceIndex;
 
-    const float w = (float) getWidth() / 5.0f;
-    for (int r = 0; r < 5; ++r)
+    const float w = (float) getWidth() / (float) params::numRests;
+    for (int r = 0; r < params::numRests; ++r)
     {
         const bool resting = mine && r == active;
         const auto cell = juce::Rectangle<float> (w * (float) r, 0.0f, w, (float) getHeight()).reduced (2.0f);
@@ -265,7 +265,8 @@ void RestSelector::paint (juce::Graphics& g)
 
 void RestSelector::mouseDown (const juce::MouseEvent& e)
 {
-    const int r = juce::jlimit (0, 4, (int) (e.position.x / ((float) getWidth() / 5.0f)));
+    const int r = juce::jlimit (0, params::numRests - 1,
+                                (int) (e.position.x / ((float) getWidth() / (float) params::numRests)));
     attachments[(size_t) r]->setValueAsCompleteGesture (selected[r] ? 0.0f : 1.0f);
 }
 

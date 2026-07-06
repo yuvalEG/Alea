@@ -17,7 +17,7 @@ static void addScale (juce::AudioProcessorValueTreeState::ParameterLayout& layou
     layout.add (std::make_unique<juce::AudioParameterInt> (
         juce::ParameterID { juce::String::charToString (scale) + "OctMax", 1 }, prefix + " Octave Max", 0, 8, 5));
 
-    for (int r = 0; r < 5; ++r)
+    for (int r = 0; r < numRests; ++r)
         layout.add (std::make_unique<juce::AudioParameterBool> (
             juce::ParameterID { restId (scale, r), 1 },
             prefix + " Rest " + restNames[r], r == defaultRest));
@@ -34,7 +34,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
 
     // Defaults mirror the spec's preset example: A = C major with a 1/4 rest,
     // B = C minor(ish) with no rests.
-    addScale (layout, 'a', "A:", { true, false, true, false, true, true, false, true, false, true, false, true }, 2);
+    addScale (layout, 'a', "A:", { true, false, true, false, true, true, false, true, false, true, false, true }, 3);
     addScale (layout, 'b', "B:", { true, false, true, true, false, true, false, true, true, false, true, false }, -1);
 
     auto choice = [] (const char* id, const char* name, const juce::StringArray& opts, int def)

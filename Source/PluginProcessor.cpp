@@ -25,7 +25,7 @@ void AleaAudioProcessor::cacheScaleRefs (char scale, ScaleRefs& refs)
 {
     for (int pc = 0; pc < 12; ++pc)
         refs.notes[pc] = raw (params::noteId (scale, pc).toRawUTF8());
-    for (int r = 0; r < 5; ++r)
+    for (int r = 0; r < params::numRests; ++r)
         refs.rests[r] = raw (params::restId (scale, r).toRawUTF8());
 
     const auto s = juce::String::charToString (scale);
@@ -43,7 +43,7 @@ void AleaAudioProcessor::readSnapshot (const ScaleRefs& refs, ScaleSnapshot& sna
             snap.pitchClasses[snap.numPitchClasses++] = pc;
 
     snap.numRests = 0;
-    for (int r = 0; r < 5; ++r)
+    for (int r = 0; r < params::numRests; ++r)
         if (refs.rests[r]->load() > 0.5f)
             snap.rests[snap.numRests++] = r;
 
