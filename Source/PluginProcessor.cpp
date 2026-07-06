@@ -401,12 +401,15 @@ void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const ju
         else if (msg.isNoteOff() || msg.isAllNotesOff())
         {
             // Release scales with how long the note was held: staccato notes
-            // get a snappy tail, pads ring long.
+            // get a snappy tail, pads ring long. Pure Sine keeps a longer
+            // floor - without it, its clean tails vanish and the polyphony
+            // is inaudible.
+            const float releaseFloor = synthVoice.load() == 1 ? 0.65f : 0.12f;
             for (auto& v : voices)
                 if (v.note >= 0 && (msg.isAllNotesOff() || v.note == msg.getNoteNumber()))
                 {
                     auto params = v.amp.getParameters();
-                    params.release = juce::jlimit (0.12f, 2.2f,
+                    params.release = juce::jlimit (releaseFloor, 2.2f,
                                                    1.1f * (float) v.heldSamples / (float) sampleRate);
                     v.amp.setParameters (params);
                     v.amp.noteOff();

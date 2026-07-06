@@ -22,7 +22,7 @@ namespace
             text.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
             text.setColour (juce::TextEditor::textColourId, colors::text);
             text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
-            text.setFont (juce::FontOptions (18.5f));
+            text.setFont (juce::FontOptions (20.5f));
             text.setText (juce::String::fromUTF8 (
                 "Aleatoric Scale Shifter - Version " ALEA_VERSION "\n\n\n"
                 "HOW TO USE\n\n"

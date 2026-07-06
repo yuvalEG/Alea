@@ -145,10 +145,8 @@ juce::String CurveSelector::getTooltip()
 //==============================================================================
 namespace
 {
-    // pc -> white-key slot (C D E F G A B), or -1 for black keys
-    constexpr int whiteSlot[12] = { 0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6 };
-    // black pc -> the white slot it sits after
-    constexpr int blackAfter[12] = { -1, 0, -1, 1, -1, -1, 3, -1, 4, -1, 5, -1 };
+    constexpr bool blackPc[12] = { false, true, false, true, false, false,
+                                   true, false, true, false, true, false };
 }
 
 PianoKeyboard::PianoKeyboard (AleaAudioProcessor& p, char scaleId, int sourceIdx, juce::Colour accentColour)
@@ -161,6 +159,7 @@ PianoKeyboard::PianoKeyboard (AleaAudioProcessor& p, char scaleId, int sourceIdx
             *param, [this, pc] (float v) { selected[pc] = v > 0.5f; repaint(); });
         attachments[(size_t) pc]->sendInitialUpdate();
     }
+    rootRaw = alea.apvts.getRawParameterValue (juce::String::charToString (scaleId) + "Root");
 }
 
 juce::Rectangle<float> PianoKeyboard::whiteKeyBounds (int slot) const
@@ -169,11 +168,14 @@ juce::Rectangle<float> PianoKeyboard::whiteKeyBounds (int slot) const
     return { w * (float) slot, 0.0f, w, (float) getHeight() };
 }
 
-juce::Rectangle<float> PianoKeyboard::blackKeyBounds (int pc) const
+juce::Rectangle<float> PianoKeyboard::blackKeyBounds (int whitesBefore) const
 {
     const float w = (float) getWidth() / 7.0f;
     const float bw = w * 0.62f;
-    return { w * (float) (blackAfter[pc] + 1) - bw * 0.5f, 0.0f, bw, (float) getHeight() * 0.6f };
+    // Centered on the boundary after its preceding white key, clamped so a
+    // black root at the very left stays fully visible.
+    const float centre = juce::jlimit (bw * 0.5f, (float) getWidth() - bw * 0.5f, w * (float) whitesBefore);
+    return { centre - bw * 0.5f, 0.0f, bw, (float) getHeight() * 0.6f };
 }
 
 void PianoKeyboard::paint (juce::Graphics& g)
@@ -197,11 +199,15 @@ void PianoKeyboard::paint (juce::Graphics& g)
         g.fillRoundedRectangle (fill, 3.0f);
     };
 
-    for (int pc = 0; pc < 12; ++pc)
+    const int root = rootRaw != nullptr ? (int) rootRaw->load() : 0;
+
+    int whiteSlotCounter = 0;
+    for (int i = 0; i < 12; ++i)
     {
-        if (whiteSlot[pc] < 0)
+        const int pc = (root + i) % 12;
+        if (blackPc[pc])
             continue;
-        const auto key = whiteKeyBounds (whiteSlot[pc]).reduced (1.0f);
+        const auto key = whiteKeyBounds (whiteSlotCounter++).reduced (1.0f);
         const bool isPlayingKey = mine && pc == activePc;
         const auto fill = selected[pc] ? accent : accent.withAlpha (0.10f);
         if (selected[pc]) // top-lit gradient on lit keys
@@ -221,11 +227,16 @@ void PianoKeyboard::paint (juce::Graphics& g)
                     key.withTop (key.getBottom() - 18.0f), juce::Justification::centred);
     }
 
-    for (int pc = 0; pc < 12; ++pc)
+    int whitesBefore = 0;
+    for (int i = 0; i < 12; ++i)
     {
-        if (blackAfter[pc] < 0)
+        const int pc = (root + i) % 12;
+        if (! blackPc[pc])
+        {
+            ++whitesBefore;
             continue;
-        const auto key = blackKeyBounds (pc);
+        }
+        const auto key = blackKeyBounds (whitesBefore);
         const bool isPlayingKey = mine && pc == activePc;
         const auto fill = selected[pc] ? accent : juce::Colour (0xff08080c);
         if (selected[pc])
@@ -248,13 +259,31 @@ void PianoKeyboard::mouseDown (const juce::MouseEvent& e)
         attachments[(size_t) pc]->setValueAsCompleteGesture (selected[pc] ? 0.0f : 1.0f);
     };
 
-    for (int pc = 0; pc < 12; ++pc)
-        if (blackAfter[pc] >= 0 && blackKeyBounds (pc).contains (e.position))
-            return toggle (pc);
+    const int root = rootRaw != nullptr ? (int) rootRaw->load() : 0;
 
-    for (int pc = 0; pc < 12; ++pc)
-        if (whiteSlot[pc] >= 0 && whiteKeyBounds (whiteSlot[pc]).contains (e.position))
+    // Blacks first (they sit on top), same root-rotated geometry as paint
+    int whitesBefore = 0;
+    for (int i = 0; i < 12; ++i)
+    {
+        const int pc = (root + i) % 12;
+        if (! blackPc[pc])
+        {
+            ++whitesBefore;
+            continue;
+        }
+        if (blackKeyBounds (whitesBefore).contains (e.position))
             return toggle (pc);
+    }
+
+    int whiteSlotCounter = 0;
+    for (int i = 0; i < 12; ++i)
+    {
+        const int pc = (root + i) % 12;
+        if (blackPc[pc])
+            continue;
+        if (whiteKeyBounds (whiteSlotCounter++).contains (e.position))
+            return toggle (pc);
+    }
 }
 
 //==============================================================================
@@ -434,7 +463,7 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
     // Synth flavours share ids 1-4 in both modes; the mapping to the
     // engine's output-choice string is one table.
     static const std::array<const char*, 4> synthChoices { "synth", "synth:sine", "synth:saw", "synth:strings" };
-    static const std::array<const char*, 4> synthNames { "Synth: Warm Pad", "Synth: Pure Sine", "Synth: Soft Saw", "Synth: Strings" };
+    static const std::array<const char*, 4> synthNames { "Synth: Classic", "Synth: Pure Sine", "Synth: Soft Saw", "Synth: Strings" };
 
     if (! standalone)
         outputBox->addItem ("MIDI to DAW", 9); // plugin default, listed first

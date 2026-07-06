@@ -74,14 +74,17 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
 
 private:
+    // The octave is drawn starting at the scale's root (root D shows
+    // D E F#... with C# last); keys keep their true black/white identity.
     juce::Rectangle<float> whiteKeyBounds (int slot) const;
-    juce::Rectangle<float> blackKeyBounds (int pc) const;
+    juce::Rectangle<float> blackKeyBounds (int whitesBefore) const;
 
     AleaAudioProcessor& alea;
     int sourceIndex;
     juce::Colour accent;
     bool selected[12] {};
     std::array<std::unique_ptr<juce::ParameterAttachment>, 12> attachments;
+    std::atomic<float>* rootRaw = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PianoKeyboard)
 };
