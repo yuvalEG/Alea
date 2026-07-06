@@ -71,10 +71,11 @@ void AleaAudioProcessor::sendAllNotesOff (juce::MidiBuffer& midi, int sampleOffs
 {
     if (currentNote >= 0)
     {
-        midi.addEvent (juce::MidiMessage::noteOff (midiChannel, currentNote), sampleOffset);
+        midi.addEvent (juce::MidiMessage::noteOff (currentNoteChannel, currentNote), sampleOffset);
         currentNote = -1;
     }
-    midi.addEvent (juce::MidiMessage::allNotesOff (midiChannel), sampleOffset);
+    midi.addEvent (juce::MidiMessage::allNotesOff (channelA), sampleOffset);
+    midi.addEvent (juce::MidiMessage::allNotesOff (channelB), sampleOffset);
     activeNote.store (-1);
 }
 
@@ -352,7 +353,7 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
         if (offAt <= nextEventPpq)
         {
-            midi.addEvent (juce::MidiMessage::noteOff (midiChannel, currentNote), ppqToOffset (offAt));
+            midi.addEvent (juce::MidiMessage::noteOff (currentNoteChannel, currentNote), ppqToOffset (offAt));
             currentNote = -1;
             activeNote.store (-1);
             continue;
@@ -401,16 +402,8 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         if (note < 0 || note > 127) // out of range: drop, never wrap (spec 5.3)
             continue;
 
-        if (currentNote >= 0) // monophonic: off before on (spec principle 4)
-            midi.addEvent (juce::MidiMessage::noteOff (midiChannel, currentNote), offset);
-
-        const auto velocity = (juce::uint8) juce::jlimit (1, 127, velMin + rng.nextInt (velMax - velMin + 1));
-        midi.addEvent (juce::MidiMessage::noteOn (midiChannel, note, velocity), offset);
-        currentNote = note;
-        noteOffPpq = eventPpq + lengthPpqAt (bpm); // gate runs from the note's start
-
-        // Origin scale for the green highlight (spec 5.4): the pool it was
-        // drawn from, except shared notes follow morph position.
+        // Origin scale (spec 5.4): the pool it was drawn from, except shared
+        // notes follow morph position. Decides highlight color AND channel.
         const int pc = src.pitchClasses[pick];
         auto contains = [pc] (const ScaleSnapshot& s)
         {
@@ -420,6 +413,16 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         };
         const bool inBoth = contains (snapA) && contains (snapB);
         const int source = inBoth ? (m < 0.5 ? 0 : 1) : (&src == &snapA ? 0 : 1);
+        const int channel = source == 1 ? channelB : channelA;
+
+        if (currentNote >= 0) // monophonic: off before on (spec principle 4)
+            midi.addEvent (juce::MidiMessage::noteOff (currentNoteChannel, currentNote), offset);
+
+        const auto velocity = (juce::uint8) juce::jlimit (1, 127, velMin + rng.nextInt (velMax - velMin + 1));
+        midi.addEvent (juce::MidiMessage::noteOn (channel, note, velocity), offset);
+        currentNote = note;
+        currentNoteChannel = channel;
+        noteOffPpq = eventPpq + lengthPpqAt (bpm); // gate runs from the note's start
 
         notesSent.fetch_add (1);
         lastNote.store (note);

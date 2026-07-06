@@ -99,11 +99,15 @@ private:
 
     juce::Random rng;
 
-    static constexpr int midiChannel = 1;
+    // Scale A notes leave on MIDI channel 1, Scale B notes on channel 2:
+    // hosts with per-channel routing (Live 11+) can isolate either scale,
+    // while "all channels" hears everything exactly once.
+    static constexpr int channelA = 1, channelB = 2;
 
     double nextEventPpq = 0.0;   // when the next pick-pool draw happens
     double noteOffPpq = 0.0;     // when the sounding note's gate ends
     int currentNote = -1;
+    int currentNoteChannel = 1; // the channel currentNote's note-on used
     double internalPpq = 0.0;    // beat clock for Free-Run tempo mode
     double restEndPpq = 0.0;
     double lastPpqEnd = -1.0;

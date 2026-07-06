@@ -51,7 +51,7 @@ const std::vector<Factory>& factory()
             { "Sweeps", "Octave Climb",
               triad, triad, 0, 0,  1, 2, 6, 7,  80, 110, 80, 110,
               0, 3,  0, 2,  1, 0, 5, 30.0f, 0, 2, 3 },
-            { "Sweeps", "Diatonic \xe2\x86\x92 Dodecaphony",
+            { "Sweeps", "Order \xe2\x86\x92 Chaos",
               m ({ 0, 2, 4, 5, 7 }), chromatic, 0, 0,  2, 2, 2, 2,  75, 105, 60, 120,
               0, 7,  0, 7,  1, 1, 5, 3.0f, 1, 0, 0 }, // 3-minute journey, 2-bar drones, octave 2
         };
