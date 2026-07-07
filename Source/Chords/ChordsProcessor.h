@@ -17,7 +17,7 @@ public:
     // --- chord state (message thread only) ---
     int seriesLength = 4;                             // 1..8
     bool useSevenths = false;
-    bool simplify = false;
+    bool simplify = true;                             // guitar-friendly out of the box
     std::vector<chords::Chord> series;                // what the cards show
     std::deque<std::vector<chords::Chord>> history;   // past rolls, newest first
 
@@ -53,7 +53,8 @@ public:
 private:
     juce::Random rng;
 
-    // History keeps roughly the last 50 chords, trimmed in whole rolls.
+    // History keeps roughly the last 1000 chords (the ticker scrolls),
+    // trimmed in whole rolls.
     void trimHistory();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChordsProcessor)

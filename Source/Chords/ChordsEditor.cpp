@@ -105,16 +105,8 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
     g.setColour (colors::border);
     g.drawRoundedRectangle (b.reduced (0.5f), 10.0f, 1.0f);
 
-    // Fit the chord name: start big, shrink until it fits the card.
-    const float availW = b.getWidth() * 0.86f;
-    float size = juce::jmax (18.0f, b.getHeight() * 0.42f);
-    juce::Font font { juce::FontOptions (size) };
-    const float w = textWidth (font, text);
-    if (w > availW)
-        font = juce::FontOptions (juce::jmax (14.0f, size * availW / w));
-
     g.setColour (colors::text);
-    g.setFont (font);
+    g.setFont (juce::FontOptions (fontSize));
     g.drawText (text, getLocalBounds(), juce::Justification::centred);
 }
 
@@ -168,22 +160,48 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
         return;
     }
 
-    // Newest roll sits at the right edge; older rolls march left and fade.
     const juce::Font font { juce::FontOptions (17.0f) };
     constexpr float chordGap = 10.0f, groupGap = 24.0f;
-    float rightX = area.getRight();
-    int age = 0;
 
+    // Measure every group once: total content width bounds the scroll range.
+    std::vector<float> groupWidths;
+    groupWidths.reserve (proc.history.size());
+    float contentW = 0.0f;
     for (const auto& roll : proc.history)
     {
         float groupW = 0.0f;
         for (const auto& c : roll)
             groupW += textWidth (font, c.text()) + chordGap;
         groupW -= chordGap;
+        groupWidths.push_back (groupW);
+        contentW += groupW + groupGap;
+    }
+    contentW -= groupGap;
 
+    maxScroll = juce::jmax (0.0f, contentW - area.getWidth());
+    scroll = juce::jlimit (0.0f, maxScroll, scroll);
+
+    // Newest roll sits at the right edge; scrolling shifts the view into the
+    // past. Older rolls march left and fade.
+    g.saveState();
+    g.reduceClipRegion (area.toNearestInt());
+
+    float rightX = area.getRight() + scroll;
+    int age = 0;
+
+    for (const auto& roll : proc.history)
+    {
+        const float groupW = groupWidths[(size_t) age];
         const float startX = rightX - groupW;
-        if (startX < area.getX())
-            break; // older rolls have scrolled off the left edge
+
+        if (startX > area.getRight())      // still off-screen to the right
+        {
+            rightX = startX - groupGap;
+            ++age;
+            continue;
+        }
+        if (rightX < area.getX())
+            break;                          // everything older is off-screen left
 
         const float alpha = juce::jmax (0.25f, 1.0f - 0.15f * (float) age);
 
@@ -211,6 +229,36 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
         rightX = startX - groupGap;
         ++age;
     }
+
+    g.restoreState();
+
+    // Edge chevrons hint that there is more history beyond the visible strip.
+    g.setColour (colors::secondary);
+    g.setFont (juce::FontOptions (12.0f));
+    if (scroll < maxScroll)
+        g.drawText (juce::String::fromUTF8 ("\xe2\x97\x82"), 2, 0, 10, getHeight(), juce::Justification::centred);
+    if (scroll > 0.0f)
+        g.drawText (juce::String::fromUTF8 ("\xe2\x96\xb8"), getWidth() - 12, 0, 10, getHeight(), juce::Justification::centred);
+}
+
+void ChordsEditor::HistoryTicker::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& wheel)
+{
+    // Wheel down / trackpad swipe left = further into the past.
+    scroll = juce::jlimit (0.0f, maxScroll, scroll - (wheel.deltaX + wheel.deltaY) * 220.0f);
+    repaint();
+}
+
+void ChordsEditor::HistoryTicker::mouseDown (const juce::MouseEvent& e)
+{
+    dragStartScroll = scroll;
+    dragStartX = e.x;
+}
+
+void ChordsEditor::HistoryTicker::mouseDrag (const juce::MouseEvent& e)
+{
+    // Dragging right moves the content right, revealing older rolls.
+    scroll = juce::jlimit (0.0f, maxScroll, dragStartScroll + (float) (e.x - dragStartX));
+    repaint();
 }
 
 //==============================================================================
@@ -317,9 +365,35 @@ void ChordsEditor::refresh()
     resized(); // card widths depend on how many are visible
 }
 
+void ChordsEditor::updateCardFonts()
+{
+    // Fit each visible chord name to its card, then give every card the
+    // smallest result - a series always reads at one size.
+    float common = 1000.0f;
+    for (auto* card : cards)
+        if (card->isVisible())
+        {
+            const auto b = card->getLocalBounds().toFloat();
+            const float availW = b.getWidth() * 0.86f;
+            float size = juce::jmax (18.0f, b.getHeight() * 0.42f);
+            const float w = textWidth (juce::Font (juce::FontOptions (size)), card->text);
+            if (w > availW)
+                size = juce::jmax (14.0f, size * availW / w);
+            common = juce::jmin (common, size);
+        }
+
+    for (auto* card : cards)
+        if (card->isVisible())
+        {
+            card->fontSize = common;
+            card->repaint();
+        }
+}
+
 void ChordsEditor::doRoll()
 {
     chordsProc.rollSeries();
+    ticker.scroll = 0.0f; // a fresh roll snaps history back to the newest
     refresh();
 }
 
@@ -469,4 +543,6 @@ void ChordsEditor::resized()
     for (int i = 0; i < cards.size(); ++i)
         if (cards[i]->isVisible())
             cards[i]->setBounds (area.getX() + i * (cw + gap), area.getY(), cw, area.getHeight());
+
+    updateCardFonts();
 }

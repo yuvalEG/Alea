@@ -52,7 +52,7 @@ void ChordsProcessor::trimHistory()
     for (auto& roll : history)
         total += (int) roll.size();
 
-    while (total > 50 && history.size() > 1)
+    while (total > 1000 && history.size() > 1)
     {
         total -= (int) history.back().size();
         history.pop_back();
@@ -95,7 +95,7 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
 
     seriesLength = juce::jlimit (1, 8, (int) state.getProperty ("seriesLength", 4));
     useSevenths  = state.getProperty ("useSevenths", false);
-    simplify     = state.getProperty ("simplify", false);
+    simplify     = state.getProperty ("simplify", true);
     lastUIWidth  = juce::jlimit (560, 4000, (int) state.getProperty ("uiWidth", 900));
     lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 560));
 

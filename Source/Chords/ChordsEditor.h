@@ -21,11 +21,15 @@ private:
     void refresh();   // pull processor state into the widgets
     void doRoll();
     void showMenu();
+    void updateCardFonts();   // one shared fitted size for the whole series
 
     // One big chord name on a panel card - the heir of the old 75 pt label.
+    // The font size is set by the editor: every card in a series shares the
+    // smallest fitted size, so C#Maj7 and A7 never render at different scales.
     struct ChordCard : juce::Component
     {
         juce::String text;
+        float fontSize = 40.0f;
         void paint (juce::Graphics&) override;
     };
 
@@ -39,11 +43,20 @@ private:
     };
 
     // Past rolls, newest at the right, grouped by roll, fading with age.
+    // Scrollable (wheel, trackpad, or drag) - history holds ~1000 chords.
     struct HistoryTicker : juce::Component
     {
         explicit HistoryTicker (ChordsProcessor& p) : proc (p) {}
         ChordsProcessor& proc;
+        float scroll = 0.0f;        // 0 = pinned to the newest roll; grows into the past
+        float maxScroll = 0.0f;     // measured during paint
+        float dragStartScroll = 0.0f;
+        int dragStartX = 0;
+
         void paint (juce::Graphics&) override;
+        void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+        void mouseDown (const juce::MouseEvent&) override;
+        void mouseDrag (const juce::MouseEvent&) override;
     };
 
     ChordsProcessor& chordsProc;
