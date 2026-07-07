@@ -59,7 +59,8 @@ namespace
                 "ninth chords. Simplify chords narrows the roll to guitar-"
                 "friendly keys and mostly major or minor chords; Add sus "
                 "chords mixes in sus2/sus4 (about one roll in five). AUTO "
-                "ROLL under the ROLL button rolls for you every N loops. Key "
+                "ROLL under the ROLL button rolls for you every N loops "
+                "(press A to flip it on and off). Key "
                 "lock rolls only diatonic chords of the chosen key and scale "
                 "(major, minor, or harmonic minor) - flavors included, kept "
                 "strictly in the scale. The little pin on each card keeps "
@@ -126,21 +127,22 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
     g.setColour (colors::panel);
     g.fillRoundedRectangle (b, 10.0f);
 
-    // Amber = this chord arrives at the next boundary; green = sounding now.
-    g.setColour (incoming ? colors::amber.withAlpha (0.85f)
-                          : active ? colors::playing.withAlpha (0.85f) : colors::border);
+    // The family gradient as meaning: purple = sounding now, cyan = arrives
+    // at the next boundary.
+    g.setColour (incoming ? colors::cyan.withAlpha (0.85f)
+                          : active ? colors::purple.withAlpha (0.95f) : colors::border);
     const bool strong = incoming || active;
     g.drawRoundedRectangle (b.reduced (strong ? 1.0f : 0.5f), 10.0f, strong ? 2.0f : 1.0f);
 
     // The sounding chord fills a thin progress strip along its bottom edge.
     if (active && progress > 0.0f)
     {
-        g.setColour (colors::playing.withAlpha (0.45f));
+        g.setColour (colors::purple.withAlpha (0.55f));
         g.fillRoundedRectangle (b.getX() + 8.0f, b.getBottom() - 7.0f,
                                 (b.getWidth() - 16.0f) * juce::jlimit (0.0f, 1.0f, progress), 3.0f, 1.5f);
     }
 
-    g.setColour (incoming ? colors::amber : colors::text);
+    g.setColour (incoming ? colors::cyan : colors::text);
     g.setFont (juce::FontOptions (fontSize));
     g.drawText (text, getLocalBounds(), juce::Justification::centred);
 
@@ -196,7 +198,7 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
     for (int n = low; n <= high; ++n)
     {
         if (isBlack (n)) continue;
-        g.setColour (lit[n] ? colors::playing : colors::control.brighter (0.22f));
+        g.setColour (lit[n] ? colors::purple.brighter (0.25f) : colors::control.brighter (0.22f));
         g.fillRect (juce::Rectangle<float> (b.getX() + (float) white * ww, b.getY(), ww - 1.0f, b.getHeight()));
         ++white;
     }
@@ -205,7 +207,7 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
     {
         if (! isBlack (n)) { ++white; continue; }
         const float bw = ww * 0.62f;
-        g.setColour (lit[n] ? colors::playing : juce::Colour (0xff08080c));
+        g.setColour (lit[n] ? colors::purple.brighter (0.25f) : juce::Colour (0xff08080c));
         g.fillRect (juce::Rectangle<float> (b.getX() + (float) white * ww - bw / 2.0f, b.getY(), bw, b.getHeight() * 0.62f));
     }
 }
@@ -511,8 +513,10 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
         addChildComponent (card);
     }
 
-    rollButton.setColour (juce::TextButton::buttonColourId, colors::control.brighter (0.06f));
-    rollButton.setColour (juce::TextButton::textColourOffId, colors::text);
+    // ROLL brings the next chords, so it wears the "next" color - cyan,
+    // quietly (a tint, not a slab), and smaller than its first oversized cut.
+    rollButton.setColour (juce::TextButton::buttonColourId, colors::cyan.withAlpha (0.14f));
+    rollButton.setColour (juce::TextButton::textColourOffId, colors::cyan.brighter (0.3f));
     rollButton.onClick = [this] { doRoll(); };
     addAndMakeVisible (rollButton);
 
@@ -545,10 +549,12 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     addAndMakeVisible (tempoBox);
 
     // FREEZE holds the sounding chord (time stops); PANIC is instant silence.
-    // Opposite jobs, opposite ends of the header - the family rule.
+    // Opposite jobs, opposite ends of the header - the family rule. Active
+    // FREEZE wears the white mode accent (NOT Scale Shifter's cyan: in this
+    // app cyan means "next").
     freezeButton.setClickingTogglesState (true);
     freezeButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan);
+    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.92f));
     freezeButton.setColour (juce::TextButton::textColourOffId, colors::text);
     freezeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
     freezeButton.onClick = [this] { chordsProc.frozen.store (freezeButton.getToggleState()); };
@@ -1001,6 +1007,17 @@ bool ChordsEditor::keyPressed (const juce::KeyPress& key)
         doRoll();
         return true;
     }
+    // A flips auto roll between off and the last-used cadence - the
+    // one-click path the dropdown can't give.
+    if (key.getTextCharacter() == 'a' || key.getTextCharacter() == 'A')
+    {
+        const bool on = ! chordsProc.autoRollOn.load();
+        chordsProc.autoRollOn.store (on);
+        if (! on)
+            chordsProc.cancelAutoRollSwap();
+        refresh();
+        return true;
+    }
     return false;
 }
 
@@ -1098,13 +1115,13 @@ void ChordsEditor::paint (juce::Graphics& g)
     }
     const bool isPlaying = chordsProc.playing.load();
     const bool pending = isPlaying && chordsProc.swapPending();
-    g.setColour (pending ? colors::amber : isPlaying ? colors::playing : colors::control.brighter (0.15f));
+    g.setColour (pending ? colors::cyan : isPlaying ? colors::playing : colors::control.brighter (0.15f));
     g.fillEllipse ((float) statusX, 23.0f, 10.0f, 10.0f);
     if (getWidth() > 620)
     {
-        // The sounding chord stays green on its own card, so the header
-        // keeps just the word.
-        g.setColour (pending ? colors::amber : colors::secondary);
+        // The sounding chord stays purple on its own card, so the header
+        // keeps just the word - cyan, like the incoming cards.
+        g.setColour (pending ? colors::cyan : colors::secondary);
         g.setFont (juce::FontOptions (13.0f));
         g.drawText (pending ? "switching" : isPlaying ? "playing" : "stopped",
                     statusX + 16, 0, 80, 56, juce::Justification::centredLeft);
@@ -1188,8 +1205,9 @@ void ChordsEditor::resized()
 
     // Left: the action column - ROLL, and its automation dropdown below.
     auto rollStack = dice.removeFromLeft (122);
-    rollButton.setBounds (rollStack.removeFromTop (46));
-    rollStack.removeFromTop (22); // AUTO ROLL caption breathes here
+    rollStack.removeFromTop (14);
+    rollButton.setBounds (rollStack.removeFromTop (34));
+    rollStack.removeFromTop (24); // AUTO ROLL caption breathes here
     autoRollBox.setBounds (rollStack.removeFromTop (26));
     dice.removeFromLeft (14);
 

@@ -81,11 +81,25 @@ void ChordsProcessor::rollSeries()
 
 void ChordsProcessor::togglePin (int index)
 {
-    if (index >= 0 && index < 8)
+    if (index < 0 || index >= 8)
+        return;
+
+    pinned[(size_t) index] = ! pinned[(size_t) index];
+
+    // Pinning pins what you SEE: during a pending swap the sounding card
+    // still shows the outgoing chord (auto roll may have already rolled
+    // under it) - pinning that card writes the visible chord back into the
+    // incoming series.
+    if (pinned[(size_t) index] && playing.load() && seriesSwapPending.load()
+        && index == playingChord.load()
+        && index < (int) pendingOldSeries.size()
+        && index < (int) series.size())
     {
-        pinned[(size_t) index] = ! pinned[(size_t) index];
-        ++revision;
+        series[(size_t) index] = pendingOldSeries[(size_t) index];
+        updateLoop();
     }
+
+    ++revision;
 }
 
 void ChordsProcessor::revertPendingSwap()
