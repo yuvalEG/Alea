@@ -56,11 +56,13 @@ namespace
                 "the loop plays swaps in the new chords at the next chord "
                 "change, and clicking any chord card jumps the loop there.\n\n"
                 "Simplify Chords narrows the roll to guitar-friendly keys and "
-                "mostly major or minor chords. Use Seventh Chords adds "
-                "sevenths; Sus chords and 9th chords widen the dice further. "
-                "Key lock rolls only the chosen major key's seven diatonic "
-                "chords. The little pin on each card keeps that chord through "
-                "rolls - keep what you love, reroll the rest.\n\n"
+                "mostly major or minor chords. EXTENSIONS climbs from plain "
+                "triads to seventh chords to ninths; Sus chords widen the "
+                "dice further. Key lock rolls only diatonic chords of the "
+                "chosen key and scale (major, minor, or harmonic minor) - "
+                "flavors included, kept strictly in the scale. The little pin "
+                "on each card keeps that chord through rolls - keep what you "
+                "love, reroll the rest.\n\n"
                 "FREEZE holds the sounding chord until you let go; PANIC "
                 "silences everything instantly.\n\n"
                 "OUT plays through the built-in synth (pick a flavour) or "
@@ -643,32 +645,60 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     volKnob.onValueChange = [this] { chordsProc.synthVolDb.store ((float) volKnob.getValue()); };
     addAndMakeVisible (volKnob);
 
-    seventhToggle.onClick = [this] { chordsProc.useSevenths = seventhToggle.getToggleState(); };
     simplifyToggle.onClick = [this] { chordsProc.simplify = simplifyToggle.getToggleState(); };
     susToggle.onClick = [this] { chordsProc.susOn = susToggle.getToggleState(); };
-    ninthsToggle.onClick = [this] { chordsProc.ninthsOn = ninthsToggle.getToggleState(); };
-    addAndMakeVisible (simplifyToggle); // simplify reads first - it narrows, sevenths widen
-    addAndMakeVisible (seventhToggle);
+    addAndMakeVisible (simplifyToggle); // simplify reads first - it narrows, the rest widen
     addAndMakeVisible (susToggle);
-    addAndMakeVisible (ninthsToggle);
 
-    // Key lock: rolls draw only from the chosen major key's seven diatonic
-    // chords (flavors and Simplify are ignored while locked).
+    // Extensions climb: a 9th chord presumes its 7th, so this is one ladder
+    // instead of two dependent checkboxes.
+    extRow.labels = { "triads", "7ths", "9ths" };
+    extRow.onChange = [this] (int level)
+    {
+        chordsProc.useSevenths = level >= 1;
+        chordsProc.ninthsOn = level == 2;
+        extRow.selected = level;
+        extRow.repaint();
+    };
+    addAndMakeVisible (extRow);
+
+    // Key lock: rolls draw only from the chosen key and scale's seven
+    // diatonic chords - flavors included, kept diatonic (Simplify is
+    // ignored while locked).
     keyLockToggle.onClick = [this] { chordsProc.keyLockOn = keyLockToggle.getToggleState(); };
     addAndMakeVisible (keyLockToggle);
-    keyBox.setColour (juce::ComboBox::backgroundColourId, colors::control);
-    keyBox.setColour (juce::ComboBox::textColourId, colors::text);
-    keyBox.setColour (juce::ComboBox::outlineColourId, colors::border);
-    keyBox.setColour (juce::ComboBox::arrowColourId, colors::secondary);
-    for (int i = 0; i < chords::keyNames().size(); ++i)
-        keyBox.addItem (chords::keyNames()[i] + " major", i + 1);
+    for (auto* box : { &keyBox, &scaleBox })
+    {
+        box->setColour (juce::ComboBox::backgroundColourId, colors::control);
+        box->setColour (juce::ComboBox::textColourId, colors::text);
+        box->setColour (juce::ComboBox::outlineColourId, colors::border);
+        box->setColour (juce::ComboBox::arrowColourId, colors::secondary);
+        addAndMakeVisible (*box);
+    }
+    for (int i = 0; i < chords::scaleTypeNames().size(); ++i)
+        scaleBox.addItem (chords::scaleTypeNames()[i], i + 1);
+    scaleBox.setSelectedId (chordsProc.keyScale + 1, juce::dontSendNotification);
+    scaleBox.onChange = [this]
+    {
+        if (scaleBox.getSelectedId() > 0)
+        {
+            const auto oldTonic = keyBox.getText();
+            chordsProc.keyScale = scaleBox.getSelectedId() - 1;
+            rebuildKeyBox();
+            // Keep the tonic if the new scale offers it.
+            const auto keys = chords::keyNamesFor ((chords::ScaleType) chordsProc.keyScale);
+            const int keep = keys.indexOf (oldTonic);
+            chordsProc.keyIndex = juce::jmax (0, keep);
+            keyBox.setSelectedId (chordsProc.keyIndex + 1, juce::dontSendNotification);
+        }
+    };
+    rebuildKeyBox();
     keyBox.setSelectedId (chordsProc.keyIndex + 1, juce::dontSendNotification);
     keyBox.onChange = [this]
     {
         if (keyBox.getSelectedId() > 0)
             chordsProc.keyIndex = keyBox.getSelectedId() - 1;
     };
-    addAndMakeVisible (keyBox);
 
     menuButton.setButtonText (juce::String::fromUTF8 ("\xe2\x8b\xaf"));
     menuButton.setColour (juce::TextButton::buttonColourId, colors::control);
@@ -688,7 +718,7 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     // Space must always mean PLAY/STOP (and R must roll): no child ever
     // takes keyboard focus.
     for (auto* c : { (juce::Component*) &rollButton, (juce::Component*) &menuButton,
-                     (juce::Component*) &seventhToggle, (juce::Component*) &simplifyToggle,
+                     (juce::Component*) &simplifyToggle,
                      (juce::Component*) &lengthRow, (juce::Component*) &barsRow,
                      (juce::Component*) &octaveRow, (juce::Component*) &monitor,
                      (juce::Component*) &freezeButton, (juce::Component*) &panicButton,
@@ -696,13 +726,14 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
                      (juce::Component*) &volKnob, (juce::Component*) &tempoBox,
                      (juce::Component*) &clickButton, (juce::Component*) &autoRollToggle,
                      (juce::Component*) &autoRollBox, (juce::Component*) &clickVolKnob,
-                     (juce::Component*) &susToggle, (juce::Component*) &ninthsToggle,
-                     (juce::Component*) &keyLockToggle, (juce::Component*) &keyBox })
+                     (juce::Component*) &susToggle, (juce::Component*) &extRow,
+                     (juce::Component*) &keyLockToggle, (juce::Component*) &keyBox,
+                     (juce::Component*) &scaleBox })
         c->setWantsKeyboardFocus (false);
     setWantsKeyboardFocus (true);
 
     setResizable (true, true);
-    setResizeLimits (880, 480, 4096, 2400);
+    setResizeLimits (880, 500, 4096, 2400);
     setSize (juce::jmax (880, chordsProc.lastUIWidth), juce::jmax (480, chordsProc.lastUIHeight));
 
     refresh();
@@ -740,6 +771,14 @@ void ChordsEditor::buildOutputBox()
     };
 }
 
+void ChordsEditor::rebuildKeyBox()
+{
+    keyBox.clear (juce::dontSendNotification);
+    const auto keys = chords::keyNamesFor ((chords::ScaleType) chordsProc.keyScale);
+    for (int i = 0; i < keys.size(); ++i)
+        keyBox.addItem (keys[i], i + 1);
+}
+
 ChordsEditor::~ChordsEditor()
 {
     stopTimer();
@@ -753,11 +792,11 @@ void ChordsEditor::timerCallback()
     // Live playback feedback: light the sounding card, run its progress
     // strip, drive the meter, dim the OUT extras when a MIDI device owns
     // the sound.
-    // While a swap waits, the cards already show the incoming series (amber),
-    // so no green highlight - the sounding chord's name sits in the header.
+    // During a pending swap the sounding card still shows the old chord, so
+    // the green highlight stays on - refresh() keeps that card honest.
     const bool loopRunning = chordsProc.playing.load();
     const bool pendingNow = loopRunning && chordsProc.swapPending();
-    const int sounding = pendingNow ? -1 : chordsProc.playingChord.load();
+    const int sounding = chordsProc.playingChord.load();
     const float progress = chordsProc.chordProgress.load();
     for (int i = 0; i < cards.size(); ++i)
     {
@@ -802,15 +841,13 @@ void ChordsEditor::timerCallback()
     if (chordsProc.frozen.load() != freezeButton.getToggleState())
         freezeButton.setToggleState (chordsProc.frozen.load(), juce::dontSendNotification);
 
-    // Pending swap: the incoming chords render amber inside the cards, the
-    // header names what is still sounding.
+    // Pending swap: the sounding card stays green with the old chord, all
+    // other cards preview the incoming series in amber.
     if (pendingNow != lastPending)
     {
         lastPending = pendingNow;
-        for (auto* card : cards)
-            card->incoming = pendingNow;
         refresh();
-        repaint (0, 0, getWidth(), 56); // status word + sounding chord name
+        repaint (0, 0, getWidth(), 56); // status word
     }
 
     const bool synth = chordsProc.synthOn.load();
@@ -848,8 +885,12 @@ void ChordsEditor::refresh()
     octaveRow.mask = juce::jlimit (1, 7, chordsProc.octaveMask.load());
     octaveRow.repaint();
     susToggle.setToggleState (chordsProc.susOn, juce::dontSendNotification);
-    ninthsToggle.setToggleState (chordsProc.ninthsOn, juce::dontSendNotification);
     keyLockToggle.setToggleState (chordsProc.keyLockOn, juce::dontSendNotification);
+    if (scaleBox.getSelectedId() != chordsProc.keyScale + 1)
+    {
+        scaleBox.setSelectedId (chordsProc.keyScale + 1, juce::dontSendNotification);
+        rebuildKeyBox();
+    }
     keyBox.setSelectedId (chordsProc.keyIndex + 1, juce::dontSendNotification);
     tempoBox.setValue ((double) chordsProc.bpm.load(), juce::dontSendNotification);
     clickButton.setToggleState (chordsProc.metronomeOn.load(), juce::dontSendNotification);
@@ -857,19 +898,39 @@ void ChordsEditor::refresh()
     autoRollToggle.setToggleState (chordsProc.autoRollOn.load(), juce::dontSendNotification);
     autoRollBox.setSelectedId (chordsProc.autoRollLoops.load(), juce::dontSendNotification);
     volKnob.setValue ((double) chordsProc.synthVolDb.load(), juce::dontSendNotification);
-    seventhToggle.setToggleState (chordsProc.useSevenths, juce::dontSendNotification);
+    extRow.selected = chordsProc.ninthsOn ? 2 : chordsProc.useSevenths ? 1 : 0;
+    extRow.repaint();
     simplifyToggle.setToggleState (chordsProc.simplify, juce::dontSendNotification);
+
+    // While a swap is pending: the SOUNDING card keeps its old chord (green
+    // highlight, progress), every other card previews the incoming series
+    // in amber.
+    const bool pendingSwap = chordsProc.playing.load() && chordsProc.swapPending()
+                          && ! chordsProc.pendingOldSeries.empty();
+    const int soundingIdx = pendingSwap
+        ? juce::jlimit (0, (int) chordsProc.pendingOldSeries.size() - 1, chordsProc.playingChord.load())
+        : -1;
+    const int visibleCount = juce::jmax ((int) chordsProc.series.size(),
+                                         pendingSwap ? soundingIdx + 1 : 0);
 
     for (int i = 0; i < cards.size(); ++i)
     {
-        const bool visible = i < (int) chordsProc.series.size();
+        const bool visible = i < visibleCount;
         cards[i]->setVisible (visible);
-        if (visible)
+        if (! visible)
+            continue;
+        if (pendingSwap && i == soundingIdx)
+        {
+            cards[i]->text = chordsProc.pendingOldSeries[(size_t) i].text();
+            cards[i]->incoming = false;
+        }
+        else if (i < (int) chordsProc.series.size())
         {
             cards[i]->text = chordsProc.series[(size_t) i].text();
-            cards[i]->pinned = chordsProc.pinned[(size_t) i];
-            cards[i]->repaint();
+            cards[i]->incoming = pendingSwap;
         }
+        cards[i]->pinned = chordsProc.pinned[(size_t) i];
+        cards[i]->repaint();
     }
 
     ticker.repaint();
@@ -1024,19 +1085,12 @@ void ChordsEditor::paint (juce::Graphics& g)
     g.fillEllipse ((float) statusX, 23.0f, 10.0f, 10.0f);
     if (getWidth() > 620)
     {
-        // The cards preview the incoming set in amber, so the header keeps
-        // naming what is still sounding.
-        juce::String status = pending ? "switching" : isPlaying ? "playing" : "stopped";
-        if (pending)
-        {
-            const int idx = chordsProc.playingChord.load();
-            if (idx >= 0 && idx < (int) chordsProc.pendingOldSeries.size())
-                status << juce::String::fromUTF8 (" \xc2\xb7 ") << chordsProc.pendingOldSeries[(size_t) idx].text();
-        }
+        // The sounding chord stays green on its own card, so the header
+        // keeps just the word.
         g.setColour (pending ? colors::amber : colors::secondary);
         g.setFont (juce::FontOptions (13.0f));
-        const int statusW = juce::jmax (0, freezeButton.getX() - statusX - 28);
-        g.drawText (status, statusX + 16, 0, juce::jmin (180, statusW), 56, juce::Justification::centredLeft);
+        g.drawText (pending ? "switching" : isPlaying ? "playing" : "stopped",
+                    statusX + 16, 0, 80, 56, juce::Justification::centredLeft);
     }
 
     g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.35f), 0.0f, 0.0f,
@@ -1060,6 +1114,8 @@ void ChordsEditor::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (12.0f));
     g.drawText ("CHORDS", lengthRow.getX(), lengthRow.getY() - 16,
                 lengthRow.getWidth(), 14, juce::Justification::centredLeft);
+    g.drawText ("EXTENSIONS", extRow.getX(), extRow.getY() - 16,
+                extRow.getWidth(), 14, juce::Justification::centredLeft);
     g.drawText ("BARS", barsRow.getX(), barsRow.getY() - 16,
                 barsRow.getWidth(), 14, juce::Justification::centredLeft);
     g.drawText ("OCTAVE", octaveRow.getX(), octaveRow.getY() - 16,
@@ -1103,10 +1159,10 @@ void ChordsEditor::resized()
     auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
     ticker.setBounds (hist);
 
-    // The two control blocks. DICE: roll button + auto roll beneath it,
-    // series length, the engine toggles, key lock. LOOP: bars, octaves,
-    // output chain, and the monitor keyboard.
-    auto panels = b.removeFromBottom (196).reduced (16, 6);
+    // The two control blocks. DICE, top to bottom: roll + series length,
+    // extensions + wideners, key lock, and auto roll on its own at the
+    // bottom. LOOP: bars, octaves, output chain, and the monitor keyboard.
+    auto panels = b.removeFromBottom (208).reduced (16, 6);
     dicePanel = panels.removeFromLeft ((int) ((float) panels.getWidth() * 0.42f));
     panels.removeFromLeft (12);
     loopPanel = panels;
@@ -1116,24 +1172,29 @@ void ChordsEditor::resized()
     rollButton.setBounds (diceTop.removeFromLeft (104).withSizeKeepingCentre (104, 42));
     diceTop.removeFromLeft (14);
     lengthRow.setBounds (diceTop.withTrimmedTop (16).withHeight (28));
+    dice.removeFromTop (6);
 
-    // Auto roll sits right under its trigger.
-    auto autoRoll = dice.removeFromTop (26).withTrimmedTop (2);
+    // Extensions ladder on the left, the two wideners stacked on the right.
+    auto rowB = dice.removeFromTop (42);
+    auto extArea = rowB.removeFromLeft (juce::jmin (190, rowB.getWidth() * 55 / 100));
+    extRow.setBounds (extArea.withTrimmedTop (16).withHeight (26));
+    rowB.removeFromLeft (10);
+    simplifyToggle.setBounds (rowB.removeFromTop (21));
+    susToggle.setBounds (rowB.removeFromTop (21));
+    dice.removeFromTop (6);
+
+    auto rowE = dice.removeFromTop (26);
+    keyLockToggle.setBounds (rowE.removeFromLeft (92));
+    keyBox.setBounds (rowE.removeFromLeft (58).withSizeKeepingCentre (58, 24));
+    rowE.removeFromLeft (6);
+    const int scaleW = juce::jmin (136, rowE.getWidth());
+    scaleBox.setBounds (rowE.removeFromLeft (scaleW).withSizeKeepingCentre (scaleW, 24));
+    dice.removeFromTop (8);
+
+    // Auto roll, deliberately apart from ROLL and the length selector.
+    auto autoRoll = dice.removeFromTop (24);
     autoRollToggle.setBounds (autoRoll.removeFromLeft (136));
     autoRollBox.setBounds (autoRoll.removeFromLeft (54).withSizeKeepingCentre (54, 24));
-
-    // Engine toggles, two per row: what narrows on the left, what widens
-    // on the right.
-    auto rowC = dice.removeFromTop (22);
-    simplifyToggle.setBounds (rowC.removeFromLeft (rowC.getWidth() * 55 / 100));
-    susToggle.setBounds (rowC);
-    auto rowD = dice.removeFromTop (22);
-    seventhToggle.setBounds (rowD.removeFromLeft (rowD.getWidth() * 55 / 100));
-    ninthsToggle.setBounds (rowD);
-
-    auto rowE = dice.removeFromTop (28).withTrimmedTop (3);
-    keyLockToggle.setBounds (rowE.removeFromLeft (92));
-    keyBox.setBounds (rowE.removeFromLeft (110).withSizeKeepingCentre (110, 24));
 
     auto loop = loopPanel.reduced (12).withTrimmedTop (22);
     auto loopTop = loop.removeFromTop (44);

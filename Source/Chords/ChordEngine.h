@@ -31,18 +31,22 @@ const juce::StringArray& fullRoots();
 // 12 guitar-friendly roots (the original app's list, plus the E it forgot).
 const juce::StringArray& simpleRoots();
 
-// The 11 major keys offered by key lock. F#/Gb is deliberately absent: its
-// diatonic spelling needs E# (or Cb), which this vocabulary excludes.
-const juce::StringArray& keyNames();
+// Key lock scale types. Keys that would need an illegal spelling (E#, Cb,
+// double sharps) are simply not offered: Major and Minor each have 11 keys,
+// Harmonic Minor 8.
+enum class ScaleType { major = 0, minorNatural = 1, minorHarmonic = 2 };
+const juce::StringArray& scaleTypeNames();
+const juce::StringArray& keyNamesFor (ScaleType);
 
 struct RollOptions
 {
     bool simplified = true;
     bool sevenths = false;
     bool sus = false;         // adds sus2/sus4 to the quality pool
-    bool ninths = false;      // eligible chords may extend to 9ths (50%)
+    bool ninths = false;      // eligible SEVENTH chords may extend to 9ths (50%)
     bool keyLock = false;     // roll only the key's seven diatonic chords
-    int keyIndex = 0;         // into keyNames()
+    int scaleType = 0;        // (int) ScaleType
+    int keyIndex = 0;         // into keyNamesFor (scaleType)
 };
 
 Chord roll (juce::Random&, const RollOptions&);

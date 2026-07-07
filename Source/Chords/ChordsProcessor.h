@@ -21,7 +21,8 @@ public:
     bool susOn = false;                               // sus2/sus4 join the pool
     bool ninthsOn = false;                            // eligible chords may become 9ths
     bool keyLockOn = false;                           // diatonic rolls only
-    int keyIndex = 0;                                 // into chords::keyNames()
+    int keyScale = 0;                                 // (int) chords::ScaleType
+    int keyIndex = 0;                                 // into chords::keyNamesFor (keyScale)
     std::array<bool, 8> pinned {};                    // pinned cards survive rolls
     std::vector<chords::Chord> series;                // what the cards show
     std::deque<std::vector<chords::Chord>> history;   // past rolls, newest first

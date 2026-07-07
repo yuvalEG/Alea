@@ -108,18 +108,18 @@ private:
     juce::TextButton menuButton, rollButton { "ROLL" }, playButton { "PLAY" },
                      freezeButton { "FREEZE" }, panicButton { "PANIC" };
     juce::Slider tempoBox;
-    juce::ToggleButton seventhToggle { "Use Seventh Chords" },
-                       simplifyToggle { "Simplify Chords" },
+    juce::ToggleButton simplifyToggle { "Simplify Chords" },
                        susToggle { "Sus chords" },
-                       ninthsToggle { "9th chords" },
                        keyLockToggle { "Key lock" },
                        autoRollToggle { "Auto roll after" };
-    juce::ComboBox keyBox;
+    juce::ComboBox keyBox, scaleBox;            // key lock: tonic + scale type
     juce::TextButton clickButton { "CLICK" };   // metronome, next to the tempo
     juce::Slider clickVolKnob;                  // click level, beside CLICK
     juce::ComboBox autoRollBox;
-    SegmentRow lengthRow, barsRow, octaveRow;
+    SegmentRow lengthRow, barsRow, octaveRow,
+               extRow;                          // triads / 7ths / 9ths (a 9th presumes its 7th)
     juce::ComboBox outputBox;
+    void rebuildKeyBox();
     juce::Slider volKnob;
     juce::Array<juce::MidiDeviceInfo> devices;
     HistoryTicker ticker;

@@ -43,26 +43,36 @@ static int dumpVocabulary()
             std::cout << sig << "\n";
     }
 
-    // Key lock: the exact diatonic sets, every key, triads and sevenths.
-    std::cout << "\n== KEY LOCK (triads | sevenths) ==\n";
-    for (int k = 0; k < chords::keyNames().size(); ++k)
+    // Key lock: the exact diatonic sets per scale type and key - triads,
+    // sevenths, and the full flavored set (sevenths + sus + ninths).
+    for (int t = 0; t < chords::scaleTypeNames().size(); ++t)
     {
-        std::map<std::string, bool> triads, sevs;
-        for (int i = 0; i < 4000; ++i)
+        std::cout << "\n== KEY LOCK - " << chords::scaleTypeNames()[t]
+                  << " (triads | sevenths | +sus+9) ==\n";
+        const auto keys = chords::keyNamesFor ((chords::ScaleType) t);
+        for (int k = 0; k < keys.size(); ++k)
         {
-            chords::RollOptions o;
-            o.keyLock = true;
-            o.keyIndex = k;
-            o.sevenths = false;
-            triads[chords::roll (rng, o).text().toStdString()] = true;
-            o.sevenths = true;
-            sevs[chords::roll (rng, o).text().toStdString()] = true;
+            std::map<std::string, bool> triads, sevs, flavored;
+            for (int i = 0; i < 12000; ++i)
+            {
+                chords::RollOptions o;
+                o.keyLock = true;
+                o.scaleType = t;
+                o.keyIndex = k;
+                triads[chords::roll (rng, o).text().toStdString()] = true;
+                o.sevenths = true;
+                sevs[chords::roll (rng, o).text().toStdString()] = true;
+                o.sus = o.ninths = true;
+                flavored[chords::roll (rng, o).text().toStdString()] = true;
+            }
+            std::cout << keys[k].paddedRight (' ', 3) << ": ";
+            for (auto& [c, _] : triads) std::cout << c << " ";
+            std::cout << " | ";
+            for (auto& [c, _] : sevs) std::cout << c << " ";
+            std::cout << " | ";
+            for (auto& [c, _] : flavored) std::cout << c << " ";
+            std::cout << "\n";
         }
-        std::cout << chords::keyNames()[k].paddedRight (' ', 3) << ": ";
-        for (auto& [t, _] : triads) std::cout << t << " ";
-        std::cout << " | ";
-        for (auto& [t, _] : sevs) std::cout << t << " ";
-        std::cout << "\n";
     }
     return 0;
 }

@@ -78,17 +78,16 @@ const juce::StringArray& simpleRoots()
     return roots;
 }
 
-const juce::StringArray& keyNames()
+const juce::StringArray& scaleTypeNames()
 {
-    static const juce::StringArray keys { "C", "Db", "D", "Eb", "E", "F", "G", "Ab", "A", "Bb", "B" };
-    return keys;
+    static const juce::StringArray types { "Major", "Minor", "Harmonic Minor" };
+    return types;
 }
 
 namespace
 {
-    // Correctly spelled major scales for the 11 offered keys (same order as
-    // keyNames). Every leading tone lands on a legal spelling - the reason
-    // F#/Gb is not offered.
+    // Correctly spelled major scales for the 11 offered keys. Every leading
+    // tone lands on a legal spelling - the reason F#/Gb is not offered.
     const char* const keyScales[11][7] = {
         { "C",  "D",  "E",  "F",  "G",  "A",  "B"  },
         { "Db", "Eb", "F",  "Gb", "Ab", "Bb", "C"  },
@@ -103,40 +102,157 @@ namespace
         { "B",  "C#", "D#", "E",  "F#", "G#", "A#" },
     };
 
-    Chord rollInKey (juce::Random& rng, int keyIndex, bool sevenths)
+    // Harmonic minor is offered only where the raised leading tone spells
+    // legally (A minor raises G to G#; G# minor would need F##). Values are
+    // indices into the major table of each tonic's RELATIVE major.
+    constexpr int harmonicToMajor[8] = { 0, 1, 2, 3, 5, 6, 7, 9 }; // A Bb B C D E F G
+
+    int pcOf (const juce::String& name)
     {
-        const int key = juce::jlimit (0, 10, keyIndex);
-        const int degree = rng.nextInt (7);
+        static constexpr int letterPc[] = { 9, 11, 0, 2, 4, 5, 7 }; // A B C D E F G
+        int pc = letterPc[juce::jlimit (0, 6, (int) (name[0] - 'A'))];
+        if (name.endsWith ("b")) --pc;
+        if (name.endsWith ("#")) ++pc;
+        return (pc + 12) % 12;
+    }
 
-        Chord c;
-        c.root = keyScales[key][degree];
+    struct Degree
+    {
+        juce::String root;
+        Quality triad;        // quality without sevenths
+        Quality with7;        // quality when sevenths are on (m7b5 spells as minor)
+        Seventh seventh;
+    };
 
-        // Diatonic qualities: I ii iii IV V vi vii(dim); with sevenths:
-        // Imaj7 iim7 iiim7 IVmaj7 V7 vim7 viim7b5.
-        static constexpr Quality triadQualities[7] = {
+    void buildKey (ScaleType type, int keyIndex, Degree out[7])
+    {
+        static constexpr Quality majTriad[7] = {
             Quality::major, Quality::minor, Quality::minor, Quality::major,
             Quality::major, Quality::minor, Quality::dim };
-        c.quality = triadQualities[degree];
+        static constexpr Quality majWith7[7] = {
+            Quality::major, Quality::minor, Quality::minor, Quality::major,
+            Quality::major, Quality::minor, Quality::minor }; // vii7 = m7b5
+        static constexpr Seventh majSeventh[7] = {
+            Seventh::majSeven, Seventh::seven, Seventh::seven, Seventh::majSeven,
+            Seventh::seven, Seventh::seven, Seventh::sevenFlat5 };
 
-        if (sevenths)
+        // Natural minor is the relative major rotated to start at its 6th
+        // degree; the minor key lists are aligned so keyIndex maps straight
+        // onto the relative major's table row.
+        const bool minor = type != ScaleType::major;
+        const int majorKey = juce::jlimit (0, 10,
+            type == ScaleType::minorHarmonic ? harmonicToMajor[juce::jlimit (0, 7, keyIndex)]
+                                             : keyIndex);
+        const int rotate = minor ? 5 : 0;
+
+        for (int i = 0; i < 7; ++i)
         {
-            switch (degree)
+            const int j = (i + rotate) % 7;
+            out[i].root = keyScales[majorKey][j];
+            out[i].triad = majTriad[j];
+            out[i].with7 = majWith7[j];
+            out[i].seventh = majSeventh[j];
+        }
+
+        if (type == ScaleType::minorHarmonic)
+        {
+            // Raise the leading tone (strip a flat or add a sharp), then
+            // re-quality: i(mMaj7) iim7b5 III+(Maj7) ivm7 V7 VImaj7 viidim7.
+            auto& leading = out[6].root;
+            leading = leading.endsWith ("b") ? leading.dropLastCharacters (1) : leading + "#";
+
+            static constexpr Quality hTriad[7] = {
+                Quality::minor, Quality::dim, Quality::aug, Quality::minor,
+                Quality::major, Quality::major, Quality::dim };
+            static constexpr Quality hWith7[7] = {
+                Quality::minor, Quality::minor, Quality::aug, Quality::minor,
+                Quality::major, Quality::major, Quality::dim };
+            static constexpr Seventh hSeventh[7] = {
+                Seventh::majSeven, Seventh::sevenFlat5, Seventh::majSeven, Seventh::seven,
+                Seventh::seven, Seventh::majSeven, Seventh::seven };
+            for (int i = 0; i < 7; ++i)
             {
-                case 0: case 3: c.seventh = Seventh::majSeven; break;   // Imaj7, IVmaj7
-                case 4:         c.seventh = Seventh::seven;    break;   // V7
-                case 6:         c.quality = Quality::minor;             // viim7b5 is spelled m7b5
-                                c.seventh = Seventh::sevenFlat5; break;
-                default:        c.seventh = Seventh::seven;    break;   // iim7, iiim7, vim7
+                out[i].triad = hTriad[i];
+                out[i].with7 = hWith7[i];
+                out[i].seventh = hSeventh[i];
             }
         }
+    }
+
+    // Key-locked rolls, flavors included - everything stays strictly in the
+    // scale. Sus variants require a diatonic perfect fifth plus the 2/4;
+    // 7sus needs the diatonic minor seventh; ninths need the diatonic ninth
+    // (which is exactly what rules out the b9 degrees).
+    Chord rollInKey (juce::Random& rng, const RollOptions& opts)
+    {
+        Degree degrees[7];
+        buildKey ((ScaleType) opts.scaleType, opts.keyIndex, degrees);
+
+        int scaleMask = 0;
+        for (auto& d : degrees)
+            scaleMask |= 1 << pcOf (d.root);
+        auto inScale = [scaleMask] (int p) { return ((scaleMask >> (p % 12)) & 1) != 0; };
+
+        const auto& d = degrees[rng.nextInt (7)];
+        const int pc = pcOf (d.root);
+
+        Chord base;
+        base.root = d.root;
+        base.quality = opts.sevenths ? d.with7 : d.triad;
+        base.seventh = opts.sevenths ? d.seventh : Seventh::none;
+
+        juce::Array<Chord> variants { base };
+        if (opts.sus && inScale (pc + 7)) // sus keeps a perfect fifth
+        {
+            const bool flatSeven = opts.sevenths && inScale (pc + 10);
+            for (const auto& [quality, step] : { std::pair<Quality, int> { Quality::sus2, 2 },
+                                                 { Quality::sus4, 5 } })
+                if (inScale (pc + step))
+                {
+                    Chord v;
+                    v.root = d.root;
+                    v.quality = quality;
+                    v.seventh = flatSeven ? Seventh::seven : Seventh::none;
+                    variants.add (v);
+                }
+        }
+        Chord c = variants[rng.nextInt (variants.size())];
+
+        if (opts.ninths && inScale (pc + 2)
+            && (c.quality == Quality::major || c.quality == Quality::minor)
+            && (c.seventh == Seventh::seven
+                || (c.seventh == Seventh::majSeven && c.quality == Quality::major))
+            && rng.nextBool())
+            c.ninth = true;
+
         return c;
+    }
+}
+
+const juce::StringArray& keyNamesFor (ScaleType type)
+{
+    static const juce::StringArray majors { "C", "Db", "D", "Eb", "E", "F", "G", "Ab", "A", "Bb", "B" };
+    static const juce::StringArray minors = []
+    {
+        juce::StringArray a;
+        for (int k = 0; k < 11; ++k)
+            a.add (keyScales[k][5]); // the relative minor tonic
+        return a;
+    }();
+    static const juce::StringArray harmonics { "A", "Bb", "B", "C", "D", "E", "F", "G" };
+
+    switch (type)
+    {
+        case ScaleType::minorNatural:  return minors;
+        case ScaleType::minorHarmonic: return harmonics;
+        default:                       return majors;
     }
 }
 
 Chord roll (juce::Random& rng, const RollOptions& opts)
 {
     if (opts.keyLock)
-        return rollInKey (rng, opts.keyIndex, opts.sevenths);
+        return rollInKey (rng, opts);
 
     Chord c;
 
@@ -183,13 +299,13 @@ Chord roll (juce::Random& rng, const RollOptions& opts)
         }
     }
 
-    // Ninths, strictly on the chords where they read cleanly: 9 (dom),
-    // m9, Maj9, and add9 on plain major/minor triads. Never on dim, aug,
+    // Ninths, strictly on the seventh chords where they read cleanly:
+    // 9 (dom), m9, Maj9. A ninth presumes its seventh (Yuval's rule), so
+    // without the sevenths toggle nothing here fires. Never on dim, aug,
     // sus, m7b5 or m(Maj7).
     if (opts.ninths && (c.quality == Quality::major || c.quality == Quality::minor))
     {
-        const bool eligible = c.seventh == Seventh::none
-                           || c.seventh == Seventh::seven
+        const bool eligible = c.seventh == Seventh::seven
                            || (c.seventh == Seventh::majSeven && c.quality == Quality::major);
         if (eligible && rng.nextBool())
             c.ninth = true;
@@ -200,12 +316,7 @@ Chord roll (juce::Random& rng, const RollOptions& opts)
 
 juce::Array<int> midiNotes (const Chord& c, int octave)
 {
-    // Root pitch class from the name (letter + optional accidental).
-    static constexpr int letterPc[] = { 9, 11, 0, 2, 4, 5, 7 }; // A B C D E F G
-    int pc = letterPc[juce::jlimit (0, 6, (int) (c.root[0] - 'A'))];
-    if (c.root.endsWith ("b")) --pc;
-    if (c.root.endsWith ("#")) ++pc;
-    const int root = 12 * (juce::jlimit (2, 4, octave) + 1) + ((pc + 12) % 12);
+    const int root = 12 * (juce::jlimit (2, 4, octave) + 1) + pcOf (c.root);
 
     // The full interval table. Note the two cases where the seventh
     // reshapes the chord: m7b5 flattens the fifth, dim7 takes the

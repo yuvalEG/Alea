@@ -23,6 +23,7 @@ chords::Chord ChordsProcessor::rollOne()
     opts.sus = susOn;
     opts.ninths = ninthsOn;
     opts.keyLock = keyLockOn;
+    opts.scaleType = keyScale;
     opts.keyIndex = keyIndex;
     return chords::roll (rng, opts);
 }
@@ -682,6 +683,7 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("sus", susOn, nullptr);
     state.setProperty ("ninths", ninthsOn, nullptr);
     state.setProperty ("keyLock", keyLockOn, nullptr);
+    state.setProperty ("keyScale", keyScale, nullptr);
     state.setProperty ("keyIndex", keyIndex, nullptr);
     state.setProperty ("uiWidth", lastUIWidth, nullptr);
     state.setProperty ("uiHeight", lastUIHeight, nullptr);
@@ -729,7 +731,9 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     susOn        = state.getProperty ("sus", false);
     ninthsOn     = state.getProperty ("ninths", false);
     keyLockOn    = state.getProperty ("keyLock", false);
-    keyIndex     = juce::jlimit (0, chords::keyNames().size() - 1, (int) state.getProperty ("keyIndex", 0));
+    keyScale     = juce::jlimit (0, 2, (int) state.getProperty ("keyScale", 0));
+    keyIndex     = juce::jlimit (0, chords::keyNamesFor ((chords::ScaleType) keyScale).size() - 1,
+                                 (int) state.getProperty ("keyIndex", 0));
     lastUIWidth  = juce::jlimit (560, 4000, (int) state.getProperty ("uiWidth", 900));
     lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 560));
     bpm.store (juce::jlimit (30.0f, 300.0f, (float) (double) state.getProperty ("bpm", 90.0)));
