@@ -55,15 +55,16 @@ namespace
                 "chord holds, OCTAVE where the voicing sits. Rolling while "
                 "the loop plays swaps in the new chords at the next chord "
                 "change, and clicking any chord card jumps the loop there.\n\n"
-                "Simplify chords narrows the roll to guitar-friendly keys and "
-                "mostly major or minor chords. ADD stacks onto the plain "
-                "triads: 7ths, 9ths (which include their 7ths), and sus "
-                "chords (about one roll in five). AUTO under ROLL rolls for "
-                "you every N loops. Key lock rolls only diatonic chords of "
-                "the chosen key and scale (major, minor, or harmonic minor) "
-                "- flavors included, kept strictly in the scale. The little "
-                "pin on each card keeps that chord through rolls - keep what "
-                "you love, reroll the rest.\n\n"
+                "CHORD SIZE picks the stack: triads, seventh chords, or "
+                "ninth chords. Simplify chords narrows the roll to guitar-"
+                "friendly keys and mostly major or minor chords; Add sus "
+                "chords mixes in sus2/sus4 (about one roll in five). AUTO "
+                "ROLL under the ROLL button rolls for you every N loops. Key "
+                "lock rolls only diatonic chords of the chosen key and scale "
+                "(major, minor, or harmonic minor) - flavors included, kept "
+                "strictly in the scale. The little pin on each card keeps "
+                "that chord through rolls - keep what you love, reroll the "
+                "rest.\n\n"
                 "FREEZE holds the sounding chord until you let go; PANIC "
                 "silences everything instantly.\n\n"
                 "OUT plays through the built-in synth (pick a flavour) or "
@@ -607,37 +608,30 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     clickVolKnob.onValueChange = [this] { chordsProc.clickVolDb.store ((float) clickVolKnob.getValue()); };
     addAndMakeVisible (clickVolKnob);
 
-    // Auto roll: fresh dice every N loops - hands stay on the instrument.
-    // It lives as a stack right under ROLL: [ROLL / AUTO / every N loops].
-    // Switching it off also takes back a preview it already rolled.
-    autoButton.setClickingTogglesState (true);
-    autoButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    autoButton.setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.92f));
-    autoButton.setColour (juce::TextButton::textColourOffId, colors::text);
-    autoButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
-    autoButton.onClick = [this]
-    {
-        const bool on = autoButton.getToggleState();
-        chordsProc.autoRollOn.store (on);
-        if (! on)
-        {
-            chordsProc.cancelAutoRollSwap();
-            refresh();
-        }
-    };
-    addAndMakeVisible (autoButton);
-
+    // AUTO ROLL is one self-describing dropdown under ROLL: off, or a
+    // cadence. Switching to off also takes back a preview it already rolled.
     autoRollBox.setColour (juce::ComboBox::backgroundColourId, colors::control);
     autoRollBox.setColour (juce::ComboBox::textColourId, colors::text);
     autoRollBox.setColour (juce::ComboBox::outlineColourId, colors::border);
     autoRollBox.setColour (juce::ComboBox::arrowColourId, colors::secondary);
+    autoRollBox.addItem ("off", 1);
     for (int n : { 1, 2, 3, 4, 6, 8 })
-        autoRollBox.addItem (juce::String (n) + (n == 1 ? " loop" : " loops"), n);
-    autoRollBox.setSelectedId (chordsProc.autoRollLoops.load(), juce::dontSendNotification);
+        autoRollBox.addItem (n == 1 ? juce::String ("every loop")
+                                    : "every " + juce::String (n) + " loops", n + 1);
     autoRollBox.onChange = [this]
     {
-        if (autoRollBox.getSelectedId() > 0)
-            chordsProc.autoRollLoops.store (autoRollBox.getSelectedId());
+        const int id = autoRollBox.getSelectedId();
+        if (id <= 0)
+            return;
+        const bool on = id > 1;
+        chordsProc.autoRollOn.store (on);
+        if (on)
+            chordsProc.autoRollLoops.store (id - 1);
+        else
+        {
+            chordsProc.cancelAutoRollSwap();
+            refresh();
+        }
     };
     addAndMakeVisible (autoRollBox);
 
@@ -665,29 +659,21 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
 
     simplifyToggle.onClick = [this] { chordsProc.simplify = simplifyToggle.getToggleState(); };
     addAndMakeVisible (simplifyToggle);
+    susToggle.onClick = [this] { chordsProc.susOn = susToggle.getToggleState(); };
+    addAndMakeVisible (susToggle);
 
-    // ADD: everything stackable onto the plain triads, in one multi-select.
-    // Nothing lit = triads only. A 9th presumes its 7th, so lighting 9ths
-    // lights 7ths, and darkening 7ths takes 9ths with it.
-    addRow.labels = { "7ths", "9ths", "sus" };
-    addRow.multi = true;
-    addRow.allowEmpty = true;
-    addRow.mask = 0;
-    addRow.onChange = [this] (int newMask)
+    // CHORD SIZE: how tall the stack is - a triad, a seventh chord, or a
+    // ninth chord (which by nature contains its seventh). One of three;
+    // no couplings to explain.
+    sizeRow.labels = { "triads", "7ths", "9ths" };
+    sizeRow.onChange = [this] (int level)
     {
-        const int old = (chordsProc.useSevenths ? 1 : 0) | (chordsProc.ninthsOn ? 2 : 0)
-                      | (chordsProc.susOn ? 4 : 0);
-        int m = newMask;
-        const int clicked = m ^ old;
-        if (clicked == 2 && (m & 2) != 0) m |= 1;   // 9ths on -> 7ths on
-        if (clicked == 1 && (m & 1) == 0) m &= ~2;  // 7ths off -> 9ths off
-        chordsProc.useSevenths = (m & 1) != 0;
-        chordsProc.ninthsOn = (m & 2) != 0;
-        chordsProc.susOn = (m & 4) != 0;
-        addRow.mask = m;
-        addRow.repaint();
+        chordsProc.useSevenths = level >= 1;
+        chordsProc.ninthsOn = level == 2;
+        sizeRow.selected = level;
+        sizeRow.repaint();
     };
-    addAndMakeVisible (addRow);
+    addAndMakeVisible (sizeRow);
 
     // Key lock: rolls draw only from the chosen key and scale's seven
     // diatonic chords - flavors included, kept diatonic (Simplify is
@@ -751,9 +737,9 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
                      (juce::Component*) &freezeButton, (juce::Component*) &panicButton,
                      (juce::Component*) &playButton, (juce::Component*) &outputBox,
                      (juce::Component*) &volKnob, (juce::Component*) &tempoBox,
-                     (juce::Component*) &clickButton, (juce::Component*) &autoButton,
+                     (juce::Component*) &clickButton, (juce::Component*) &susToggle,
                      (juce::Component*) &autoRollBox, (juce::Component*) &clickVolKnob,
-                     (juce::Component*) &addRow,
+                     (juce::Component*) &sizeRow,
                      (juce::Component*) &keyLockToggle, (juce::Component*) &keyBox,
                      (juce::Component*) &scaleBox })
         c->setWantsKeyboardFocus (false);
@@ -911,8 +897,8 @@ void ChordsEditor::refresh()
     barsRow.repaint();
     octaveRow.mask = juce::jlimit (1, 7, chordsProc.octaveMask.load());
     octaveRow.repaint();
-    autoButton.setToggleState (chordsProc.autoRollOn.load(), juce::dontSendNotification);
-    autoRollBox.setSelectedId (chordsProc.autoRollLoops.load(), juce::dontSendNotification);
+    autoRollBox.setSelectedId (chordsProc.autoRollOn.load() ? chordsProc.autoRollLoops.load() + 1 : 1,
+                               juce::dontSendNotification);
     keyLockToggle.setToggleState (chordsProc.keyLockOn, juce::dontSendNotification);
     if (scaleBox.getSelectedId() != chordsProc.keyScale + 1)
     {
@@ -924,10 +910,10 @@ void ChordsEditor::refresh()
     clickButton.setToggleState (chordsProc.metronomeOn.load(), juce::dontSendNotification);
     clickVolKnob.setValue ((double) chordsProc.clickVolDb.load(), juce::dontSendNotification);
     volKnob.setValue ((double) chordsProc.synthVolDb.load(), juce::dontSendNotification);
-    addRow.mask = (chordsProc.useSevenths ? 1 : 0) | (chordsProc.ninthsOn ? 2 : 0)
-                | (chordsProc.susOn ? 4 : 0);
-    addRow.repaint();
+    sizeRow.selected = chordsProc.ninthsOn ? 2 : chordsProc.useSevenths ? 1 : 0;
+    sizeRow.repaint();
     simplifyToggle.setToggleState (chordsProc.simplify, juce::dontSendNotification);
+    susToggle.setToggleState (chordsProc.susOn, juce::dontSendNotification);
 
     // While a swap is pending: the SOUNDING card keeps its old chord (green
     // highlight, progress), every other card previews the incoming series
@@ -1145,10 +1131,10 @@ void ChordsEditor::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (12.0f));
     g.drawText ("CHORDS", lengthRow.getX(), lengthRow.getY() - 16,
                 lengthRow.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("ADD", addRow.getX(), addRow.getY() - 16,
-                addRow.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("EVERY", autoRollBox.getX(), autoRollBox.getY() - 15,
-                autoRollBox.getWidth(), 13, juce::Justification::centredLeft);
+    g.drawText ("CHORD SIZE", sizeRow.getX(), sizeRow.getY() - 16,
+                sizeRow.getWidth(), 14, juce::Justification::centredLeft);
+    g.drawText ("AUTO ROLL", autoRollBox.getX(), autoRollBox.getY() - 16,
+                autoRollBox.getWidth(), 14, juce::Justification::centredLeft);
     g.drawText ("BARS", barsRow.getX(), barsRow.getY() - 16,
                 barsRow.getWidth(), 14, juce::Justification::centredLeft);
     g.drawText ("OCTAVE", octaveRow.getX(), octaveRow.getY() - 16,
@@ -1200,26 +1186,26 @@ void ChordsEditor::resized()
 
     auto dice = dicePanel.reduced (12).withTrimmedTop (22);
 
-    // The roll stack: ROLL with AUTO and its cadence right underneath -
-    // one column, one feature.
-    auto rollStack = dice.removeFromLeft (104);
+    // Left: the action column - ROLL, and its automation dropdown below.
+    auto rollStack = dice.removeFromLeft (122);
     rollButton.setBounds (rollStack.removeFromTop (46));
-    rollStack.removeFromTop (5);
-    autoButton.setBounds (rollStack.removeFromTop (26));
-    rollStack.removeFromTop (17); // the EVERY caption breathes here
-    autoRollBox.setBounds (rollStack.removeFromTop (24));
+    rollStack.removeFromTop (22); // AUTO ROLL caption breathes here
+    autoRollBox.setBounds (rollStack.removeFromTop (26));
     dice.removeFromLeft (14);
 
+    // Right: the dice themselves, one captioned row per concept.
     lengthRow.setBounds (dice.removeFromTop (44).withTrimmedTop (16).withHeight (28));
     dice.removeFromTop (6);
 
-    // The ADD multi-select beside Simplify.
-    auto rowB = dice.removeFromTop (42);
-    auto addArea = rowB.removeFromLeft (juce::jmin (170, rowB.getWidth() * 55 / 100));
-    addRow.setBounds (addArea.withTrimmedTop (16).withHeight (26));
-    rowB.removeFromLeft (10);
-    simplifyToggle.setBounds (rowB.withSizeKeepingCentre (rowB.getWidth(), 22).translated (0, 8));
-    dice.removeFromTop (10);
+    auto sizeArea = dice.removeFromTop (42);
+    sizeRow.setBounds (sizeArea.removeFromLeft (juce::jmin (186, sizeArea.getWidth()))
+                           .withTrimmedTop (16).withHeight (26));
+    dice.removeFromTop (6);
+
+    auto checks = dice.removeFromTop (22);
+    simplifyToggle.setBounds (checks.removeFromLeft (checks.getWidth() / 2));
+    susToggle.setBounds (checks);
+    dice.removeFromTop (6);
 
     auto rowE = dice.removeFromTop (26);
     keyLockToggle.setBounds (rowE.removeFromLeft (80));

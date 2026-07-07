@@ -109,17 +109,18 @@ private:
     juce::TextButton menuButton, rollButton { "ROLL" }, playButton { "PLAY" },
                      freezeButton { "FREEZE" }, panicButton { "PANIC" };
     juce::Slider tempoBox;
-    // Toggle labels are sentence case throughout; ALL-CAPS is reserved for
-    // captions, panel titles and buttons.
-    juce::ToggleButton simplifyToggle { "Simplify" },
+    // DICE control language (QA round 11): buttons act, checkboxes toggle
+    // independent options, segments pick one-of-N, dropdowns hold lists.
+    // Toggle labels are sentence case; ALL-CAPS is for captions/titles/buttons.
+    juce::ToggleButton simplifyToggle { "Simplify chords" },
+                       susToggle { "Add sus chords" },
                        keyLockToggle { "Key lock" };
     juce::ComboBox keyBox, scaleBox;            // key lock: tonic + scale type
     juce::TextButton clickButton { "CLICK" };   // metronome, next to the tempo
     juce::Slider clickVolKnob;                  // click level, beside CLICK
-    juce::TextButton autoButton { "AUTO" };     // auto roll: stacked right under ROLL
-    juce::ComboBox autoRollBox;                 // "... every N loops"
+    juce::ComboBox autoRollBox;                 // AUTO ROLL: off / every N loops - one control
     SegmentRow lengthRow, barsRow, octaveRow,
-               addRow;                          // ADD: 7ths / 9ths / sus (9ths light 7ths)
+               sizeRow;                         // CHORD SIZE: triads / 7ths / 9ths
     juce::ComboBox outputBox;
     void rebuildKeyBox();
     juce::Slider volKnob;
