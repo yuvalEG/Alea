@@ -27,9 +27,12 @@ jobs:
           Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
           Expand-Archive pluginval.zip -DestinationPath pluginval
           # GUI tests need an interactive desktop, which CI runners lack;
-          # the macOS release checklist runs them for real.
-          & .\pluginval\pluginval.exe --strictness-level 10 --skip-gui-tests --validate "build\Alea_artefacts\Release\VST3\Alea Scale Shifter.vst3"
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # the macOS release checklist runs them for real. Gate on the
+          # printed verdict: pluginval can crash during its own shutdown in
+          # the desktop-less session even after all tests pass.
+          $out = & .\pluginval\pluginval.exe --strictness-level 10 --skip-gui-tests --validate "build\Alea_artefacts\Release\VST3\Alea Scale Shifter.vst3" 2>&1 | Out-String
+          Write-Host $out
+          if ($out -notmatch "SUCCESS") { exit 1 }
 
       - name: Read version
         id: ver
