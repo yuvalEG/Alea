@@ -142,10 +142,13 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
     const auto b = getLocalBounds().toFloat();
 
     bool lit[128] = {};
-    const auto packed = proc.soundingPacked.load();
-    for (int i = 0; i < 8; ++i)
-        if (const int byte = (int) ((packed >> (8 * i)) & 0xFF); byte > 0)
-            lit[juce::jlimit (0, 127, byte - 1)] = true;
+    const auto lo = proc.soundingBitsLo.load();
+    const auto hi = proc.soundingBitsHi.load();
+    for (int n = 0; n < 64; ++n)
+    {
+        lit[n] = ((lo >> n) & 1) != 0;
+        lit[n + 64] = ((hi >> n) & 1) != 0;
+    }
 
     auto isBlack = [] (int n) { const int pc = n % 12; return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
 
@@ -541,8 +544,15 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     };
     addAndMakeVisible (octaveRow);
 
-    metronomeToggle.onClick = [this] { chordsProc.metronomeOn.store (metronomeToggle.getToggleState()); };
-    addAndMakeVisible (metronomeToggle);
+    // Metronome lives next to the tempo - a mode toggle, so the shared
+    // white accent (colored accents stay reserved for meaning).
+    clickButton.setClickingTogglesState (true);
+    clickButton.setColour (juce::TextButton::buttonColourId, colors::control);
+    clickButton.setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.92f));
+    clickButton.setColour (juce::TextButton::textColourOffId, colors::text);
+    clickButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+    clickButton.onClick = [this] { chordsProc.metronomeOn.store (clickButton.getToggleState()); };
+    addAndMakeVisible (clickButton);
 
     // Auto roll: fresh dice every N loops - hands stay on the instrument.
     autoRollToggle.onClick = [this] { chordsProc.autoRollOn.store (autoRollToggle.getToggleState()); };
@@ -612,7 +622,7 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
                      (juce::Component*) &freezeButton, (juce::Component*) &panicButton,
                      (juce::Component*) &playButton, (juce::Component*) &outputBox,
                      (juce::Component*) &volKnob, (juce::Component*) &tempoBox,
-                     (juce::Component*) &metronomeToggle, (juce::Component*) &autoRollToggle,
+                     (juce::Component*) &clickButton, (juce::Component*) &autoRollToggle,
                      (juce::Component*) &autoRollBox })
         c->setWantsKeyboardFocus (false);
     setWantsKeyboardFocus (true);
@@ -669,7 +679,8 @@ void ChordsEditor::timerCallback()
     // Live playback feedback: light the sounding card, run its progress
     // strip, drive the meter, dim the OUT extras when a MIDI device owns
     // the sound.
-    const int sounding = chordsProc.playingChord.load();
+    const bool swapWaiting = chordsProc.swapPending();
+    const int sounding = swapWaiting ? -1 : chordsProc.playingChord.load();
     const float progress = chordsProc.chordProgress.load();
     const bool loopRunning = chordsProc.playing.load();
     for (int i = 0; i < cards.size(); ++i)
@@ -691,9 +702,12 @@ void ChordsEditor::timerCallback()
     }
 
     // Monitor strip follows the sounding notes.
-    if (const auto packed = chordsProc.soundingPacked.load(); packed != lastSounding)
+    const auto bitsLo = chordsProc.soundingBitsLo.load();
+    const auto bitsHi = chordsProc.soundingBitsHi.load();
+    if (bitsLo != lastSounding || bitsHi != lastSoundingHi)
     {
-        lastSounding = packed;
+        lastSounding = bitsLo;
+        lastSoundingHi = bitsHi;
         monitor.repaint();
     }
 
@@ -756,7 +770,7 @@ void ChordsEditor::refresh()
     octaveRow.mask = juce::jlimit (1, 7, chordsProc.octaveMask.load());
     octaveRow.repaint();
     tempoBox.setValue ((double) chordsProc.bpm.load(), juce::dontSendNotification);
-    metronomeToggle.setToggleState (chordsProc.metronomeOn.load(), juce::dontSendNotification);
+    clickButton.setToggleState (chordsProc.metronomeOn.load(), juce::dontSendNotification);
     autoRollToggle.setToggleState (chordsProc.autoRollOn.load(), juce::dontSendNotification);
     autoRollBox.setSelectedId (chordsProc.autoRollLoops.load(), juce::dontSendNotification);
     volKnob.setValue ((double) chordsProc.synthVolDb.load(), juce::dontSendNotification);
@@ -926,10 +940,18 @@ void ChordsEditor::paint (juce::Graphics& g)
     g.fillEllipse ((float) statusX, 23.0f, 10.0f, 10.0f);
     if (getWidth() > 620)
     {
+        // While switching, print what is still sounding - the card is gone
+        // but the ear isn't.
+        juce::String status = pending ? "switching" : isPlaying ? "playing" : "stopped";
+        if (pending)
+        {
+            const int idx = chordsProc.playingChord.load();
+            if (idx >= 0 && idx < (int) chordsProc.pendingOldSeries.size())
+                status << juce::String::fromUTF8 (" \xc2\xb7 ") << chordsProc.pendingOldSeries[(size_t) idx].text();
+        }
         g.setColour (pending ? colors::amber : colors::secondary);
         g.setFont (juce::FontOptions (13.0f));
-        g.drawText (pending ? "switching" : isPlaying ? "playing" : "stopped",
-                    statusX + 16, 0, 80, 56, juce::Justification::centredLeft);
+        g.drawText (status, statusX + 16, 0, 170, 56, juce::Justification::centredLeft);
     }
 
     // While the swap waits, the old chord drains out along an amber strip
@@ -999,7 +1021,8 @@ void ChordsEditor::resized()
     menuButton.setBounds (header.getRight() - 48, 14, 36, 28);
     panicButton.setBounds (menuButton.getX() - 8 - 66, 15, 66, 26);
     tempoBox.setBounds (panicButton.getX() - 8 - 100, 15, 100, 26);
-    playButton.setBounds (tempoBox.getX() - 8 - 74, 15, 74, 26);
+    clickButton.setBounds (tempoBox.getX() - 8 - 62, 15, 62, 26);
+    playButton.setBounds (clickButton.getX() - 8 - 74, 15, 74, 26);
     freezeButton.setBounds (playButton.getX() - 8 - 74, 15, 74, 26);
 
     auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
@@ -1031,9 +1054,7 @@ void ChordsEditor::resized()
     barsRow.setBounds (controlsRow.removeFromLeft (78));
     controlsRow.removeFromLeft (14);
     octaveRow.setBounds (controlsRow.removeFromLeft (78));
-    controlsRow.removeFromLeft (12);
-    metronomeToggle.setBounds (controlsRow.removeFromLeft (70));
-    controlsRow.removeFromLeft (10);
+    controlsRow.removeFromLeft (14);
     meterRect = controlsRow.removeFromRight (12).withSizeKeepingCentre (12, 40).translated (0, -6);
     controlsRow.removeFromRight (4);
     volKnob.setBounds (controlsRow.removeFromRight (44).withSizeKeepingCentre (42, 42).translated (0, -7));

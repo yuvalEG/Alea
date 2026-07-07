@@ -1,5 +1,6 @@
 #include "ChordsProcessor.h"
 #include "ChordsEditor.h"
+#include <algorithm>
 
 ChordsProcessor::ChordsProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
@@ -22,8 +23,21 @@ bool ChordsProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 //==============================================================================
 // Chord state (message thread)
 
+void ChordsProcessor::markSeriesChange()
+{
+    // Only the FIRST change while a swap is pending snapshots the sounding
+    // series - roll twice quickly and the audio is still on the original.
+    if (playing.load() && ! seriesSwapPending.load())
+    {
+        pendingOldSeries = series;
+        seriesSwapPending.store (true);
+    }
+}
+
 void ChordsProcessor::rollSeries()
 {
+    markSeriesChange();
+
     if (! series.empty())
     {
         history.push_front (series);
@@ -40,6 +54,7 @@ void ChordsProcessor::rollSeries()
 
 void ChordsProcessor::setSeriesLength (int newLength)
 {
+    markSeriesChange();
     seriesLength = juce::jlimit (1, 8, newLength);
 
     // Growing rolls fresh chords into the new slots; shrinking truncates.
@@ -57,6 +72,8 @@ void ChordsProcessor::recallRoll (int index)
 {
     if (index < 0 || index >= (int) history.size())
         return;
+
+    markSeriesChange();
 
     // Non-destructive: the recalled roll stays in history; the outgoing
     // series joins it up front, so nothing is ever lost by recalling.
@@ -85,7 +102,8 @@ void ChordsProcessor::trimHistory()
 
 void ChordsProcessor::updateLoop()
 {
-    // Each chord's voicing lands in a random one of the checked octaves.
+    // Every checked octave sounds together - the voicing doubles across
+    // them. The chords are this app's only dice; octaves are a choice.
     juce::Array<int> octaves;
     for (int o = 2; o <= 4; ++o)
         if ((octaveMask.load() >> (o - 2)) & 1)
@@ -98,9 +116,11 @@ void ChordsProcessor::updateLoop()
     for (const auto& c : series)
     {
         PlayChord pc;
-        for (auto note : chords::midiNotes (c, octaves[rng.nextInt (octaves.size())]))
-            if (pc.count < 8 && note >= 0 && note <= 127)
-                pc.notes[pc.count++] = note;
+        for (auto oct : octaves)
+            for (auto note : chords::midiNotes (c, oct))
+                if (pc.count < 16 && note >= 0 && note <= 127
+                    && std::find (pc.notes, pc.notes + pc.count, note) == pc.notes + pc.count)
+                    pc.notes[pc.count++] = note;
         fresh.push_back (pc);
     }
 
@@ -123,6 +143,7 @@ bool ChordsProcessor::copyLoopIfDirty()
         return false;
     currentLoop = nextLoop;
     loopDirty.store (false);
+    seriesSwapPending.store (false); // the swap (if any) just landed
     return true;
 }
 
@@ -131,7 +152,8 @@ void ChordsProcessor::stopSoundingNotes (juce::MidiBuffer& midi, int sampleOffse
     for (int i = 0; i < soundingCount; ++i)
         midi.addEvent (juce::MidiMessage::noteOff (1, soundingNotes[i]), sampleOffset);
     soundingCount = 0;
-    soundingPacked.store (0);
+    soundingBitsLo.store (0);
+    soundingBitsHi.store (0);
 }
 
 void ChordsProcessor::prepareToPlay (double sampleRate, int)
@@ -257,22 +279,17 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
                 stopSoundingNotes (localMidi, offset); // offs, then ons, same sample
                 const auto& pc = currentLoop[(size_t) chordIdx];
-                juce::uint64 packed = 0;
+                juce::uint64 lo = 0, hi = 0;
                 for (int i = 0; i < pc.count; ++i)
                 {
                     localMidi.addEvent (juce::MidiMessage::noteOn (1, pc.notes[i], 0.72f), offset);
                     soundingNotes[soundingCount++] = pc.notes[i];
-                    packed |= (juce::uint64) (pc.notes[i] + 1) << (8 * i);
+                    if (pc.notes[i] < 64) lo |= (juce::uint64) 1 << pc.notes[i];
+                    else                  hi |= (juce::uint64) 1 << (pc.notes[i] - 64);
                 }
-                soundingPacked.store (packed);
+                soundingBitsLo.store (lo);
+                soundingBitsHi.store (hi);
                 samplesIntoBeat = 0;
-
-                // Auto roll: entering the last chord of the Nth pass, ask the
-                // message thread for fresh dice - the swap lands on the wrap.
-                if (autoRollOn.load() && ! autoRollPending.load() && ! loopDirty.load()
-                    && chordIdx == (int) currentLoop.size() - 1
-                    && loopsCompleted >= autoRollLoops.load() - 1)
-                    autoRollPending.store (true);
             }
 
             if (samplesIntoBeat >= beatLen)
@@ -288,6 +305,18 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             samplesIntoChord += step;
             samplesIntoBeat += step;
 
+            // Auto roll fires a moment (~350 ms) before the Nth pass ends -
+            // the current chord stays on screen for almost its whole
+            // duration, and the fresh series still lands on the wrap.
+            if (autoRollOn.load() && ! autoRollPending.load() && ! loopDirty.load()
+                && chordIdx == (int) currentLoop.size() - 1
+                && loopsCompleted >= autoRollLoops.load() - 1)
+            {
+                const auto lead = juce::jmin (chordLen / 4, (juce::int64) (sampleRate * 0.35));
+                if (samplesIntoChord >= chordLen - lead)
+                    autoRollPending.store (true);
+            }
+
             if (samplesIntoChord >= chordLen)
             {
                 samplesIntoChord = 0;
@@ -299,9 +328,10 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             }
         }
 
-        // A pending roll waits at most one chord; until it lands, the cards
-        // already show the new series, so no highlight (the UI never lies).
-        playingChord.store (currentLoop.empty() || loopDirty.load() ? -1 : chordIdx);
+        // The UI suppresses the card highlight itself while a swap is
+        // pending (and prints the sounding chord from pendingOldSeries,
+        // indexed by this).
+        playingChord.store (currentLoop.empty() ? -1 : chordIdx);
         chordProgress.store ((float) ((double) samplesIntoChord / (double) chordLen));
     }
     else

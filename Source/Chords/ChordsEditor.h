@@ -107,8 +107,8 @@ private:
     juce::Slider tempoBox;
     juce::ToggleButton seventhToggle { "Use Seventh Chords" },
                        simplifyToggle { "Simplify Chords" },
-                       metronomeToggle { "Click" },
                        autoRollToggle { "Auto roll after" };
+    juce::TextButton clickButton { "CLICK" };   // metronome, next to the tempo
     juce::ComboBox autoRollBox;
     SegmentRow lengthRow, barsRow, octaveRow;
     juce::ComboBox outputBox;
@@ -125,6 +125,7 @@ private:
     bool lastSynthOn = true;
     bool lastPlaying = false;
     bool lastPending = false;
+    juce::uint64 lastSoundingHi = 0;
     juce::uint64 lastSounding = 0;
     int devicePollCountdown = 90;     // ~3s at 30 Hz: MIDI hotplug refresh
 

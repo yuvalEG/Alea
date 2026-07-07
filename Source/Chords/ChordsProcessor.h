@@ -48,8 +48,14 @@ public:
     std::atomic<int>   autoRollLoops { 2 };
 
     // A mid-play roll waits (at most one chord) for the next boundary; the
-    // UI shows the old chord draining out while this is true.
-    bool swapPending() const { return loopDirty.load(); }
+    // UI shows the old chord draining out while this is true. Re-voicing
+    // (octave changes) also lands at the boundary but is NOT a swap - the
+    // chords stay the same, so no "switching" theater.
+    bool swapPending() const { return seriesSwapPending.load(); }
+
+    // While a swap is pending, this is the series still sounding (message
+    // thread only) - the UI prints the sounding chord from it.
+    std::vector<chords::Chord> pendingOldSeries;
 
     // Performance controls (family header pattern): FREEZE holds the current
     // chord - time stops, the notes sustain - and PANIC silences everything.
@@ -58,9 +64,9 @@ public:
     std::atomic<bool>  panicRequest { false };
     std::atomic<int>   jumpRequest { -1 };            // card index to jump to
 
-    // Sounding chord notes for the monitor keyboard: 8 bytes, each note+1
-    // (0 = empty slot).
-    std::atomic<juce::uint64> soundingPacked { 0 };
+    // Sounding notes for the monitor keyboard, as a 128-bit bitmask (octave
+    // doubling can sound up to 12 notes at once).
+    std::atomic<juce::uint64> soundingBitsLo { 0 }, soundingBitsHi { 0 };
 
     // Output choice, mirroring Scale Shifter's standalone OUT chooser:
     // built-in synth (default) or a MIDI device.
@@ -102,13 +108,15 @@ private:
     // The message thread publishes the series as pre-voiced chords; the audio
     // thread adopts them at transport start and at each loop wrap, so a roll
     // during playback lets the current pass finish cleanly.
-    struct PlayChord { int notes[8] = {}; int count = 0; };
+    struct PlayChord { int notes[16] = {}; int count = 0; }; // up to 4 notes x 3 octaves
     bool copyLoopIfDirty();                  // audio thread, try-lock
     void stopSoundingNotes (juce::MidiBuffer&, int sampleOffset);
+    void markSeriesChange();                 // message thread, BEFORE mutating series
 
     juce::CriticalSection loopLock;
     std::vector<PlayChord> nextLoop;         // guarded by loopLock
     std::atomic<bool> loopDirty { false };
+    std::atomic<bool> seriesSwapPending { false };
 
     std::vector<PlayChord> currentLoop;
     int chordIdx = 0;
@@ -116,7 +124,7 @@ private:
     juce::int64 samplesIntoBeat = 0;
     int loopsCompleted = 0;
     bool wasPlaying = false;
-    int soundingNotes[8] = {};
+    int soundingNotes[16] = {};
     int soundingCount = 0;
 
     // Auto roll handshake: the audio thread raises the flag, the message
@@ -150,7 +158,7 @@ private:
         int note = -1;        // -1 = released (may still be ringing)
         int heldSamples = 0;  // how long the note was held - scales the release
     };
-    std::array<SynthVoice, 8> voices;
+    std::array<SynthVoice, 16> voices; // room for a full three-octave doubling
     int nextVoice = 0;
     std::vector<float> delayLineL, delayLineR;
     int delayPosL = 0, delayPosR = 0;
