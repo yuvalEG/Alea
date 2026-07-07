@@ -85,6 +85,63 @@ clap_juce_extensions_plugin(TARGET Alea
     CLAP_ID "com.alea-audio.alea"
     CLAP_FEATURES instrument "note-effect" generator)
 
+# ---------------------------------------------------------------------------
+# Alea Chord Randomizer: the second Alea product. Standalone-only until its
+# M4 milestone brings plugin formats. Versioned independently of Scale
+# Shifter; its release tags use the "chords-v" prefix.
+set(CHORDS_VERSION 0.1.0)
+
+juce_add_plugin(AleaChords
+    PRODUCT_NAME "Alea Chord Randomizer"
+    VERSION ${CHORDS_VERSION}
+    COMPANY_NAME "Alea Audio"
+    BUNDLE_ID com.alea-audio.chords
+    PLUGIN_MANUFACTURER_CODE Alau
+    PLUGIN_CODE Achd
+    ${ALEA_ICON_ARGS}
+    FORMATS Standalone
+    IS_SYNTH TRUE
+    IS_MIDI_EFFECT FALSE
+    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_OUTPUT FALSE
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+
+target_sources(AleaChords PRIVATE
+    Source/Chords/ChordEngine.cpp
+    Source/Chords/ChordsProcessor.cpp
+    Source/Chords/ChordsEditor.cpp)
+
+target_compile_definitions(AleaChords PUBLIC
+    CHORDS_VERSION="${CHORDS_VERSION}"
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0)
+
+target_link_libraries(AleaChords
+    PRIVATE
+        AleaAssets
+        juce::juce_audio_utils
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_lto_flags
+        juce::juce_recommended_warning_flags)
+
+# Dev tool: renders the Chord Randomizer editor to a PNG (not shipped).
+juce_add_console_app(ChordsUISnapshot PRODUCT_NAME "ChordsUISnapshot")
+target_sources(ChordsUISnapshot PRIVATE
+    Tools/ChordsUISnapshot.cpp
+    Source/Chords/ChordEngine.cpp
+    Source/Chords/ChordsProcessor.cpp
+    Source/Chords/ChordsEditor.cpp)
+target_compile_definitions(ChordsUISnapshot PRIVATE
+    CHORDS_VERSION="${CHORDS_VERSION}"
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JucePlugin_Name="Alea Chord Randomizer")
+target_link_libraries(ChordsUISnapshot
+    PRIVATE AleaAssets juce::juce_audio_utils
+    PUBLIC juce::juce_recommended_config_flags)
+
 # Dev tool: renders the editor to a PNG for layout checks (not shipped).
 juce_add_console_app(AleaUISnapshot PRODUCT_NAME "AleaUISnapshot")
 target_sources(AleaUISnapshot PRIVATE
