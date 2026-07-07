@@ -451,6 +451,35 @@ void MorphBar::mouseUp (const juce::MouseEvent&)
 }
 
 //==============================================================================
+void TransportButton::paintButton (juce::Graphics& g, bool over, bool)
+{
+    auto b = getLocalBounds().toFloat();
+    const bool on = getToggleState();
+    g.setColour (on ? colors::green : colors::green.withAlpha (over ? 0.24f : 0.16f));
+    g.fillRoundedRectangle (b, 5.0f);
+    g.setColour (on ? colors::green : colors::green.withAlpha (0.75f));
+    g.drawRoundedRectangle (b.reduced (0.6f), 5.0f, 1.2f);
+
+    g.setColour (on ? juce::Colours::black : colors::green.brighter (0.45f));
+    const float cy = b.getCentreY();
+    const float ix = 17.0f;
+    if (on) // pause bars: the clock holds, it does not reset
+    {
+        g.fillRoundedRectangle (ix - 6.5f, cy - 6.0f, 4.0f, 12.0f, 1.0f);
+        g.fillRoundedRectangle (ix + 0.5f, cy - 6.0f, 4.0f, 12.0f, 1.0f);
+    }
+    else
+    {
+        juce::Path p;
+        p.addTriangle (ix - 5.0f, cy - 6.5f, ix - 5.0f, cy + 6.5f, ix + 6.5f, cy);
+        g.fillPath (p);
+    }
+    g.setFont (juce::FontOptions (14.0f));
+    g.drawText (on ? "PAUSE" : "PLAY", (int) ix + 12, 0, getWidth() - (int) ix - 16, getHeight(),
+                juce::Justification::centredLeft);
+}
+
+//==============================================================================
 OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
 {
     const bool standalone = alea.wrapperType == juce::AudioProcessor::wrapperType_Standalone;

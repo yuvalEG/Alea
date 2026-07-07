@@ -176,6 +176,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     setupSlider (lengthFree, "lengthFree", colors::text.withAlpha (0.6f));
     setupSlider (morphDurFree, "morphDurFree", colors::amber);
     setupSlider (internalTempo, "internalTempo", colors::green);
+    // Compact "120 BPM" readout, matching the Chord Randomizer's tempo bar.
+    internalTempo.textFromValueFunction = [] (double v)
+    { return juce::String ((int) std::lround (v)) + " BPM"; };
+    internalTempo.updateText();
 
     // Sync divisions are fractions of a bar; in 4/4 that maps 1:1 onto note
     // values. Discrete sliders (like the octave controls): drag through the
@@ -283,17 +287,13 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     // takes keyboard focus; space belongs to the host there.
     setWantsKeyboardFocus (standalone);
     tempoSource.setVisible (! standalone);
-    playButton.setClickingTogglesState (true);
-    playButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    playButton.setColour (juce::TextButton::buttonOnColourId, colors::green);
-    playButton.setColour (juce::TextButton::textColourOffId, colors::text);
-    playButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+    // Drawn play/pause transport - shared design with the Chord Randomizer.
+    // The icon tells the truth: pausing holds the internal clock.
     playButton.onClick = [this]
     {
-        const bool on = playButton.getToggleState();
-        playButton.setButtonText (on ? "STOP" : "PLAY");
-        alea.standaloneTransport.store (on);
+        alea.standaloneTransport.store (playButton.getToggleState());
     };
+    playButton.setToggleState (alea.standaloneTransport.load(), juce::dontSendNotification);
     content.addChildComponent (playButton);
     playButton.setVisible (standalone);
 
@@ -315,7 +315,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     // far apart in the header so neither is hit by accident.
     freezeButton.setClickingTogglesState (true);
     freezeButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan.withAlpha (0.9f));
+    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::ice); // icy, not Scale B's cyan
     freezeButton.setColour (juce::TextButton::textColourOffId, colors::secondary);
     freezeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
     content.addAndMakeVisible (freezeButton);
@@ -493,7 +493,7 @@ void AleaAudioProcessorEditor::layoutMain()
     freezeButton.setBounds (vw - 560, 16, 80, 26);
     menuButton.setBounds (vw - 38, 16, 28, 26);
     panicButton.setBounds (vw - 120, 16, 72, 26);
-    internalTempo.setBounds (vw - 262, 16, 130, 26);
+    internalTempo.setBounds (vw - 232, 16, 100, 26);
     tempoSource.setBounds (vw - 410, 16, 140, 26);
     playButton.setBounds (vw - 424, 16, 88, 26);
 

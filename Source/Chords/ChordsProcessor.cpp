@@ -256,6 +256,7 @@ void ChordsProcessor::stopSoundingNotes (juce::MidiBuffer& midi, int sampleOffse
 void ChordsProcessor::prepareToPlay (double sampleRate, int)
 {
     wasPlaying = false;
+    resumeRetrigger = false;
     soundingCount = 0;
     samplesIntoChord = 0;
     samplesIntoBeat = 0;
@@ -310,12 +311,19 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
     if (isPlaying && ! wasPlaying)
     {
-        // Transport start: from the top, with the freshest series.
-        chordIdx = 0;
-        samplesIntoChord = 0;
-        samplesIntoBeat = 0;
-        loopsCompleted = 0;
-        copyLoopIfDirty();
+        // The transport pauses, it does not stop: resume exactly where the
+        // loop held - unless the series changed while paused (roll, recall,
+        // re-voice), which restarts the fresh material from the top.
+        const bool fresh = copyLoopIfDirty();
+        if (fresh || currentLoop.empty() || chordIdx >= (int) currentLoop.size())
+        {
+            chordIdx = 0;
+            samplesIntoChord = 0;
+            samplesIntoBeat = 0;
+            loopsCompleted = 0;
+        }
+        else if (samplesIntoChord > 0)
+            resumeRetrigger = true; // re-strike the held chord mid-progress
     }
     if (! isPlaying && wasPlaying)
     {
@@ -355,6 +363,24 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         const auto barsNow = (double) juce::jlimit (1, 4, barsPerChord.load());
         const auto beatLen = juce::jmax ((juce::int64) 1, (juce::int64) (sampleRate * 60.0 / bpmNow));
         const auto chordLen = juce::jmax ((juce::int64) 1, beatLen * 4 * (juce::int64) barsNow); // 4/4 only
+
+        // Resuming mid-chord: the notes were released on pause, so strike
+        // the current chord again without touching its progress.
+        if (resumeRetrigger && ! currentLoop.empty() && chordIdx < (int) currentLoop.size())
+        {
+            const auto& pc = currentLoop[(size_t) chordIdx];
+            juce::uint64 lo = 0, hi = 0;
+            for (int i = 0; i < pc.count; ++i)
+            {
+                localMidi.addEvent (juce::MidiMessage::noteOn (1, pc.notes[i], 0.72f), 0);
+                soundingNotes[soundingCount++] = pc.notes[i];
+                if (pc.notes[i] < 64) lo |= (juce::uint64) 1 << pc.notes[i];
+                else                  hi |= (juce::uint64) 1 << (pc.notes[i] - 64);
+            }
+            soundingBitsLo.store (lo);
+            soundingBitsHi.store (hi);
+        }
+        resumeRetrigger = false;
 
         int offset = 0;
         while (offset < numSamples && ! (currentLoop.empty() && ! loopDirty.load()))

@@ -20,7 +20,18 @@ namespace colors
     const juce::Colour green      { 0xff10b981 };
     const juce::Colour red        { 0xffef4444 };
     const juce::Colour playing    { 0xff22c55e };
+    const juce::Colour ice        { 0xff9bdcf0 }; // FREEZE active - icy, distinct from scale-B cyan
 }
+
+// Standalone transport: drawn play triangle / pause bars plus a label -
+// prominent, green, and the icon tells the truth (pausing holds the clock).
+// Shared design language with Alea Chord Randomizer's transport.
+class TransportButton : public juce::Button
+{
+public:
+    TransportButton() : juce::Button ("transport") { setClickingTogglesState (true); }
+    void paintButton (juce::Graphics&, bool over, bool down) override;
+};
 
 juce::String noteName (int midiNote); // C3 = 60 display convention
 

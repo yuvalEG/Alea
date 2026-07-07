@@ -18,6 +18,7 @@ namespace
         const juce::Colour playing    { 0xff22c55e };
         const juce::Colour amber      { 0xfff59e0b };
         const juce::Colour red        { 0xffef4444 };
+        const juce::Colour ice        { 0xff9bdcf0 }; // FREEZE active - icy, cyan means "next" here
     }
 
     float textWidth (const juce::Font& font, const juce::String& s)
@@ -164,26 +165,32 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
 
 void ChordsEditor::TransportButton::paintButton (juce::Graphics& g, bool over, bool)
 {
+    // Shared family design (see ui::TransportButton in Scale Shifter):
+    // green, labeled, and the icon tells the truth - pausing holds.
     auto b = getLocalBounds().toFloat();
     const bool on = getToggleState();
-    g.setColour (on ? colors::green : over ? colors::control.brighter (0.10f) : colors::control);
+    g.setColour (on ? colors::green : colors::green.withAlpha (over ? 0.24f : 0.16f));
     g.fillRoundedRectangle (b, 5.0f);
-    g.setColour (colors::border);
-    g.drawRoundedRectangle (b.reduced (0.5f), 5.0f, 1.0f);
+    g.setColour (on ? colors::green : colors::green.withAlpha (0.75f));
+    g.drawRoundedRectangle (b.reduced (0.6f), 5.0f, 1.2f);
 
-    g.setColour (on ? juce::Colours::black : colors::text);
-    const auto c = b.getCentre();
-    if (on) // pause bars while running
+    g.setColour (on ? juce::Colours::black : colors::green.brighter (0.45f));
+    const float cy = b.getCentreY();
+    const float ix = 17.0f;
+    if (on) // pause bars: the loop holds its place, it does not reset
     {
-        g.fillRoundedRectangle (c.x - 5.5f, c.y - 6.0f, 4.0f, 12.0f, 1.0f);
-        g.fillRoundedRectangle (c.x + 1.5f, c.y - 6.0f, 4.0f, 12.0f, 1.0f);
+        g.fillRoundedRectangle (ix - 6.5f, cy - 6.0f, 4.0f, 12.0f, 1.0f);
+        g.fillRoundedRectangle (ix + 0.5f, cy - 6.0f, 4.0f, 12.0f, 1.0f);
     }
-    else // play triangle
+    else
     {
         juce::Path p;
-        p.addTriangle (c.x - 4.0f, c.y - 6.5f, c.x - 4.0f, c.y + 6.5f, c.x + 7.0f, c.y);
+        p.addTriangle (ix - 5.0f, cy - 6.5f, ix - 5.0f, cy + 6.5f, ix + 6.5f, cy);
         g.fillPath (p);
     }
+    g.setFont (juce::FontOptions (14.0f));
+    g.drawText (on ? "PAUSE" : "PLAY", (int) ix + 12, 0, getWidth() - (int) ix - 16, getHeight(),
+                juce::Justification::centredLeft);
 }
 
 void ChordsEditor::ChordCard::mouseUp (const juce::MouseEvent& e)
@@ -570,11 +577,11 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
 
     // FREEZE holds the sounding chord (time stops); PANIC is instant silence.
     // Opposite jobs, opposite ends of the header - the family rule. Active
-    // FREEZE wears the white mode accent (NOT Scale Shifter's cyan: in this
-    // app cyan means "next").
+    // FREEZE wears the family ice blue (same in both apps; plain cyan is
+    // taken by meaning in each).
     freezeButton.setClickingTogglesState (true);
     freezeButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.92f));
+    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::ice);
     freezeButton.setColour (juce::TextButton::textColourOffId, colors::text);
     freezeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
     freezeButton.onClick = [this] { chordsProc.frozen.store (freezeButton.getToggleState()); };
@@ -1163,6 +1170,11 @@ void ChordsEditor::paint (juce::Graphics& g)
     paintPanel (dicePanel, "DICE");
     paintPanel (loopPanel, "LOOP");
 
+    // Divider between the roll column and the dice configuration - both are
+    // dice business, but acting and configuring are different verbs.
+    g.setColour (colors::border);
+    g.fillRect (rollButton.getRight() + 7, dicePanel.getY() + 34, 1, dicePanel.getHeight() - 48);
+
     // Control captions.
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (12.0f));
@@ -1211,8 +1223,8 @@ void ChordsEditor::resized()
 
     // The transport sits mid-header (window-centered when there is room,
     // nudged into the free lane between the status and the right cluster).
-    const int playX = juce::jlimit (384, freezeButton.getX() - 54, getWidth() / 2 - 22);
-    playButton.setBounds (playX, 14, 44, 28);
+    const int playX = juce::jlimit (384, freezeButton.getX() - 106, getWidth() / 2 - 48);
+    playButton.setBounds (playX, 14, 96, 28);
 
     auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
     ticker.setBounds (hist);
