@@ -305,17 +305,16 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             samplesIntoChord += step;
             samplesIntoBeat += step;
 
-            // Auto roll fires a moment (~350 ms) before the Nth pass ends -
-            // the current chord stays on screen for almost its whole
-            // duration, and the fresh series still lands on the wrap.
+            // Auto roll fires entering the last chord of the Nth pass. The
+            // cards keep showing the sounding series until the wrap (the
+            // editor uses pendingOldSeries), with the fresh one previewed
+            // in amber - so the whole last chord doubles as a preview.
             if (autoRollOn.load() && ! autoRollPending.load() && ! loopDirty.load()
+                && samplesIntoBeat == (juce::int64) step // a boundary just started this chunk
+                && samplesIntoChord == (juce::int64) step
                 && chordIdx == (int) currentLoop.size() - 1
                 && loopsCompleted >= autoRollLoops.load() - 1)
-            {
-                const auto lead = juce::jmin (chordLen / 4, (juce::int64) (sampleRate * 0.35));
-                if (samplesIntoChord >= chordLen - lead)
-                    autoRollPending.store (true);
-            }
+                autoRollPending.store (true);
 
             if (samplesIntoChord >= chordLen)
             {
@@ -376,7 +375,8 @@ void ChordsProcessor::renderClicks (juce::AudioBuffer<float>& buffer)
             clickPhase = 0.0;
             clickInc = juce::MathConstants<double>::twoPi * (clickEvents[next].accent ? 2093.0 : 1397.0) / sampleRate;
             clickEnv = 1.0f;
-            clickGain = clickEvents[next].accent ? 0.22f : 0.15f;
+            clickGain = (clickEvents[next].accent ? 0.30f : 0.20f)
+                        * juce::Decibels::decibelsToGain (clickVolDb.load());
             ++next;
         }
         if (clickEnv > 0.001f)
@@ -638,6 +638,7 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("barsPerChord", barsPerChord.load(), nullptr);
     state.setProperty ("octaves", octaveMask.load(), nullptr);
     state.setProperty ("metronome", metronomeOn.load(), nullptr);
+    state.setProperty ("clickVol", (double) clickVolDb.load(), nullptr);
     state.setProperty ("autoRoll", autoRollOn.load(), nullptr);
     state.setProperty ("autoRollLoops", autoRollLoops.load(), nullptr);
     state.setProperty ("output", getStandaloneOutput(), nullptr);
@@ -679,6 +680,7 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     const int legacyMask = 1 << (juce::jlimit (2, 4, (int) state.getProperty ("octave", 3)) - 2);
     octaveMask.store (juce::jlimit (1, 7, (int) state.getProperty ("octaves", legacyMask)));
     metronomeOn.store (state.getProperty ("metronome", false));
+    clickVolDb.store (juce::jlimit (-12.0f, 12.0f, (float) (double) state.getProperty ("clickVol", 0.0)));
     autoRollOn.store (state.getProperty ("autoRoll", false));
     autoRollLoops.store (juce::jlimit (1, 8, (int) state.getProperty ("autoRollLoops", 2)));
     synthVolDb.store (juce::jlimit (-24.0f, 6.0f, (float) (double) state.getProperty ("synthVol", 0.0)));

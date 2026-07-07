@@ -554,6 +554,17 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     clickButton.onClick = [this] { chordsProc.metronomeOn.store (clickButton.getToggleState()); };
     addAndMakeVisible (clickButton);
 
+    clickVolKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    clickVolKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    clickVolKnob.setPopupDisplayEnabled (true, true, this);
+    clickVolKnob.setColour (juce::Slider::rotarySliderFillColourId, colors::text.withAlpha (0.8f));
+    clickVolKnob.setRange (-12.0, 12.0, 0.1);
+    clickVolKnob.setDoubleClickReturnValue (true, 0.0);
+    clickVolKnob.setValue ((double) chordsProc.clickVolDb.load(), juce::dontSendNotification);
+    clickVolKnob.setTextValueSuffix (" dB click");
+    clickVolKnob.onValueChange = [this] { chordsProc.clickVolDb.store ((float) clickVolKnob.getValue()); };
+    addAndMakeVisible (clickVolKnob);
+
     // Auto roll: fresh dice every N loops - hands stay on the instrument.
     autoRollToggle.onClick = [this] { chordsProc.autoRollOn.store (autoRollToggle.getToggleState()); };
     addAndMakeVisible (autoRollToggle);
@@ -623,7 +634,7 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
                      (juce::Component*) &playButton, (juce::Component*) &outputBox,
                      (juce::Component*) &volKnob, (juce::Component*) &tempoBox,
                      (juce::Component*) &clickButton, (juce::Component*) &autoRollToggle,
-                     (juce::Component*) &autoRollBox })
+                     (juce::Component*) &autoRollBox, (juce::Component*) &clickVolKnob })
         c->setWantsKeyboardFocus (false);
     setWantsKeyboardFocus (true);
 
@@ -679,8 +690,9 @@ void ChordsEditor::timerCallback()
     // Live playback feedback: light the sounding card, run its progress
     // strip, drive the meter, dim the OUT extras when a MIDI device owns
     // the sound.
-    const bool swapWaiting = chordsProc.swapPending();
-    const int sounding = swapWaiting ? -1 : chordsProc.playingChord.load();
+    // While a swap waits, the cards keep showing the OLD (sounding) series,
+    // so the highlight stays honest by construction.
+    const int sounding = chordsProc.playingChord.load();
     const float progress = chordsProc.chordProgress.load();
     const bool loopRunning = chordsProc.playing.load();
     for (int i = 0; i < cards.size(); ++i)
@@ -726,13 +738,15 @@ void ChordsEditor::timerCallback()
     if (chordsProc.frozen.load() != freezeButton.getToggleState())
         freezeButton.setToggleState (chordsProc.frozen.load(), juce::dontSendNotification);
 
-    // Amber drain bar while a mid-play roll waits for the chord boundary.
+    // Pending swap: cards show the sounding old series, the amber lane
+    // previews the incoming one; both flips need a refresh.
     const bool pending = loopRunning && chordsProc.swapPending();
-    if (pending || pending != lastPending)
+    if (pending != lastPending)
     {
         lastPending = pending;
-        repaint (pendingStrip.expanded (2));
-        repaint (0, 0, getWidth(), 56); // status word flips to "switching"
+        refresh();
+        repaint (previewLane.expanded (2));
+        repaint (0, 0, getWidth(), 56); // status word
     }
 
     const bool synth = chordsProc.synthOn.load();
@@ -771,19 +785,26 @@ void ChordsEditor::refresh()
     octaveRow.repaint();
     tempoBox.setValue ((double) chordsProc.bpm.load(), juce::dontSendNotification);
     clickButton.setToggleState (chordsProc.metronomeOn.load(), juce::dontSendNotification);
+    clickVolKnob.setValue ((double) chordsProc.clickVolDb.load(), juce::dontSendNotification);
     autoRollToggle.setToggleState (chordsProc.autoRollOn.load(), juce::dontSendNotification);
     autoRollBox.setSelectedId (chordsProc.autoRollLoops.load(), juce::dontSendNotification);
     volKnob.setValue ((double) chordsProc.synthVolDb.load(), juce::dontSendNotification);
     seventhToggle.setToggleState (chordsProc.useSevenths, juce::dontSendNotification);
     simplifyToggle.setToggleState (chordsProc.simplify, juce::dontSendNotification);
 
+    // While a swap is pending, the cards keep the sounding (old) series;
+    // the new one lives in the amber preview lane until it takes over.
+    const auto& shown = (chordsProc.playing.load() && chordsProc.swapPending()
+                         && ! chordsProc.pendingOldSeries.empty())
+                            ? chordsProc.pendingOldSeries
+                            : chordsProc.series;
     for (int i = 0; i < cards.size(); ++i)
     {
-        const bool shown = i < (int) chordsProc.series.size();
-        cards[i]->setVisible (shown);
-        if (shown)
+        const bool visible = i < (int) shown.size();
+        cards[i]->setVisible (visible);
+        if (visible)
         {
-            cards[i]->text = chordsProc.series[(size_t) i].text();
+            cards[i]->text = shown[(size_t) i].text();
             cards[i]->repaint();
         }
     }
@@ -940,29 +961,23 @@ void ChordsEditor::paint (juce::Graphics& g)
     g.fillEllipse ((float) statusX, 23.0f, 10.0f, 10.0f);
     if (getWidth() > 620)
     {
-        // While switching, print what is still sounding - the card is gone
-        // but the ear isn't.
-        juce::String status = pending ? "switching" : isPlaying ? "playing" : "stopped";
-        if (pending)
-        {
-            const int idx = chordsProc.playingChord.load();
-            if (idx >= 0 && idx < (int) chordsProc.pendingOldSeries.size())
-                status << juce::String::fromUTF8 (" \xc2\xb7 ") << chordsProc.pendingOldSeries[(size_t) idx].text();
-        }
         g.setColour (pending ? colors::amber : colors::secondary);
         g.setFont (juce::FontOptions (13.0f));
-        g.drawText (status, statusX + 16, 0, 170, 56, juce::Justification::centredLeft);
+        g.drawText (pending ? "switching" : isPlaying ? "playing" : "stopped",
+                    statusX + 16, 0, 80, 56, juce::Justification::centredLeft);
     }
 
-    // While the swap waits, the old chord drains out along an amber strip
-    // above the cards - what you hear is still visible.
+    // While the swap waits, the cards stay on the sounding series and the
+    // incoming one is previewed here in amber - see the last chord AND the
+    // next set at once.
     if (pending)
     {
-        const auto s = pendingStrip.toFloat();
-        g.setColour (colors::control);
-        g.fillRoundedRectangle (s, 2.0f);
-        g.setColour (colors::amber.withAlpha (0.8f));
-        g.fillRoundedRectangle (s.withWidth (s.getWidth() * juce::jlimit (0.0f, 1.0f, chordsProc.chordProgress.load())), 2.0f);
+        juce::String next ("next:");
+        for (const auto& c : chordsProc.series)
+            next << "   " << c.text();
+        g.setColour (colors::amber);
+        g.setFont (juce::FontOptions (15.0f));
+        g.drawText (next, previewLane, juce::Justification::centredLeft);
     }
 
     g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.35f), 0.0f, 0.0f,
@@ -1021,7 +1036,8 @@ void ChordsEditor::resized()
     menuButton.setBounds (header.getRight() - 48, 14, 36, 28);
     panicButton.setBounds (menuButton.getX() - 8 - 66, 15, 66, 26);
     tempoBox.setBounds (panicButton.getX() - 8 - 100, 15, 100, 26);
-    clickButton.setBounds (tempoBox.getX() - 8 - 62, 15, 62, 26);
+    clickVolKnob.setBounds (tempoBox.getX() - 4 - 30, 13, 30, 30);
+    clickButton.setBounds (clickVolKnob.getX() - 4 - 62, 15, 62, 26);
     playButton.setBounds (clickButton.getX() - 8 - 74, 15, 74, 26);
     freezeButton.setBounds (playButton.getX() - 8 - 74, 15, 74, 26);
 
@@ -1065,9 +1081,11 @@ void ChordsEditor::resized()
     // Monitor keyboard: the sounding chord, visible.
     monitor.setBounds (loop.withTrimmedTop (10));
 
-    // Series cards fill the middle, growing with the window.
-    auto area = b.reduced (16, 14);
-    pendingStrip = { area.getX(), area.getY() - 9, area.getWidth(), 4 };
+    // Series cards fill the middle, growing with the window, under the
+    // (usually empty) amber preview lane.
+    auto area = b.reduced (16, 8);
+    previewLane = area.removeFromTop (20);
+    area.removeFromTop (2);
     const int n = juce::jmax (1, (int) chordsProc.series.size());
     constexpr int gap = 12;
     const int cw = (area.getWidth() - gap * (n - 1)) / juce::jmax (1, n);

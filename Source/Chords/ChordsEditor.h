@@ -109,6 +109,7 @@ private:
                        simplifyToggle { "Simplify Chords" },
                        autoRollToggle { "Auto roll after" };
     juce::TextButton clickButton { "CLICK" };   // metronome, next to the tempo
+    juce::Slider clickVolKnob;                  // click level, beside CLICK
     juce::ComboBox autoRollBox;
     SegmentRow lengthRow, barsRow, octaveRow;
     juce::ComboBox outputBox;
@@ -120,7 +121,7 @@ private:
 
     juce::Rectangle<int> dicePanel, loopPanel;   // titled control blocks
     juce::Rectangle<int> meterRect;   // beside the knob when the synth is on
-    juce::Rectangle<int> pendingStrip; // amber drain bar above the cards
+    juce::Rectangle<int> previewLane; // "next: ..." amber line above the cards
     float meterLevel = 0.0f;          // falling peak
     bool lastSynthOn = true;
     bool lastPlaying = false;

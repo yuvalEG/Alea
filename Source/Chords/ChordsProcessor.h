@@ -40,6 +40,7 @@ public:
     std::atomic<int>   playingChord { -1 };           // series index sounding now, -1 = none
     std::atomic<float> chordProgress { 0.0f };        // 0..1 through the current chord
     std::atomic<bool>  metronomeOn { false };         // quarter-note click, accented on chord changes
+    std::atomic<float> clickVolDb { 0.0f };           // -12..+12 dB on top of the base click level
 
     // Auto roll: after N completed loops of the series, roll fresh dice.
     // Triggered entering the last chord of the Nth pass, so the new series
