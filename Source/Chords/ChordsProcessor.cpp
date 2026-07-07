@@ -11,8 +11,20 @@ ChordsProcessor::ChordsProcessor()
 
 void ChordsProcessor::timerCallback()
 {
-    if (autoRollPending.exchange (false))
+    if (autoRollPending.exchange (false) && playing.load())
         rollSeries();
+}
+
+chords::Chord ChordsProcessor::rollOne()
+{
+    chords::RollOptions opts;
+    opts.simplified = simplify;
+    opts.sevenths = useSevenths;
+    opts.sus = susOn;
+    opts.ninths = ninthsOn;
+    opts.keyLock = keyLockOn;
+    opts.keyIndex = keyIndex;
+    return chords::roll (rng, opts);
 }
 
 bool ChordsProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -44,11 +56,45 @@ void ChordsProcessor::rollSeries()
         trimHistory();
     }
 
-    series.clear();
+    // Pinned cards keep their chord; everything else rerolls.
+    std::vector<chords::Chord> fresh;
     for (int i = 0; i < seriesLength; ++i)
-        series.push_back (chords::roll (rng, simplify, useSevenths));
+        fresh.push_back (pinned[(size_t) i] && i < (int) series.size() ? series[(size_t) i]
+                                                                       : rollOne());
+    series = std::move (fresh);
 
     updateLoop();
+    ++revision;
+}
+
+void ChordsProcessor::togglePin (int index)
+{
+    if (index >= 0 && index < 8)
+    {
+        pinned[(size_t) index] = ! pinned[(size_t) index];
+        ++revision;
+    }
+}
+
+void ChordsProcessor::handleStopped()
+{
+    // Pausing must not switch what you were practicing: a still-unheard
+    // pending roll (typically auto roll's preview) is discarded and the
+    // sounding series restored. If that roll had pushed the old series
+    // into history, un-dup it.
+    autoRollPending.store (false);
+    if (! seriesSwapPending.load())
+        return;
+
+    if (! history.empty() && history.front() == pendingOldSeries)
+        history.pop_front();
+    if (! pendingOldSeries.empty())
+    {
+        series = pendingOldSeries;
+        seriesLength = juce::jlimit (1, 8, (int) series.size());
+    }
+    updateLoop();
+    seriesSwapPending.store (false);
     ++revision;
 }
 
@@ -62,7 +108,7 @@ void ChordsProcessor::setSeriesLength (int newLength)
     while ((int) series.size() > seriesLength)
         series.pop_back();
     while ((int) series.size() < seriesLength)
-        series.push_back (chords::roll (rng, simplify, useSevenths));
+        series.push_back (rollOne());
 
     updateLoop();
     ++revision;
@@ -82,6 +128,7 @@ void ChordsProcessor::recallRoll (int index)
         history.push_front (series);
     series = std::move (recalled);
     seriesLength = juce::jlimit (1, 8, (int) series.size());
+    pinned.fill (false); // a recalled roll starts unpinned
     trimHistory();
     updateLoop();
     ++revision;
@@ -632,6 +679,10 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("seriesLength", seriesLength, nullptr);
     state.setProperty ("useSevenths", useSevenths, nullptr);
     state.setProperty ("simplify", simplify, nullptr);
+    state.setProperty ("sus", susOn, nullptr);
+    state.setProperty ("ninths", ninthsOn, nullptr);
+    state.setProperty ("keyLock", keyLockOn, nullptr);
+    state.setProperty ("keyIndex", keyIndex, nullptr);
     state.setProperty ("uiWidth", lastUIWidth, nullptr);
     state.setProperty ("uiHeight", lastUIHeight, nullptr);
     state.setProperty ("bpm", (double) bpm.load(), nullptr);
@@ -645,12 +696,15 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("synthVol", (double) synthVolDb.load(), nullptr);
 
     juce::ValueTree seriesTree ("Series");
-    for (const auto& c : series)
+    for (size_t i = 0; i < series.size(); ++i)
     {
+        const auto& c = series[i];
         juce::ValueTree chord ("Chord");
         chord.setProperty ("root", c.root, nullptr);
         chord.setProperty ("quality", (int) c.quality, nullptr);
         chord.setProperty ("seventh", (int) c.seventh, nullptr);
+        chord.setProperty ("ninth", c.ninth, nullptr);
+        chord.setProperty ("pinned", i < 8 && pinned[i], nullptr);
         seriesTree.appendChild (chord, nullptr);
     }
     state.appendChild (seriesTree, nullptr);
@@ -672,6 +726,10 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     seriesLength = juce::jlimit (1, 8, (int) state.getProperty ("seriesLength", 4));
     useSevenths  = state.getProperty ("useSevenths", false);
     simplify     = state.getProperty ("simplify", true);
+    susOn        = state.getProperty ("sus", false);
+    ninthsOn     = state.getProperty ("ninths", false);
+    keyLockOn    = state.getProperty ("keyLock", false);
+    keyIndex     = juce::jlimit (0, chords::keyNames().size() - 1, (int) state.getProperty ("keyIndex", 0));
     lastUIWidth  = juce::jlimit (560, 4000, (int) state.getProperty ("uiWidth", 900));
     lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 560));
     bpm.store (juce::jlimit (30.0f, 300.0f, (float) (double) state.getProperty ("bpm", 90.0)));
@@ -688,12 +746,16 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
 
     auto seriesTree = state.getChildWithName ("Series");
     std::vector<chords::Chord> restored;
+    pinned.fill (false);
     for (auto chord : seriesTree)
     {
         chords::Chord c;
         c.root    = chord.getProperty ("root", "C").toString();
-        c.quality = (chords::Quality) juce::jlimit (0, 3, (int) chord.getProperty ("quality", 0));
+        c.quality = (chords::Quality) juce::jlimit (0, 5, (int) chord.getProperty ("quality", 0));
         c.seventh = (chords::Seventh) juce::jlimit (0, 3, (int) chord.getProperty ("seventh", 0));
+        c.ninth   = chord.getProperty ("ninth", false);
+        if (restored.size() < 8)
+            pinned[restored.size()] = chord.getProperty ("pinned", false);
         restored.push_back (c);
     }
 

@@ -18,13 +18,20 @@ public:
     int seriesLength = 4;                             // 1..8
     bool useSevenths = false;
     bool simplify = true;                             // guitar-friendly out of the box
+    bool susOn = false;                               // sus2/sus4 join the pool
+    bool ninthsOn = false;                            // eligible chords may become 9ths
+    bool keyLockOn = false;                           // diatonic rolls only
+    int keyIndex = 0;                                 // into chords::keyNames()
+    std::array<bool, 8> pinned {};                    // pinned cards survive rolls
     std::vector<chords::Chord> series;                // what the cards show
     std::deque<std::vector<chords::Chord>> history;   // past rolls, newest first
 
-    void rollSeries();            // current series joins history, new one rolls
+    void rollSeries();            // current series joins history; unpinned slots reroll
     void setSeriesLength (int);   // grows by rolling extras, shrinks by truncating
-    void recallRoll (int index);  // copy a past roll back into the series
+    void recallRoll (int index);  // copy a past roll back into the series (clears pins)
+    void togglePin (int index);
     void updateLoop();            // re-voice the series for playback (e.g. octave change)
+    void handleStopped();         // discard an unheard pending roll: pausing must not switch chords
 
     // Bumped on every chord-state change; the editor polls it to stay in sync
     // (state can arrive from the wrapper before or after the editor exists).
@@ -100,6 +107,8 @@ public:
 
 private:
     juce::Random rng;
+
+    chords::Chord rollOne();      // one roll under the current toggles
 
     // History keeps roughly the last 1000 chords (the ticker scrolls),
     // trimmed in whole rolls.

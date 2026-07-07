@@ -36,10 +36,13 @@ private:
         float fontSize = 40.0f;
         bool active = false;
         bool clickable = false;   // only while the loop plays
+        bool incoming = false;    // pending swap: this chord arrives at the boundary (amber)
+        bool pinned = false;      // survives rolls
         float progress = 0.0f;
-        std::function<void()> onPress;
+        std::function<void()> onPress, onPinToggle;
         void paint (juce::Graphics&) override;
         void mouseUp (const juce::MouseEvent&) override;
+        juce::Rectangle<float> pinZone() const;
     };
 
     // Scale Shifter's 88-key monitor strip, single-color: the notes of the
@@ -107,7 +110,11 @@ private:
     juce::Slider tempoBox;
     juce::ToggleButton seventhToggle { "Use Seventh Chords" },
                        simplifyToggle { "Simplify Chords" },
+                       susToggle { "Sus chords" },
+                       ninthsToggle { "9th chords" },
+                       keyLockToggle { "Key lock" },
                        autoRollToggle { "Auto roll after" };
+    juce::ComboBox keyBox;
     juce::TextButton clickButton { "CLICK" };   // metronome, next to the tempo
     juce::Slider clickVolKnob;                  // click level, beside CLICK
     juce::ComboBox autoRollBox;
@@ -121,7 +128,6 @@ private:
 
     juce::Rectangle<int> dicePanel, loopPanel;   // titled control blocks
     juce::Rectangle<int> meterRect;   // beside the knob when the synth is on
-    juce::Rectangle<int> previewLane; // "next: ..." amber line above the cards
     float meterLevel = 0.0f;          // falling peak
     bool lastSynthOn = true;
     bool lastPlaying = false;
