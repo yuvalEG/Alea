@@ -91,6 +91,11 @@ clap_juce_extensions_plugin(TARGET Alea
 # Shifter; its release tags use the "chords-v" prefix.
 set(CHORDS_VERSION 0.1.0)
 
+set(CHORDS_ICON_ARGS "")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon-chords.png")
+    set(CHORDS_ICON_ARGS ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon-chords.png")
+endif()
+
 juce_add_plugin(AleaChords
     PRODUCT_NAME "Alea Chord Randomizer"
     VERSION ${CHORDS_VERSION}
@@ -98,7 +103,7 @@ juce_add_plugin(AleaChords
     BUNDLE_ID com.alea-audio.chords
     PLUGIN_MANUFACTURER_CODE Alau
     PLUGIN_CODE Achd
-    ${ALEA_ICON_ARGS}
+    ${CHORDS_ICON_ARGS}
     FORMATS Standalone
     IS_SYNTH TRUE
     IS_MIDI_EFFECT FALSE

@@ -101,14 +101,14 @@ Chord roll (juce::Random& rng, bool simplified, bool sevenths)
     return c;
 }
 
-juce::Array<int> midiNotes (const Chord& c)
+juce::Array<int> midiNotes (const Chord& c, int octave)
 {
     // Root pitch class from the name (letter + optional accidental).
     static constexpr int letterPc[] = { 9, 11, 0, 2, 4, 5, 7 }; // A B C D E F G
     int pc = letterPc[juce::jlimit (0, 6, (int) (c.root[0] - 'A'))];
     if (c.root.endsWith ("b")) --pc;
     if (c.root.endsWith ("#")) ++pc;
-    const int root = 48 + ((pc + 12) % 12); // anchored around octave 3-4
+    const int root = 12 * (juce::jlimit (2, 4, octave) + 1) + ((pc + 12) % 12);
 
     // The full quality-and-seventh interval table. Note the two cases where
     // the seventh reshapes the triad's fifth or seventh: m7b5 flattens the

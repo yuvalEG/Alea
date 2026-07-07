@@ -23,6 +23,7 @@ public:
     void rollSeries();            // current series joins history, new one rolls
     void setSeriesLength (int);   // grows by rolling extras, shrinks by truncating
     void recallRoll (int index);  // copy a past roll back into the series
+    void updateLoop();            // re-voice the series for playback (e.g. octave change)
 
     // Bumped on every chord-state change; the editor polls it to stay in sync
     // (state can arrive from the wrapper before or after the editor exists).
@@ -34,8 +35,20 @@ public:
     std::atomic<bool>  playing { false };
     std::atomic<float> bpm { 90.0f };                 // 30..300
     std::atomic<int>   barsPerChord { 1 };            // 1, 2 or 4 (4/4 only)
+    std::atomic<int>   octave { 3 };                  // voicing octave: 2, 3 or 4
     std::atomic<int>   playingChord { -1 };           // series index sounding now, -1 = none
     std::atomic<float> chordProgress { 0.0f };        // 0..1 through the current chord
+
+    // Performance controls (family header pattern): FREEZE holds the current
+    // chord - time stops, the notes sustain - and PANIC silences everything.
+    // Clicking a card mid-loop jumps to that chord on the spot.
+    std::atomic<bool>  frozen { false };
+    std::atomic<bool>  panicRequest { false };
+    std::atomic<int>   jumpRequest { -1 };            // card index to jump to
+
+    // Sounding chord notes for the monitor keyboard: 8 bytes, each note+1
+    // (0 = empty slot).
+    std::atomic<juce::uint64> soundingPacked { 0 };
 
     // Output choice, mirroring Scale Shifter's standalone OUT chooser:
     // built-in synth (default) or a MIDI device.
@@ -78,7 +91,6 @@ private:
     // thread adopts them at transport start and at each loop wrap, so a roll
     // during playback lets the current pass finish cleanly.
     struct PlayChord { int notes[8] = {}; int count = 0; };
-    void updateLoop();                       // message thread: series -> nextLoop
     bool copyLoopIfDirty();                  // audio thread, try-lock
     void stopSoundingNotes (juce::MidiBuffer&, int sampleOffset);
 

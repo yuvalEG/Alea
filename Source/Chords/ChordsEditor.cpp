@@ -52,15 +52,18 @@ namespace
                 "over it.\n\n"
                 "CHORDS sets how many chords each roll gives you - a series of "
                 "1 behaves like a classic flash card. BARS sets how long each "
-                "chord holds. Rolling while the loop plays lets the current "
-                "pass finish before the new chords take over.\n\n"
+                "chord holds, OCTAVE where the voicing sits. Rolling while "
+                "the loop plays swaps in the new chords at the next chord "
+                "change, and clicking any chord card jumps the loop there.\n\n"
                 "Use Seventh Chords adds sevenths to the mix. Simplify Chords "
                 "narrows the roll to guitar-friendly keys and mostly major or "
                 "minor chords.\n\n"
+                "FREEZE holds the sounding chord until you let go; PANIC "
+                "silences everything instantly.\n\n"
                 "OUT plays through the built-in synth (pick a flavour) or "
-                "sends MIDI to any device. Your past rolls pile up in HISTORY "
-                "at the bottom - scroll through them, click one to bring it "
-                "back.\n\n\n"
+                "sends MIDI to any device on your system. Your past rolls "
+                "pile up in HISTORY at the bottom - scroll through them, "
+                "click one to bring it back.\n\n\n"
                 "THE EXERCISE\n\n"
                 "This app was born from an improvisation exercise by my guitar "
                 "teacher, Yonatan Benaroche: generate a short random chord "
@@ -124,6 +127,46 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
     g.setColour (colors::text);
     g.setFont (juce::FontOptions (fontSize));
     g.drawText (text, getLocalBounds(), juce::Justification::centred);
+}
+
+void ChordsEditor::ChordCard::mouseUp (const juce::MouseEvent& e)
+{
+    if (clickable && ! e.mouseWasDraggedSinceMouseDown()
+        && getLocalBounds().contains (e.getPosition()) && onPress != nullptr)
+        onPress();
+}
+
+//==============================================================================
+void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
+{
+    const auto b = getLocalBounds().toFloat();
+
+    bool lit[128] = {};
+    const auto packed = proc.soundingPacked.load();
+    for (int i = 0; i < 8; ++i)
+        if (const int byte = (int) ((packed >> (8 * i)) & 0xFF); byte > 0)
+            lit[juce::jlimit (0, 127, byte - 1)] = true;
+
+    auto isBlack = [] (int n) { const int pc = n % 12; return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
+
+    // A0 (21) to C8 (108): 52 white keys, blacks drawn over the gaps.
+    const float ww = b.getWidth() / 52.0f;
+    int white = 0;
+    for (int n = 21; n <= 108; ++n)
+    {
+        if (isBlack (n)) continue;
+        g.setColour (lit[n] ? colors::playing : colors::control.brighter (0.22f));
+        g.fillRect (juce::Rectangle<float> (b.getX() + (float) white * ww, b.getY(), ww - 1.0f, b.getHeight()));
+        ++white;
+    }
+    white = 0;
+    for (int n = 21; n <= 108; ++n)
+    {
+        if (! isBlack (n)) { ++white; continue; }
+        const float bw = ww * 0.62f;
+        g.setColour (lit[n] ? colors::playing : juce::Colour (0xff08080c));
+        g.fillRect (juce::Rectangle<float> (b.getX() + (float) white * ww - bw / 2.0f, b.getY(), bw, b.getHeight() * 0.62f));
+    }
 }
 
 //==============================================================================
@@ -353,7 +396,7 @@ void ChordsEditor::HistoryTicker::mouseExit (const juce::MouseEvent&)
 
 //==============================================================================
 ChordsEditor::ChordsEditor (ChordsProcessor& p)
-    : AudioProcessorEditor (p), chordsProc (p), ticker (p)
+    : AudioProcessorEditor (p), chordsProc (p), ticker (p), monitor (p)
 {
     // Space Grotesk everywhere - the family typeface (spec section 7.1).
     struct ChordsLookAndFeel : juce::LookAndFeel_V4
@@ -404,7 +447,11 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
 
     for (int i = 0; i < 8; ++i)
-        addChildComponent (cards.add (new ChordCard()));
+    {
+        auto* card = cards.add (new ChordCard());
+        card->onPress = [this, i] { chordsProc.jumpRequest.store (i); };
+        addChildComponent (card);
+    }
 
     rollButton.setColour (juce::TextButton::buttonColourId, colors::control.brighter (0.06f));
     rollButton.setColour (juce::TextButton::textColourOffId, colors::text);
@@ -425,20 +472,32 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     };
     addAndMakeVisible (playButton);
 
-    tempoBox.setEditable (true);
-    tempoBox.setJustificationType (juce::Justification::centred);
-    tempoBox.setColour (juce::Label::backgroundColourId, colors::control);
-    tempoBox.setColour (juce::Label::textColourId, colors::text);
-    tempoBox.setColour (juce::Label::outlineColourId, colors::border);
-    tempoBox.setColour (juce::Label::textWhenEditingColourId, colors::text);
-    tempoBox.setText (juce::String ((int) chordsProc.bpm.load()), juce::dontSendNotification);
-    tempoBox.onTextChange = [this]
-    {
-        const auto v = juce::jlimit (30, 300, tempoBox.getText().getIntValue());
-        chordsProc.bpm.store ((float) v);
-        tempoBox.setText (juce::String (v), juce::dontSendNotification);
-    };
+    // Tempo: a draggable bar, exactly like Scale Shifter's tempo box.
+    tempoBox.setSliderStyle (juce::Slider::LinearBar);
+    tempoBox.setRange (30.0, 300.0, 1.0);
+    tempoBox.setColour (juce::Slider::trackColourId, colors::green.withAlpha (0.55f));
+    tempoBox.setColour (juce::Slider::backgroundColourId, colors::control);
+    tempoBox.setColour (juce::Slider::textBoxTextColourId, colors::text);
+    tempoBox.setColour (juce::Slider::textBoxOutlineColourId, colors::border);
+    tempoBox.setTextValueSuffix (" BPM");
+    tempoBox.setValue ((double) chordsProc.bpm.load(), juce::dontSendNotification);
+    tempoBox.onValueChange = [this] { chordsProc.bpm.store ((float) tempoBox.getValue()); };
     addAndMakeVisible (tempoBox);
+
+    // FREEZE holds the sounding chord (time stops); PANIC is instant silence.
+    // Opposite jobs, opposite ends of the header - the family rule.
+    freezeButton.setClickingTogglesState (true);
+    freezeButton.setColour (juce::TextButton::buttonColourId, colors::control);
+    freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan);
+    freezeButton.setColour (juce::TextButton::textColourOffId, colors::text);
+    freezeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+    freezeButton.onClick = [this] { chordsProc.frozen.store (freezeButton.getToggleState()); };
+    addAndMakeVisible (freezeButton);
+
+    panicButton.setColour (juce::TextButton::buttonColourId, colors::control);
+    panicButton.setColour (juce::TextButton::textColourOffId, colors::red);
+    panicButton.onClick = [this] { chordsProc.panicRequest.store (true); };
+    addAndMakeVisible (panicButton);
 
     lengthRow.labels = { "1", "2", "3", "4", "5", "6", "7", "8" };
     lengthRow.onChange = [this] (int idx)
@@ -457,6 +516,19 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
         barsRow.repaint();
     };
     addAndMakeVisible (barsRow);
+
+    // Voicing octave: a position, not a range - where the roots sit.
+    octaveRow.labels = { "2", "3", "4" };
+    octaveRow.onChange = [this] (int idx)
+    {
+        chordsProc.octave.store (idx + 2);
+        chordsProc.updateLoop();
+        octaveRow.selected = idx;
+        octaveRow.repaint();
+    };
+    addAndMakeVisible (octaveRow);
+
+    addAndMakeVisible (monitor);
 
     // OUT chooser + volume knob, straight from the Scale Shifter playbook.
     outputBox.setColour (juce::ComboBox::backgroundColourId, colors::control);
@@ -503,8 +575,10 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     for (auto* c : { (juce::Component*) &rollButton, (juce::Component*) &menuButton,
                      (juce::Component*) &seventhToggle, (juce::Component*) &simplifyToggle,
                      (juce::Component*) &lengthRow, (juce::Component*) &barsRow,
+                     (juce::Component*) &octaveRow, (juce::Component*) &monitor,
+                     (juce::Component*) &freezeButton, (juce::Component*) &panicButton,
                      (juce::Component*) &playButton, (juce::Component*) &outputBox,
-                     (juce::Component*) &volKnob })
+                     (juce::Component*) &volKnob, (juce::Component*) &tempoBox })
         c->setWantsKeyboardFocus (false);
     setWantsKeyboardFocus (true);
 
@@ -562,10 +636,17 @@ void ChordsEditor::timerCallback()
     // the sound.
     const int sounding = chordsProc.playingChord.load();
     const float progress = chordsProc.chordProgress.load();
+    const bool loopRunning = chordsProc.playing.load();
     for (int i = 0; i < cards.size(); ++i)
     {
         auto* card = cards[i];
         const bool nowActive = (i == sounding);
+        if (card->clickable != loopRunning)
+        {
+            card->clickable = loopRunning;
+            card->setMouseCursor (loopRunning ? juce::MouseCursor::PointingHandCursor
+                                              : juce::MouseCursor::NormalCursor);
+        }
         if (card->active != nowActive || (nowActive && std::abs (card->progress - progress) > 0.005f))
         {
             card->active = nowActive;
@@ -573,6 +654,28 @@ void ChordsEditor::timerCallback()
             card->repaint();
         }
     }
+
+    // Monitor strip follows the sounding notes.
+    if (const auto packed = chordsProc.soundingPacked.load(); packed != lastSounding)
+    {
+        lastSounding = packed;
+        monitor.repaint();
+    }
+
+    // MIDI hotplug: refresh the OUT list when devices appear or vanish.
+    if (--devicePollCountdown <= 0)
+    {
+        devicePollCountdown = 90;
+        auto fresh = juce::MidiOutput::getAvailableDevices();
+        bool changed = fresh.size() != devices.size();
+        for (int i = 0; ! changed && i < fresh.size(); ++i)
+            changed = fresh[i].identifier != devices[i].identifier;
+        if (changed)
+            buildOutputBox();
+    }
+
+    if (chordsProc.frozen.load() != freezeButton.getToggleState())
+        freezeButton.setToggleState (chordsProc.frozen.load(), juce::dontSendNotification);
 
     const bool synth = chordsProc.synthOn.load();
     if (synth != lastSynthOn)
@@ -606,8 +709,9 @@ void ChordsEditor::refresh()
     const int bars = chordsProc.barsPerChord.load();
     barsRow.selected = bars >= 4 ? 2 : bars - 1;
     barsRow.repaint();
-    if (! tempoBox.isBeingEdited())
-        tempoBox.setText (juce::String ((int) chordsProc.bpm.load()), juce::dontSendNotification);
+    octaveRow.selected = juce::jlimit (2, 4, chordsProc.octave.load()) - 2;
+    octaveRow.repaint();
+    tempoBox.setValue ((double) chordsProc.bpm.load(), juce::dontSendNotification);
     volKnob.setValue ((double) chordsProc.synthVolDb.load(), juce::dontSendNotification);
     seventhToggle.setToggleState (chordsProc.useSevenths, juce::dontSendNotification);
     simplifyToggle.setToggleState (chordsProc.simplify, juce::dontSendNotification);
@@ -755,25 +859,45 @@ void ChordsEditor::paint (juce::Graphics& g)
 {
     g.fillAll (colors::background);
 
-    // Header: wordmark, status dot, subtitle, a whisper of the family
-    // gradient underneath.
+    // Header: wordmark, subtitle, then the status dot + word, like the
+    // Scale Shifter header reads.
     if (logo.isValid())
         g.drawImage (logo, juce::Rectangle<float> (20.0f, 12.0f, 87.0f, 34.0f),
                      juce::RectanglePlacement::centred);
 
-    g.setColour (chordsProc.playing.load() ? colors::playing : colors::control.brighter (0.15f));
-    g.fillEllipse (118.0f, 23.0f, 10.0f, 10.0f);
-
+    int statusX = 118;
     if (getWidth() > 470)
     {
         g.setColour (colors::secondary);
         g.setFont (juce::FontOptions (15.0f));
-        g.drawText ("Chord Randomizer", 140, 0, 220, 56, juce::Justification::centredLeft);
+        g.drawText ("Chord Randomizer", 118, 0, 150, 56, juce::Justification::centredLeft);
+        statusX = 258;
+    }
+    const bool isPlaying = chordsProc.playing.load();
+    g.setColour (isPlaying ? colors::playing : colors::control.brighter (0.15f));
+    g.fillEllipse ((float) statusX, 23.0f, 10.0f, 10.0f);
+    if (getWidth() > 620)
+    {
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (13.0f));
+        g.drawText (isPlaying ? "playing" : "stopped", statusX + 16, 0, 70, 56, juce::Justification::centredLeft);
     }
 
     g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.35f), 0.0f, 0.0f,
                                              colors::cyan.withAlpha (0.35f), (float) getWidth(), 0.0f, false));
     g.fillRect (0, 55, getWidth(), 1);
+
+    // The two control blocks: DICE (what gets rolled) and LOOP (how it plays).
+    auto paintPanel = [&g] (juce::Rectangle<int> r, const char* title)
+    {
+        g.setColour (colors::panel);
+        g.fillRoundedRectangle (r.toFloat(), 8.0f);
+        g.setColour (colors::text);
+        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
+        g.drawText (title, r.getX() + 12, r.getY() + 6, 160, 18, juce::Justification::centredLeft);
+    };
+    paintPanel (dicePanel, "DICE");
+    paintPanel (loopPanel, "LOOP");
 
     // Control captions.
     g.setColour (colors::secondary);
@@ -782,9 +906,10 @@ void ChordsEditor::paint (juce::Graphics& g)
                 lengthRow.getWidth(), 14, juce::Justification::centredLeft);
     g.drawText ("BARS", barsRow.getX(), barsRow.getY() - 16,
                 barsRow.getWidth(), 14, juce::Justification::centredLeft);
+    g.drawText ("OCTAVE", octaveRow.getX(), octaveRow.getY() - 16,
+                octaveRow.getWidth(), 14, juce::Justification::centredLeft);
     g.drawText ("OUT", outputBox.getX(), outputBox.getY() - 16,
                 outputBox.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("BPM", tempoBox.getX(), 41, tempoBox.getWidth(), 12, juce::Justification::centred);
 
     // Output meter (internal synth): vertical falling peak with green /
     // amber / red zones - red means the limiter is working.
@@ -810,38 +935,46 @@ void ChordsEditor::resized()
     auto b = getLocalBounds();
     auto header = b.removeFromTop (56);
     menuButton.setBounds (header.getRight() - 48, 14, 36, 28);
-    tempoBox.setBounds (menuButton.getX() - 8 - 60, 15, 60, 26);
-    playButton.setBounds (tempoBox.getX() - 8 - 78, 15, 78, 26);
+    panicButton.setBounds (menuButton.getX() - 8 - 66, 15, 66, 26);
+    tempoBox.setBounds (panicButton.getX() - 8 - 100, 15, 100, 26);
+    playButton.setBounds (tempoBox.getX() - 8 - 74, 15, 74, 26);
+    freezeButton.setBounds (playButton.getX() - 8 - 74, 15, 74, 26);
 
     auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
     ticker.setBounds (hist);
 
-    auto controls = b.removeFromBottom (76).reduced (16, 0);
-    auto row = controls.withSizeKeepingCentre (controls.getWidth(), 40);
-    rollButton.setBounds (row.removeFromLeft (116));
-    row.removeFromLeft (16);
+    // The two control blocks. DICE: roll button, series length, the engine
+    // toggles. LOOP: bars, octave, output chain, and the monitor keyboard.
+    auto panels = b.removeFromBottom (164).reduced (16, 6);
+    dicePanel = panels.removeFromLeft ((int) ((float) panels.getWidth() * 0.42f));
+    panels.removeFromLeft (12);
+    loopPanel = panels;
 
-    const int lengthW = juce::jlimit (176, 264, row.getWidth() - 560);
-    lengthRow.setBounds (row.removeFromLeft (lengthW).withSizeKeepingCentre (lengthW, 30));
-    row.removeFromLeft (16);
-
-    barsRow.setBounds (row.removeFromLeft (84).withSizeKeepingCentre (84, 30));
-    row.removeFromLeft (16);
-
-    // The two engine toggles, stacked.
-    auto toggles = row.removeFromLeft (172).withSizeKeepingCentre (172, 48);
+    auto dice = dicePanel.reduced (12).withTrimmedTop (24);
+    rollButton.setBounds (dice.removeFromLeft (104).withSizeKeepingCentre (104, 44));
+    dice.removeFromLeft (14);
+    auto diceRight = dice;
+    lengthRow.setBounds (diceRight.removeFromTop (48).withTrimmedTop (16).withHeight (28));
+    auto toggles = diceRight.withTrimmedTop (6);
     seventhToggle.setBounds (toggles.removeFromTop (24));
-    simplifyToggle.setBounds (toggles);
-    row.removeFromLeft (16);
+    simplifyToggle.setBounds (toggles.removeFromTop (24));
 
-    // OUT chooser fills what's left; knob and meter live at its right when
-    // the internal synth is the output.
-    meterRect = row.removeFromRight (12).withSizeKeepingCentre (12, 44);
-    row.removeFromRight (4);
-    volKnob.setBounds (row.removeFromRight (46).withSizeKeepingCentre (44, 44));
+    auto loop = loopPanel.reduced (12).withTrimmedTop (24);
+    auto loopTop = loop.removeFromTop (48);
+    auto controlsRow = loopTop.withTrimmedTop (16).withHeight (28);
+    barsRow.setBounds (controlsRow.removeFromLeft (78));
+    controlsRow.removeFromLeft (14);
+    octaveRow.setBounds (controlsRow.removeFromLeft (78));
+    controlsRow.removeFromLeft (14);
+    meterRect = controlsRow.removeFromRight (12).withSizeKeepingCentre (12, 40).translated (0, -6);
+    controlsRow.removeFromRight (4);
+    volKnob.setBounds (controlsRow.removeFromRight (44).withSizeKeepingCentre (42, 42).translated (0, -7));
     volKnob.setVisible (chordsProc.synthOn.load());
-    row.removeFromRight (4);
-    outputBox.setBounds (row.withSizeKeepingCentre (row.getWidth(), 30));
+    controlsRow.removeFromRight (4);
+    outputBox.setBounds (controlsRow);
+
+    // Monitor keyboard: the sounding chord, visible.
+    monitor.setBounds (loop.withTrimmedTop (8));
 
     // Series cards fill the middle, growing with the window.
     auto area = b.reduced (16, 14);

@@ -28,13 +28,26 @@ private:
     // One big chord name on a panel card - the heir of the old 75 pt label.
     // The font size is set by the editor: every card in a series shares the
     // smallest fitted size, so C#Maj7 and A7 never render at different scales.
-    // During playback the sounding card lights up, with a bar-progress strip.
+    // During playback the sounding card lights up with a bar-progress strip,
+    // and clicking any card jumps the loop there.
     struct ChordCard : juce::Component
     {
         juce::String text;
         float fontSize = 40.0f;
         bool active = false;
+        bool clickable = false;   // only while the loop plays
         float progress = 0.0f;
+        std::function<void()> onPress;
+        void paint (juce::Graphics&) override;
+        void mouseUp (const juce::MouseEvent&) override;
+    };
+
+    // Scale Shifter's 88-key monitor strip, single-color: the notes of the
+    // sounding chord light up in playing green.
+    struct MonitorStrip : juce::Component
+    {
+        explicit MonitorStrip (ChordsProcessor& p) : proc (p) {}
+        ChordsProcessor& proc;
         void paint (juce::Graphics&) override;
     };
 
@@ -85,21 +98,26 @@ private:
     int seenRevision = -1;
 
     juce::Image logo;
-    juce::TextButton menuButton, rollButton { "ROLL" }, playButton { "PLAY" };
-    juce::Label tempoBox;
+    juce::TextButton menuButton, rollButton { "ROLL" }, playButton { "PLAY" },
+                     freezeButton { "FREEZE" }, panicButton { "PANIC" };
+    juce::Slider tempoBox;
     juce::ToggleButton seventhToggle { "Use Seventh Chords" },
                        simplifyToggle { "Simplify Chords" };
-    SegmentRow lengthRow, barsRow;
+    SegmentRow lengthRow, barsRow, octaveRow;
     juce::ComboBox outputBox;
     juce::Slider volKnob;
     juce::Array<juce::MidiDeviceInfo> devices;
     HistoryTicker ticker;
+    MonitorStrip monitor;
     juce::OwnedArray<ChordCard> cards;
 
+    juce::Rectangle<int> dicePanel, loopPanel;   // titled control blocks
     juce::Rectangle<int> meterRect;   // beside the knob when the synth is on
     float meterLevel = 0.0f;          // falling peak
     bool lastSynthOn = true;
     bool lastPlaying = false;
+    juce::uint64 lastSounding = 0;
+    int devicePollCountdown = 90;     // ~3s at 30 Hz: MIDI hotplug refresh
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChordsEditor)
 };

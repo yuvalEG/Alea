@@ -83,7 +83,7 @@ void ChordsProcessor::updateLoop()
     for (const auto& c : series)
     {
         PlayChord pc;
-        for (auto note : chords::midiNotes (c))
+        for (auto note : chords::midiNotes (c, octave.load()))
             if (pc.count < 8 && note >= 0 && note <= 127)
                 pc.notes[pc.count++] = note;
         fresh.push_back (pc);
@@ -116,6 +116,7 @@ void ChordsProcessor::stopSoundingNotes (juce::MidiBuffer& midi, int sampleOffse
     for (int i = 0; i < soundingCount; ++i)
         midi.addEvent (juce::MidiMessage::noteOff (1, soundingNotes[i]), sampleOffset);
     soundingCount = 0;
+    soundingPacked.store (0);
 }
 
 void ChordsProcessor::prepareToPlay (double sampleRate, int)
@@ -183,7 +184,30 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     }
     wasPlaying = isPlaying;
 
-    if (isPlaying)
+    // PANIC: immediate silence; the loop resumes at the next chord boundary.
+    if (panicRequest.exchange (false))
+    {
+        stopSoundingNotes (localMidi, 0);
+        localMidi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+    }
+
+    // A clicked card jumps the loop there on the spot.
+    if (const int jump = jumpRequest.exchange (-1); jump >= 0 && isPlaying)
+    {
+        copyLoopIfDirty();
+        if (! currentLoop.empty())
+        {
+            chordIdx = juce::jmin (jump, (int) currentLoop.size() - 1);
+            samplesIntoChord = 0;
+        }
+    }
+
+    if (isPlaying && frozen.load())
+    {
+        // FREEZE: time stops, the chord keeps sustaining. Nothing schedules,
+        // nothing advances; unfreeze resumes exactly where it held.
+    }
+    else if (isPlaying)
     {
         const double bpmNow = juce::jlimit (30.0, 300.0, (double) bpm.load());
         const auto barsNow = (double) juce::jlimit (1, 4, barsPerChord.load());
@@ -195,11 +219,11 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         {
             if (samplesIntoChord == 0)
             {
-                // A wrap back to chord 1 is the moment a mid-play roll takes
-                // over: the finished pass played to the end, the new one is
-                // adopted here.
-                if (chordIdx == 0)
-                    copyLoopIfDirty();
+                // Every chord boundary adopts a pending roll or recall and
+                // restarts it from its top - rolling mid-loop never waits
+                // out the old pass (QA, July 7).
+                if (copyLoopIfDirty())
+                    chordIdx = 0;
                 if (currentLoop.empty())
                     break;
                 if (chordIdx >= (int) currentLoop.size())
@@ -207,11 +231,14 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
                 stopSoundingNotes (localMidi, offset); // offs, then ons, same sample
                 const auto& pc = currentLoop[(size_t) chordIdx];
+                juce::uint64 packed = 0;
                 for (int i = 0; i < pc.count; ++i)
                 {
                     localMidi.addEvent (juce::MidiMessage::noteOn (1, pc.notes[i], 0.72f), offset);
                     soundingNotes[soundingCount++] = pc.notes[i];
+                    packed |= (juce::uint64) (pc.notes[i] + 1) << (8 * i);
                 }
+                soundingPacked.store (packed);
             }
 
             const auto chunk = (int) juce::jmin ((juce::int64) (numSamples - offset),
@@ -226,9 +253,8 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             }
         }
 
-        // While a mid-play roll waits for the loop to wrap, the cards show
-        // the NEW series but the OLD one is still sounding - so no card
-        // highlight until the swap (the UI never lies).
+        // A pending roll waits at most one chord; until it lands, the cards
+        // already show the new series, so no highlight (the UI never lies).
         playingChord.store (currentLoop.empty() || loopDirty.load() ? -1 : chordIdx);
         chordProgress.store ((float) ((double) samplesIntoChord / (double) chordLen));
     }
@@ -496,6 +522,7 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("uiHeight", lastUIHeight, nullptr);
     state.setProperty ("bpm", (double) bpm.load(), nullptr);
     state.setProperty ("barsPerChord", barsPerChord.load(), nullptr);
+    state.setProperty ("octave", octave.load(), nullptr);
     state.setProperty ("output", getStandaloneOutput(), nullptr);
     state.setProperty ("synthVol", (double) synthVolDb.load(), nullptr);
 
@@ -531,6 +558,7 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 560));
     bpm.store (juce::jlimit (30.0f, 300.0f, (float) (double) state.getProperty ("bpm", 90.0)));
     barsPerChord.store (juce::jlimit (1, 4, (int) state.getProperty ("barsPerChord", 1)));
+    octave.store (juce::jlimit (2, 4, (int) state.getProperty ("octave", 3)));
     synthVolDb.store (juce::jlimit (-24.0f, 6.0f, (float) (double) state.getProperty ("synthVol", 0.0)));
     setStandaloneOutput (state.getProperty ("output", "synth").toString());
 
