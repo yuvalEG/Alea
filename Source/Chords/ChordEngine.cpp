@@ -101,4 +101,38 @@ Chord roll (juce::Random& rng, bool simplified, bool sevenths)
     return c;
 }
 
+juce::Array<int> midiNotes (const Chord& c)
+{
+    // Root pitch class from the name (letter + optional accidental).
+    static constexpr int letterPc[] = { 9, 11, 0, 2, 4, 5, 7 }; // A B C D E F G
+    int pc = letterPc[juce::jlimit (0, 6, (int) (c.root[0] - 'A'))];
+    if (c.root.endsWith ("b")) --pc;
+    if (c.root.endsWith ("#")) ++pc;
+    const int root = 48 + ((pc + 12) % 12); // anchored around octave 3-4
+
+    // The full quality-and-seventh interval table. Note the two cases where
+    // the seventh reshapes the triad's fifth or seventh: m7b5 flattens the
+    // fifth, dim7 takes the diminished (double-flat) seventh.
+    juce::Array<int> intervals { 0 };
+    switch (c.quality)
+    {
+        case Quality::major: intervals.addArray ({ 4, 7 }); break;
+        case Quality::minor: intervals.addArray ({ 3, c.seventh == Seventh::sevenFlat5 ? 6 : 7 }); break;
+        case Quality::dim:   intervals.addArray ({ 3, 6 }); break;
+        case Quality::aug:   intervals.addArray ({ 4, 8 }); break;
+    }
+    switch (c.seventh)
+    {
+        case Seventh::none:       break;
+        case Seventh::sevenFlat5: intervals.add (10); break;
+        case Seventh::seven:      intervals.add (c.quality == Quality::dim ? 9 : 10); break;
+        case Seventh::majSeven:   intervals.add (11); break;
+    }
+
+    juce::Array<int> notes;
+    for (auto i : intervals)
+        notes.add (root + i);
+    return notes;
+}
+
 } // namespace chords

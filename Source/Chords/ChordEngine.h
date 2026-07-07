@@ -31,4 +31,9 @@ const juce::StringArray& simpleRoots();
 
 Chord roll (juce::Random&, bool simplified, bool sevenths);
 
+// Root-position block voicing for playback (spec M2): root anchored in the
+// comfortable low-mid range, 3-4 notes. Voicing lives here at the output
+// stage - the rolled chord itself never carries octave or inversion.
+juce::Array<int> midiNotes (const Chord&);
+
 } // namespace chords

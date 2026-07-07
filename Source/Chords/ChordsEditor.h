@@ -2,9 +2,10 @@
 
 #include "ChordsProcessor.h"
 
-// Chord Randomizer UI (spec section 7): Alea header, the series row of big
-// chord cards, a controls row, and the history ticker. Deliberately shares
-// the Scale Shifter design language - palette, Space Grotesk, header layout.
+// Chord Randomizer UI (spec section 7): Alea header with transport, the
+// series row of big chord cards, a controls row, and the history ticker.
+// Deliberately shares the Scale Shifter design language - palette, Space
+// Grotesk, header layout, OUT chooser, knob and meter.
 class ChordsEditor : public juce::AudioProcessorEditor,
                      private juce::Timer
 {
@@ -22,22 +23,28 @@ private:
     void doRoll();
     void showMenu();
     void updateCardFonts();   // one shared fitted size for the whole series
+    void buildOutputBox();
 
     // One big chord name on a panel card - the heir of the old 75 pt label.
     // The font size is set by the editor: every card in a series shares the
     // smallest fitted size, so C#Maj7 and A7 never render at different scales.
+    // During playback the sounding card lights up, with a bar-progress strip.
     struct ChordCard : juce::Component
     {
         juce::String text;
         float fontSize = 40.0f;
+        bool active = false;
+        float progress = 0.0f;
         void paint (juce::Graphics&) override;
     };
 
-    // Series length: eight segments, 1-8, styled like the mode selectors.
-    struct LengthSelector : juce::Component
+    // A row of labeled segments; used for series length (1-8) and bars per
+    // chord (1/2/4). Same look as the family's mode selectors.
+    struct SegmentRow : juce::Component
     {
-        int value = 4;
-        std::function<void (int)> onChange;
+        juce::StringArray labels;
+        int selected = 0;                       // index into labels
+        std::function<void (int)> onChange;     // index
         void paint (juce::Graphics&) override;
         void mouseDown (const juce::MouseEvent&) override;
     };
@@ -78,12 +85,21 @@ private:
     int seenRevision = -1;
 
     juce::Image logo;
-    juce::TextButton menuButton, rollButton { "ROLL" };
+    juce::TextButton menuButton, rollButton { "ROLL" }, playButton { "PLAY" };
+    juce::Label tempoBox;
     juce::ToggleButton seventhToggle { "Use Seventh Chords" },
                        simplifyToggle { "Simplify Chords" };
-    LengthSelector lengthSelector;
+    SegmentRow lengthRow, barsRow;
+    juce::ComboBox outputBox;
+    juce::Slider volKnob;
+    juce::Array<juce::MidiDeviceInfo> devices;
     HistoryTicker ticker;
     juce::OwnedArray<ChordCard> cards;
+
+    juce::Rectangle<int> meterRect;   // beside the knob when the synth is on
+    float meterLevel = 0.0f;          // falling peak
+    bool lastSynthOn = true;
+    bool lastPlaying = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChordsEditor)
 };

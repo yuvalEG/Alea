@@ -27,5 +27,24 @@ int main (int argc, char* argv[])
         return 1;
 
     juce::PNGImageFormat png;
-    return png.writeImageToStream (image, stream) ? 0 : 1;
+    if (! png.writeImageToStream (image, stream))
+        return 1;
+
+    // Audio smoke test: run the loop offline for ~4 seconds and report the
+    // peak level - proof the transport schedules chords and the synth sounds.
+    processor.setPlayConfigDetails (0, 2, 44100.0, 512); // what the wrapper would do
+    processor.prepareToPlay (44100.0, 512);
+    processor.playing.store (true);
+    juce::AudioBuffer<float> buffer (2, 512);
+    juce::MidiBuffer midi;
+    float peak = 0.0f;
+    for (int block = 0; block < 350; ++block)
+    {
+        processor.processBlock (buffer, midi);
+        peak = juce::jmax (peak, buffer.getMagnitude (0, 512));
+    }
+    processor.playing.store (false);
+    processor.processBlock (buffer, midi); // note-offs on stop
+    std::cout << "audio peak over 4s of playback: " << peak << std::endl;
+    return peak > 0.01f ? 0 : 2;
 }
