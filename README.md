@@ -1,16 +1,31 @@
 # Alea
 
-**Aleatoric Scale Shifter** - a generative MIDI plugin. Pick a set of notes,
-press play, and Alea streams random notes from that set into your DAW, slowly
-morphing toward a second note set over time.
+Small instruments for improvising musicians, built around dice
+(*alea* is Latin for dice). Two products live in this repo:
 
-Alea was made with a particular vision in mind: exploring the relationship
-between an improvising human player and a machine that randomly shifts from a
-diatonic scale to complete dodecaphony over time.
+| | What it is | Get it |
+|---|---|---|
+| **[Alea Scale Shifter](#alea-scale-shifter)** | Generative MIDI plugin + app: random notes from a scale, morphing into another scale over time | [Latest release](https://github.com/yuvalEG/Alea/releases?q=%22v0.%22&expanded=false) (`Alea-x.y.z` files) |
+| **[Alea Chord Randomizer](#alea-chord-randomizer)** | Practice app: roll random chords, loop them, improvise over them | [Latest release](https://github.com/yuvalEG/Alea/releases?q=chords&expanded=false) (`AleaChordRandomizer-x.y.z` files) |
 
-![Alea UI](docs/ui.png)
+Each product releases on its own: Scale Shifter releases are tagged
+`vX.Y.Z`, Chord Randomizer releases `chords-vX.Y.Z`, and every release
+carries only that product's installers - download just the one you want.
+Both apps check for their own updates from the in-app menu.
 
-## Features
+---
+
+## Alea Scale Shifter
+
+A generative MIDI plugin. Pick a set of notes, press play, and Alea streams
+random notes from that set into your DAW, slowly morphing toward a second
+note set over time - made to explore the relationship between an improvising
+human player and a machine that drifts from a diatonic scale to complete
+dodecaphony.
+
+![Alea Scale Shifter UI](docs/ui.png)
+
+### Features
 
 - **Two scales** (A and B): pick pitch classes on a keyboard, set octave and
   velocity ranges, and add weighted rests (2 bars down to 1/16) that roll
@@ -36,20 +51,15 @@ diatonic scale to complete dodecaphony over time.
 - Deterministic per session: loop playback re-rolls the same choices, so what
   you heard is what you'll hear again.
 
-## Status
-
-**v0.3** - VST3, AU and CLAP plugins plus a standalone app, for macOS and
-Windows (Windows builds come from CI on every release). Every build passes
+**Status: v0.3** - VST3, AU and CLAP plugins plus a standalone app, for
+macOS and Windows. Every build passes
 [pluginval](https://github.com/Tracktion/pluginval) at strictness 10; the
 AU passes Apple's auval.
 
-`scripts/make_installer.sh` builds a pkg installer with selectable
-components (unsigned for now).
+### Installing Scale Shifter
 
-## Installing
-
-Grab the [latest release](https://github.com/yuvalEG/Alea/releases) - no
-building needed.
+Grab the [latest `vX.Y.Z` release](https://github.com/yuvalEG/Alea/releases) -
+no building needed.
 
 **macOS**: download `Alea-x.y.z.pkg` and double-click it. The installer is
 unsigned for now, so macOS may refuse the first open - right-click
@@ -75,21 +85,7 @@ Which format to load:
 - **No DAW at all**: the standalone app, with its built-in synth or direct
   MIDI output to hardware.
 
-## Building
-
-Requires: macOS, Xcode command-line tools, CMake ≥ 3.22
-(`brew install cmake`). JUCE is downloaded automatically on first configure.
-
-```sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
-
-The VST3 and AU are copied to `~/Library/Audio/Plug-Ins/` after a successful
-build, so they show up in your DAW's next plugin scan. The CLAP and the
-standalone app end up under `build/Alea_artefacts/Release/`.
-
-## Using it in a DAW
+### Using it in a DAW
 
 Alea generates MIDI notes - by default it makes no sound of its own (flip
 OUT to **Internal Synth** if you want it to). It is classified as an
@@ -98,15 +94,15 @@ third-party MIDI-effect plugins.
 
 In Ableton Live (VST3):
 
-1. Build (above), then rescan plugins in Live's settings if Alea doesn't
-   appear (hold Alt for a full rescan - Live caches failed loads).
+1. Rescan plugins in Live's settings if Alea doesn't appear (hold Alt for a
+   full rescan - Live caches failed loads).
 2. Drop **Alea** onto a MIDI track.
 3. On a second MIDI track with any instrument: set **MIDI From** to the Alea
    track and pick **Alea** in the chooser below it.
 4. Arm the instrument track and press Play - you'll hear notes drawn from
    Scale A. Pick a preset, or hit AUTO-SWEEP and let it travel.
 
-## Troubleshooting
+### Troubleshooting
 
 **No sound from the plugin?**
 
@@ -128,14 +124,82 @@ In Ableton Live (VST3):
    plugins at all. Load the VST3 instead.
 
 **Standalone app silent?** Pick **Internal Synth** in the OUT dropdown
-(OUTPUT panel) and press PLAY.
+(OUTPUT panel) and press play.
+
+---
+
+## Alea Chord Randomizer
+
+A practice partner. Roll a short series of random chords, press play, and
+the app loops them - each chord held for its bars at your tempo - while you
+improvise over them on a real instrument. Born from an improvisation
+exercise by guitar teacher Yonatan Benaroche: a progression you did not
+choose forces your ear and hands out of familiar shapes.
+
+![Alea Chord Randomizer UI](docs/chords-ui.png)
+
+### Features
+
+- **The dice**: series of 1-8 chords; chord size (triads / 7th chords / 9th
+  chords), sus chords, a guitar-friendly Simplify mode, and a meticulous
+  chord vocabulary - every chord uniquely and correctly spelled.
+- **Key lock**: roll only the diatonic chords of a chosen key and scale -
+  major, minor, or harmonic minor - with the flavors kept strictly in-scale.
+- **The loop**: tempo, 1/2/4 bars per chord, block-chord voicings doubled
+  across your choice of octaves, played through the family synth (four
+  flavours) or sent as MIDI to any device.
+- **Practice flow**: auto roll every N loops (hands never leave the
+  instrument), pin the chords you love and reroll the rest, click a chord to
+  jump the loop there, click a past roll in HISTORY to bring it back.
+- **Switching you can see**: while a new roll waits for the chord boundary,
+  the sounding chord stays purple and the incoming chords preview in cyan.
+- **Performance controls**: metronome click with its own volume, FREEZE
+  (hold the chord, time stops), PANIC, and a monitor keyboard showing
+  exactly which notes sound.
+- Keyboard: **Space** play/pause, **R** roll, **A** auto-roll on/off.
+
+**Status: v0.1** - standalone app for macOS and Windows. Plugin formats may
+come later.
+
+### Installing Chord Randomizer
+
+Grab the [latest `chords-vX.Y.Z` release](https://github.com/yuvalEG/Alea/releases).
+
+**macOS**: download `AleaChordRandomizer-x.y.z.pkg` and double-click it
+(unsigned - right-click, **Open**, confirm, as above). Installs the app to
+/Applications.
+
+**Windows**: download `AleaChordRandomizer-x.y.z-Windows-Setup.exe` and run
+it, or grab the portable zip.
+
+Open the app, press ROLL, press play, and jam. Sound comes out of the box
+via the built-in synth; switch OUT to a MIDI device to drive hardware or a
+DAW instrument instead.
+
+---
+
+## Building
+
+Requires: macOS (or Windows for the Windows targets), CMake ≥ 3.22
+(`brew install cmake`). JUCE is downloaded automatically on first configure.
+
+```sh
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+One build makes both products: Scale Shifter's VST3/AU are copied to
+`~/Library/Audio/Plug-Ins/` (macOS), and both standalone apps end up under
+`build/*_artefacts/Release/`. Installer scripts:
+`scripts/make_installer.sh` (Scale Shifter pkg, selectable components) and
+`scripts/make_chords_installer.sh` (Chord Randomizer pkg).
 
 ## Feedback
 
 I'll be more than happy to hear your feedback, ideas, and music made with
-Alea - open an issue here or write to yuvalprod@gmail.com.
+either Alea - open an issue here or write to yuvalprod@gmail.com.
 
-Plugin made by Yuval Egozi.
+Made by Yuval Egozi.
 
 ## License
 

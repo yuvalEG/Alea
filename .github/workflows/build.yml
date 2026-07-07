@@ -3,7 +3,7 @@ name: Build
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ['v*', 'chords-v*']
   workflow_dispatch:
 
 permissions:
@@ -34,19 +34,22 @@ jobs:
           Write-Host $out
           if ($out -notmatch "SUCCESS") { exit 1 }
 
-      - name: Read version
+      - name: Read versions
         id: ver
         shell: pwsh
         run: |
           $v = (Select-String -Path CMakeLists.txt -Pattern 'project\(Alea VERSION ([0-9.]+)\)').Matches.Groups[1].Value
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $c = (Select-String -Path CMakeLists.txt -Pattern 'set\(CHORDS_VERSION ([0-9.]+)\)').Matches.Groups[1].Value
+          "chords_version=$c" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: Build installer
+      - name: Build installers
         shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DVersion=${{ steps.ver.outputs.version }} installer\windows\alea.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DVersion=${{ steps.ver.outputs.chords_version }} installer\windows\chords.iss
 
-      - name: Zip portable build
+      - name: Zip portable builds
         shell: pwsh
         run: |
           $v = "${{ steps.ver.outputs.version }}"
@@ -55,6 +58,10 @@ jobs:
           Copy-Item "build\Alea_artefacts\Release\CLAP\Alea Scale Shifter.clap" portable\
           Copy-Item "build\Alea_artefacts\Release\Standalone\Alea Scale Shifter.exe" portable\
           Compress-Archive -Path portable\* -DestinationPath "build\Alea-$v-Windows-Portable.zip"
+          $c = "${{ steps.ver.outputs.chords_version }}"
+          New-Item -ItemType Directory portable-chords | Out-Null
+          Copy-Item "build\AleaChords_artefacts\Release\Standalone\Alea Chord Randomizer.exe" portable-chords\
+          Compress-Archive -Path portable-chords\* -DestinationPath "build\AleaChordRandomizer-$c-Windows-Portable.zip"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -62,11 +69,23 @@ jobs:
           path: |
             build/Alea-*-Windows-Setup.exe
             build/Alea-*-Windows-Portable.zip
+            build/AleaChordRandomizer-*-Windows-Setup.exe
+            build/AleaChordRandomizer-*-Windows-Portable.zip
 
-      - name: Attach to release
+      # Each product's release carries only its own files: plain v* tags are
+      # Scale Shifter releases, chords-v* tags are Chord Randomizer releases.
+      - name: Attach to Scale Shifter release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload ${{ github.ref_name }} (Get-Item build\Alea-*-Windows-Setup.exe).FullName (Get-Item build\Alea-*-Windows-Portable.zip).FullName --clobber
+
+      - name: Attach to Chord Randomizer release
+        if: startsWith(github.ref, 'refs/tags/chords-v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload ${{ github.ref_name }} (Get-Item build\AleaChordRandomizer-*-Windows-Setup.exe).FullName (Get-Item build\AleaChordRandomizer-*-Windows-Portable.zip).FullName --clobber

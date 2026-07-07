@@ -1,4 +1,6 @@
-# Changelog
+# Changelog - Alea Scale Shifter
+
+(Chord Randomizer's changelog lives in [CHANGELOG-chords.md](CHANGELOG-chords.md).)
 
 ## v0.3.0 - 2026-07-07
 
