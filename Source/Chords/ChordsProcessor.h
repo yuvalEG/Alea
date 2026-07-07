@@ -147,7 +147,6 @@ private:
     juce::int64 samplesIntoBeat = 0;
     int loopsCompleted = 0;
     bool wasPlaying = false;
-    bool resumeRetrigger = false; // pause released the notes; resume re-strikes them
     int soundingNotes[16] = {};
     int soundingCount = 0;
 

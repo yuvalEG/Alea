@@ -156,7 +156,7 @@ choose forces your ear and hands out of familiar shapes.
 - **Performance controls**: metronome click with its own volume, FREEZE
   (hold the chord, time stops), PANIC, and a monitor keyboard showing
   exactly which notes sound.
-- Keyboard: **Space** play/pause, **R** roll, **A** auto-roll on/off.
+- Keyboard: **Space** play/stop, **R** roll, **A** auto-roll on/off.
 
 **Status: v0.1** - standalone app for macOS and Windows. Plugin formats may
 come later.

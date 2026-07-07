@@ -495,7 +495,7 @@ void AleaAudioProcessorEditor::layoutMain()
     panicButton.setBounds (vw - 120, 16, 72, 26);
     internalTempo.setBounds (vw - 232, 16, 100, 26);
     tempoSource.setBounds (vw - 410, 16, 140, 26);
-    playButton.setBounds (vw - 424, 16, 88, 26);
+    playButton.setBounds (vw - 412, 16, 76, 26);
 
     auto scaleControls = [] (const juce::Rectangle<int>& panel, PianoKeyboard& kb, RestSelector& rests,
                                  juce::Slider& octMin, juce::Slider& octMax,
@@ -718,10 +718,14 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
         g.fillEllipse (126.0f, 22.0f, 12.0f, 12.0f); // dot only, next to the logo
     }
 
-    g.setColour (colors::secondary);
-    g.setFont (juce::FontOptions (14.0f));
-    g.drawText ("TEMPO", (standalone ? internalTempo.getX() : tempoSource.getX()) - 66, 16, 58, 26,
-                juce::Justification::centredRight);
+    // (The tempo bar reads "120 BPM" itself now; in the plugin, the
+    // Host/Free-Run selector still earns a label.)
+    if (! standalone)
+    {
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (14.0f));
+        g.drawText ("TEMPO", tempoSource.getX() - 66, 16, 58, 26, juce::Justification::centredRight);
+    }
 
     auto drawPanel = [&g] (const juce::Rectangle<int>& r, const juce::String& title, juce::Colour accent)
     {

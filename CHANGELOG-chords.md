@@ -20,6 +20,5 @@ vocabulary, reborn in the Alea family - and it plays now.
   to jump there, scrollable history with click-to-recall, metronome click
   with its own volume, FREEZE and PANIC.
 - **Honest UI**: the sounding chord is purple, incoming chords preview in
-  cyan, pausing truly pauses, and nothing ever sounds except the printed
-  chord.
-- Keyboard: Space play/pause, R roll, A auto-roll.
+  cyan, and nothing ever sounds except the printed chord.
+- Keyboard: Space play/stop, R roll, A auto-roll.

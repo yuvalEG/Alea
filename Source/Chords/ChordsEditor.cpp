@@ -46,39 +46,26 @@ namespace
             text.setFont (juce::FontOptions (20.5f));
             text.setText (juce::String::fromUTF8 (
                 "Alea Chord Randomizer - Version " CHORDS_VERSION "\n\n\n"
-                "HOW TO USE\n\n"
-                "Press ROLL (or R / Enter) and get a random series of chords. "
-                "Press the play button in the middle of the header (or the "
-                "spacebar) and the loop plays them - each chord held for its "
-                "bars at your tempo - while you improvise over it.\n\n"
-                "CHORDS sets how many chords each roll gives you - a series of "
-                "1 behaves like a classic flash card. BARS sets how long each "
-                "chord holds, OCTAVE where the voicing sits. Rolling while "
-                "the loop plays swaps in the new chords at the next chord "
-                "change, and clicking any chord card jumps the loop there.\n\n"
-                "CHORD SIZE picks the stack: triads, seventh chords, or "
-                "ninth chords. Simplify chords narrows the roll to guitar-"
-                "friendly keys and mostly major or minor chords; Add sus "
-                "chords mixes in sus2/sus4 (about one roll in five). AUTO "
-                "ROLL under the ROLL button rolls for you every N loops "
-                "(press A to flip it on and off). Key "
-                "lock rolls only diatonic chords of the chosen key and scale "
-                "(major, minor, or harmonic minor) - flavors included, kept "
-                "strictly in the scale. The little pin on each card keeps "
-                "that chord through rolls - keep what you love, reroll the "
-                "rest.\n\n"
-                "FREEZE holds the sounding chord until you let go; PANIC "
-                "silences everything instantly.\n\n"
-                "OUT plays through the built-in synth (pick a flavour) or "
-                "sends MIDI to any device on your system. Your past rolls "
-                "pile up in HISTORY at the bottom - scroll through them, "
-                "click one to bring it back.\n\n\n"
                 "THE EXERCISE\n\n"
                 "This app was born from an improvisation exercise by my guitar "
                 "teacher, Yonatan Benaroche: generate a short random chord "
                 "progression, loop it, and improvise over it with your "
                 "instrument. A progression you did not choose forces your ear "
                 "and your hands out of familiar shapes.\n\n\n"
+                "HOW TO USE\n\n"
+                "ROLL the dice (or press R), hit play (or the spacebar), jam. "
+                "The DICE panel decides what the dice can roll; the LOOP "
+                "panel decides how it sounds. Rolling mid-loop swaps the new "
+                "chords in at the next chord change; clicking a chord jumps "
+                "the loop there.\n\n"
+                "Key lock keeps every roll diatonic to a chosen key and "
+                "scale - flavors included.\n\n"
+                "AUTO ROLL rolls for you every few loops (press A to flip "
+                "it). Pin a chord - the little circle on its card - and it "
+                "survives rolls: keep what you love, reroll the rest.\n\n"
+                "OUT plays the built-in synth (pick a flavour) or sends MIDI "
+                "to any device. Past rolls pile up in HISTORY - scroll "
+                "through them, click one to bring it back.\n\n\n"
                 "GET IN TOUCH\n\n"
                 "I'll be more than happy to hear your feedback, ideas and music! "
                 "You can reach me through GitHub (github.com/yuvalEG/Alea) or my "
@@ -176,12 +163,9 @@ void ChordsEditor::TransportButton::paintButton (juce::Graphics& g, bool over, b
 
     g.setColour (on ? juce::Colours::black : colors::green.brighter (0.45f));
     const float cy = b.getCentreY();
-    const float ix = 17.0f;
-    if (on) // pause bars: the loop holds its place, it does not reset
-    {
-        g.fillRoundedRectangle (ix - 6.5f, cy - 6.0f, 4.0f, 12.0f, 1.0f);
-        g.fillRoundedRectangle (ix + 0.5f, cy - 6.0f, 4.0f, 12.0f, 1.0f);
-    }
+    const float ix = 15.0f;
+    if (on) // stop square - holding a moment is FREEZE's job
+        g.fillRoundedRectangle (ix - 5.0f, cy - 5.0f, 10.0f, 10.0f, 1.5f);
     else
     {
         juce::Path p;
@@ -189,7 +173,7 @@ void ChordsEditor::TransportButton::paintButton (juce::Graphics& g, bool over, b
         g.fillPath (p);
     }
     g.setFont (juce::FontOptions (14.0f));
-    g.drawText (on ? "PAUSE" : "PLAY", (int) ix + 12, 0, getWidth() - (int) ix - 16, getHeight(),
+    g.drawText (on ? "STOP" : "PLAY", (int) ix + 11, 0, getWidth() - (int) ix - 14, getHeight(),
                 juce::Justification::centredLeft);
 }
 
@@ -1223,8 +1207,8 @@ void ChordsEditor::resized()
 
     // The transport sits mid-header (window-centered when there is room,
     // nudged into the free lane between the status and the right cluster).
-    const int playX = juce::jlimit (384, freezeButton.getX() - 106, getWidth() / 2 - 48);
-    playButton.setBounds (playX, 14, 96, 28);
+    const int playX = juce::jlimit (384, freezeButton.getX() - 86, getWidth() / 2 - 38);
+    playButton.setBounds (playX, 14, 76, 28);
 
     auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
     ticker.setBounds (hist);

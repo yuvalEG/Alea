@@ -462,12 +462,9 @@ void TransportButton::paintButton (juce::Graphics& g, bool over, bool)
 
     g.setColour (on ? juce::Colours::black : colors::green.brighter (0.45f));
     const float cy = b.getCentreY();
-    const float ix = 17.0f;
-    if (on) // pause bars: the clock holds, it does not reset
-    {
-        g.fillRoundedRectangle (ix - 6.5f, cy - 6.0f, 4.0f, 12.0f, 1.0f);
-        g.fillRoundedRectangle (ix + 0.5f, cy - 6.0f, 4.0f, 12.0f, 1.0f);
-    }
+    const float ix = 15.0f;
+    if (on) // stop square - holding a moment is FREEZE's job
+        g.fillRoundedRectangle (ix - 5.0f, cy - 5.0f, 10.0f, 10.0f, 1.5f);
     else
     {
         juce::Path p;
@@ -475,7 +472,7 @@ void TransportButton::paintButton (juce::Graphics& g, bool over, bool)
         g.fillPath (p);
     }
     g.setFont (juce::FontOptions (14.0f));
-    g.drawText (on ? "PAUSE" : "PLAY", (int) ix + 12, 0, getWidth() - (int) ix - 16, getHeight(),
+    g.drawText (on ? "STOP" : "PLAY", (int) ix + 11, 0, getWidth() - (int) ix - 14, getHeight(),
                 juce::Justification::centredLeft);
 }
 
