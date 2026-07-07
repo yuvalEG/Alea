@@ -33,6 +33,7 @@ public:
     void togglePin (int index);
     void updateLoop();            // re-voice the series for playback (e.g. octave change)
     void handleStopped();         // discard an unheard pending roll: pausing must not switch chords
+    void cancelAutoRollSwap();    // auto roll turned off mid-preview: undo ITS pending roll only
 
     // Bumped on every chord-state change; the editor polls it to stay in sync
     // (state can arrive from the wrapper before or after the editor exists).
@@ -128,6 +129,12 @@ private:
     std::vector<PlayChord> nextLoop;         // guarded by loopLock
     std::atomic<bool> loopDirty { false };
     std::atomic<bool> seriesSwapPending { false };
+
+    // Who owns the pending swap (message thread): auto roll's swaps can be
+    // canceled by switching auto roll off; manual rolls cannot.
+    bool autoRollInProgress = false;
+    bool pendingFromAutoRoll = false;
+    void revertPendingSwap();
 
     std::vector<PlayChord> currentLoop;
     int chordIdx = 0;

@@ -12,7 +12,11 @@ ChordsProcessor::ChordsProcessor()
 void ChordsProcessor::timerCallback()
 {
     if (autoRollPending.exchange (false) && playing.load())
+    {
+        autoRollInProgress = true;
         rollSeries();
+        autoRollInProgress = false;
+    }
 }
 
 chords::Chord ChordsProcessor::rollOne()
@@ -40,10 +44,16 @@ void ChordsProcessor::markSeriesChange()
 {
     // Only the FIRST change while a swap is pending snapshots the sounding
     // series - roll twice quickly and the audio is still on the original.
-    if (playing.load() && ! seriesSwapPending.load())
+    if (playing.load())
     {
-        pendingOldSeries = series;
-        seriesSwapPending.store (true);
+        if (! seriesSwapPending.load())
+        {
+            pendingOldSeries = series;
+            seriesSwapPending.store (true);
+        }
+        // The latest change owns the swap: a manual roll after an auto one
+        // must not be canceled by switching auto roll off.
+        pendingFromAutoRoll = autoRollInProgress;
     }
 }
 
@@ -77,16 +87,10 @@ void ChordsProcessor::togglePin (int index)
     }
 }
 
-void ChordsProcessor::handleStopped()
+void ChordsProcessor::revertPendingSwap()
 {
-    // Pausing must not switch what you were practicing: a still-unheard
-    // pending roll (typically auto roll's preview) is discarded and the
-    // sounding series restored. If that roll had pushed the old series
-    // into history, un-dup it.
-    autoRollPending.store (false);
-    if (! seriesSwapPending.load())
-        return;
-
+    // Discard a still-unheard pending roll and restore the sounding series.
+    // If that roll had pushed the old series into history, un-dup it.
     if (! history.empty() && history.front() == pendingOldSeries)
         history.pop_front();
     if (! pendingOldSeries.empty())
@@ -97,6 +101,23 @@ void ChordsProcessor::handleStopped()
     updateLoop();
     seriesSwapPending.store (false);
     ++revision;
+}
+
+void ChordsProcessor::handleStopped()
+{
+    // Pausing must not switch what you were practicing.
+    autoRollPending.store (false);
+    if (seriesSwapPending.load())
+        revertPendingSwap();
+}
+
+void ChordsProcessor::cancelAutoRollSwap()
+{
+    // Auto roll switched off while its preview was pending: take it back.
+    // Manual rolls keep their swap - only auto roll's own work is undone.
+    autoRollPending.store (false);
+    if (seriesSwapPending.load() && pendingFromAutoRoll)
+        revertPendingSwap();
 }
 
 void ChordsProcessor::setSeriesLength (int newLength)

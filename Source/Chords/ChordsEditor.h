@@ -108,8 +108,10 @@ private:
     juce::TextButton menuButton, rollButton { "ROLL" }, playButton { "PLAY" },
                      freezeButton { "FREEZE" }, panicButton { "PANIC" };
     juce::Slider tempoBox;
-    juce::ToggleButton simplifyToggle { "Simplify Chords" },
-                       susToggle { "Sus chords" },
+    // Toggle labels are sentence case throughout; ALL-CAPS is reserved for
+    // captions, panel titles and buttons.
+    juce::ToggleButton simplifyToggle { "Simplify chords" },
+                       susToggle { "Add sus chords" },
                        keyLockToggle { "Key lock" },
                        autoRollToggle { "Auto roll after" };
     juce::ComboBox keyBox, scaleBox;            // key lock: tonic + scale type

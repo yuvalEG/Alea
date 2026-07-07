@@ -55,14 +55,14 @@ namespace
                 "chord holds, OCTAVE where the voicing sits. Rolling while "
                 "the loop plays swaps in the new chords at the next chord "
                 "change, and clicking any chord card jumps the loop there.\n\n"
-                "Simplify Chords narrows the roll to guitar-friendly keys and "
-                "mostly major or minor chords. EXTENSIONS climbs from plain "
-                "triads to seventh chords to ninths; Sus chords widen the "
-                "dice further. Key lock rolls only diatonic chords of the "
-                "chosen key and scale (major, minor, or harmonic minor) - "
-                "flavors included, kept strictly in the scale. The little pin "
-                "on each card keeps that chord through rolls - keep what you "
-                "love, reroll the rest.\n\n"
+                "Simplify chords narrows the roll to guitar-friendly keys and "
+                "mostly major or minor chords. ADD climbs from plain triads "
+                "to seventh chords to ninths; Add sus chords mixes in sus2 "
+                "and sus4 (about one roll in five). Key lock rolls only "
+                "diatonic chords of the chosen key and scale (major, minor, "
+                "or harmonic minor) - flavors included, kept strictly in the "
+                "scale. The little pin on each card keeps that chord through "
+                "rolls - keep what you love, reroll the rest.\n\n"
                 "FREEZE holds the sounding chord until you let go; PANIC "
                 "silences everything instantly.\n\n"
                 "OUT plays through the built-in synth (pick a flavour) or "
@@ -607,7 +607,17 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     addAndMakeVisible (clickVolKnob);
 
     // Auto roll: fresh dice every N loops - hands stay on the instrument.
-    autoRollToggle.onClick = [this] { chordsProc.autoRollOn.store (autoRollToggle.getToggleState()); };
+    // Switching it off also takes back a preview it already rolled.
+    autoRollToggle.onClick = [this]
+    {
+        const bool on = autoRollToggle.getToggleState();
+        chordsProc.autoRollOn.store (on);
+        if (! on)
+        {
+            chordsProc.cancelAutoRollSwap();
+            refresh();
+        }
+    };
     addAndMakeVisible (autoRollToggle);
     autoRollBox.setColour (juce::ComboBox::backgroundColourId, colors::control);
     autoRollBox.setColour (juce::ComboBox::textColourId, colors::text);
@@ -650,9 +660,9 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     addAndMakeVisible (simplifyToggle); // simplify reads first - it narrows, the rest widen
     addAndMakeVisible (susToggle);
 
-    // Extensions climb: a 9th chord presumes its 7th, so this is one ladder
-    // instead of two dependent checkboxes.
-    extRow.labels = { "triads", "7ths", "9ths" };
+    // The ADD ladder: a 9th chord presumes its 7th, so this is one ladder
+    // instead of two dependent checkboxes; "none" means plain triads.
+    extRow.labels = { "none", "7ths", "9ths" };
     extRow.onChange = [this] (int level)
     {
         chordsProc.useSevenths = level >= 1;
@@ -927,7 +937,11 @@ void ChordsEditor::refresh()
         else if (i < (int) chordsProc.series.size())
         {
             cards[i]->text = chordsProc.series[(size_t) i].text();
-            cards[i]->incoming = pendingSwap;
+            // Amber means "about to change" - a card whose chord survives
+            // the swap (pinned, typically) stays calm.
+            cards[i]->incoming = pendingSwap
+                && ! (i < (int) chordsProc.pendingOldSeries.size()
+                      && chordsProc.pendingOldSeries[(size_t) i] == chordsProc.series[(size_t) i]);
         }
         cards[i]->pinned = chordsProc.pinned[(size_t) i];
         cards[i]->repaint();
@@ -1114,7 +1128,7 @@ void ChordsEditor::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (12.0f));
     g.drawText ("CHORDS", lengthRow.getX(), lengthRow.getY() - 16,
                 lengthRow.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("EXTENSIONS", extRow.getX(), extRow.getY() - 16,
+    g.drawText ("ADD", extRow.getX(), extRow.getY() - 16,
                 extRow.getWidth(), 14, juce::Justification::centredLeft);
     g.drawText ("BARS", barsRow.getX(), barsRow.getY() - 16,
                 barsRow.getWidth(), 14, juce::Justification::centredLeft);

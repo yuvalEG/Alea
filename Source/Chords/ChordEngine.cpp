@@ -196,27 +196,24 @@ namespace
         const auto& d = degrees[rng.nextInt (7)];
         const int pc = pcOf (d.root);
 
-        Chord base;
-        base.root = d.root;
-        base.quality = opts.sevenths ? d.with7 : d.triad;
-        base.seventh = opts.sevenths ? d.seventh : Seventh::none;
+        Chord c;
+        c.root = d.root;
+        c.quality = opts.sevenths ? d.with7 : d.triad;
+        c.seventh = opts.sevenths ? d.seventh : Seventh::none;
 
-        juce::Array<Chord> variants { base };
-        if (opts.sus && inScale (pc + 7)) // sus keeps a perfect fifth
+        // Sus swap, ~1 roll in 5: needs an in-scale perfect fifth plus the
+        // 2/4; the 7sus form needs the in-scale minor seventh.
+        if (opts.sus && rng.nextInt (5) == 0 && inScale (pc + 7))
         {
-            const bool flatSeven = opts.sevenths && inScale (pc + 10);
-            for (const auto& [quality, step] : { std::pair<Quality, int> { Quality::sus2, 2 },
-                                                 { Quality::sus4, 5 } })
-                if (inScale (pc + step))
-                {
-                    Chord v;
-                    v.root = d.root;
-                    v.quality = quality;
-                    v.seventh = flatSeven ? Seventh::seven : Seventh::none;
-                    variants.add (v);
-                }
+            juce::Array<Quality> legal;
+            if (inScale (pc + 2)) legal.add (Quality::sus2);
+            if (inScale (pc + 5)) legal.add (Quality::sus4);
+            if (! legal.isEmpty())
+            {
+                c.quality = legal[rng.nextInt (legal.size())];
+                c.seventh = (opts.sevenths && inScale (pc + 10)) ? Seventh::seven : Seventh::none;
+            }
         }
-        Chord c = variants[rng.nextInt (variants.size())];
 
         if (opts.ninths && inScale (pc + 2)
             && (c.quality == Quality::major || c.quality == Quality::minor)
@@ -256,7 +253,7 @@ Chord roll (juce::Random& rng, const RollOptions& opts)
 
     Chord c;
 
-    // Roots and quality pool; the sus toggle widens the pool in both modes.
+    // Roots and quality pool (sus arrives as a post-step, below).
     juce::Array<Quality> qualities;
     if (opts.simplified)
     {
@@ -268,18 +265,12 @@ Chord roll (juce::Random& rng, const RollOptions& opts)
         c.root = fullRoots()[rng.nextInt (fullRoots().size())];
         qualities = { Quality::dim, Quality::minor, Quality::major, Quality::aug };
     }
-    if (opts.sus)
-        qualities.addArray ({ Quality::sus2, Quality::sus4 });
     c.quality = qualities[rng.nextInt (qualities.size())];
 
     if (opts.sevenths)
     {
         switch (c.quality)
         {
-            case Quality::sus2:
-            case Quality::sus4:
-                c.seventh = Seventh::seven; // 7sus2 / 7sus4, always dominant-style
-                break;
             case Quality::dim:
                 c.seventh = opts.simplified ? Seventh::seven // dim7 only, as always
                                             : (rng.nextBool() ? Seventh::seven : Seventh::majSeven);
@@ -297,6 +288,13 @@ Chord roll (juce::Random& rng, const RollOptions& opts)
                 c.seventh = rng.nextBool() ? Seventh::seven : Seventh::majSeven;
                 break;
         }
+    }
+
+    // Sus swap, ~1 roll in 5 (a pool slot made sus half the dice - QA).
+    if (opts.sus && rng.nextInt (5) == 0)
+    {
+        c.quality = rng.nextBool() ? Quality::sus2 : Quality::sus4;
+        c.seventh = opts.sevenths ? Seventh::seven : Seventh::none; // 7sus, dominant-style
     }
 
     // Ninths, strictly on the seventh chords where they read cleanly:
