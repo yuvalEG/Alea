@@ -306,8 +306,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     content.addChildComponent (helpLink);
     helpLink.setVisible (! standalone);
 
-    panicButton.setColour (juce::TextButton::buttonColourId, colors::red.withAlpha (0.85f));
-    panicButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
+    // Family design (the Chord Randomizer's version won): quiet control
+    // background, red text - danger named, not shouted.
+    panicButton.setColour (juce::TextButton::buttonColourId, colors::control);
+    panicButton.setColour (juce::TextButton::textColourOffId, colors::red);
     panicButton.onClick = [this] { alea.panicRequested.store (true); };
     content.addAndMakeVisible (panicButton);
 

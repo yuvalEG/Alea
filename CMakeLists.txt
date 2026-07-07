@@ -159,6 +159,7 @@ target_compile_definitions(ChordsUISnapshot PRIVATE
     CHORDS_VERSION="${CHORDS_VERSION}"
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
+    JUCE_MODAL_LOOPS_PERMITTED=1  # the tool pumps the message loop for posed shots
     JucePlugin_Name="Alea Chord Randomizer")
 target_link_libraries(ChordsUISnapshot
     PRIVATE AleaAssets juce::juce_audio_utils

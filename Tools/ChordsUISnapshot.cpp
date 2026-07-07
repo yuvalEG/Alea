@@ -1,7 +1,9 @@
 // Dev tool: renders the Chord Randomizer editor into a PNG so layout can be
 // checked without launching the app.
 // Usage: ChordsUISnapshot <out.png> [rolls] [sevenths 0/1] [simplify 0/1]
-// (rolls > 0 pre-rolls the dice that many times so the history ticker fills.)
+//                         [playing 0/1] [width] [height]
+// (rolls > 0 pre-rolls the dice so the history ticker fills; playing=1
+// runs the loop for a few seconds first so the shot looks mid-playing.)
 // Or:    ChordsUISnapshot --vocab
 // prints every chord the engine can roll (empirically, on root C where
 // applicable) with its intervals - the music-theory QA table.
@@ -90,7 +92,27 @@ int main (int argc, char* argv[])
     for (int i = argc > 2 ? juce::String (argv[2]).getIntValue() : 0; i > 0; --i)
         processor.rollSeries();
 
+    // A "mid-playing" pose: run the loop offline into the second chord, then
+    // leave the transport on so the editor paints the purple card, progress
+    // strip and lit monitor keys.
+    const bool playingShot = argc > 5 && juce::String (argv[5]).getIntValue() != 0;
+    if (playingShot)
+    {
+        processor.setPlayConfigDetails (0, 2, 44100.0, 512);
+        processor.prepareToPlay (44100.0, 512);
+        processor.playing.store (true);
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+        for (int block = 0; block < 380; ++block)
+            processor.processBlock (buffer, midi);
+    }
+
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    if (argc > 7)
+        editor->setSize (juce::jmax (600, juce::String (argv[6]).getIntValue()),
+                         juce::jmax (400, juce::String (argv[7]).getIntValue()));
+    if (playingShot) // let the 30 Hz timer pick the playing state up
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (300);
 
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 2.0f);
 
@@ -105,6 +127,9 @@ int main (int argc, char* argv[])
     juce::PNGImageFormat png;
     if (! png.writeImageToStream (image, stream))
         return 1;
+
+    if (playingShot)
+        return 0; // posed shot: the loop already ran, skip the smoke test
 
     // Audio smoke test: run the loop offline for ~4 seconds and report the
     // peak level - proof the transport schedules chords and the synth sounds.
