@@ -128,6 +128,7 @@ private:
     juce::ComboBox keyBox, scaleBox;            // key lock: tonic + scale type
     juce::TextButton clickButton { "CLICK" };   // metronome, next to the tempo
     juce::Slider clickVolKnob;                  // click level, beside CLICK
+    juce::HyperlinkButton helpLink;             // plugin only: routing help in the README
     juce::ComboBox autoRollBox;                 // AUTO ROLL: off / every N loops - one control
     SegmentRow lengthRow, barsRow, octaveRow,
                sizeRow;                         // CHORD SIZE: triads / 7ths / 9ths

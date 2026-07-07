@@ -745,6 +745,15 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     menuButton.onClick = [this] { showMenu(); };
     addAndMakeVisible (menuButton);
 
+    // Plugin only: the most common support question is routing, exactly as
+    // in Scale Shifter; the standalone's synth needs none.
+    helpLink.setButtonText ("No sound? Routing Help");
+    helpLink.setURL (juce::URL ("https://github.com/yuvalEG/Alea#troubleshooting"));
+    helpLink.setFont (juce::FontOptions (13.0f), false, juce::Justification::centredLeft);
+    helpLink.setColour (juce::HyperlinkButton::textColourId, colors::secondary);
+    addChildComponent (helpLink);
+    helpLink.setVisible (! standalone);
+
     ticker.onRecall = [this] (int index)
     {
         chordsProc.recallRoll (index);
@@ -1220,6 +1229,12 @@ void ChordsEditor::resized()
     chordsProc.lastUIHeight = getHeight();
 
     auto b = getLocalBounds();
+
+    // Plugin footer: routing help bottom-left (the resize handle owns the
+    // bottom-right corner); absent in the standalone.
+    if (! standalone)
+        helpLink.setBounds (b.removeFromBottom (20).withTrimmedLeft (16).withTrimmedBottom (2).withWidth (200));
+
     auto header = b.removeFromTop (56);
     menuButton.setBounds (header.getRight() - 48, 14, 36, 28);
     panicButton.setBounds (menuButton.getX() - 8 - 66, 15, 66, 26);

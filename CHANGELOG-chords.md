@@ -2,6 +2,10 @@
 
 (Scale Shifter's changelog lives in [CHANGELOG.md](CHANGELOG.md).)
 
+## chords-v0.2.1 - 2026-07-08
+
+- The plugin grew Scale Shifter's "No sound? Routing Help" footer link.
+
 ## chords-v0.2.0 - 2026-07-07
 
 Into the DAW.

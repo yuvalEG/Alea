@@ -1,20 +1,19 @@
 # Alea
 
-Small instruments for improvising musicians, built around random elements
-(*alea* is Latin for dice, as in aleatoric music).
+Small instruments for improvising musicians.
+Built around random elements (*alea* is Latin for dice, as in aleatoric
+music).
 
-<p align="center">
-  <img src="docs/ui.png" width="49%" alt="Alea Scale Shifter">
-  <img src="docs/chords-ui.png" width="49%" alt="Alea Chord Randomizer">
-</p>
+![Alea Scale Shifter](docs/ui.png)
+
+![Alea Chord Randomizer](docs/chords-ui.png)
 
 | | What it is | Get it |
 |---|---|---|
 | **[Alea Scale Shifter](#alea-scale-shifter)** | Random notes from a scale, slowly morphing into another scale | [Latest release](https://github.com/yuvalEG/Alea/releases?q=%22v0.%22&expanded=false) (`Alea-x.y.z` files) |
 | **[Alea Chord Randomizer](#alea-chord-randomizer)** | Random chords, looped - improvise over them | [Latest release](https://github.com/yuvalEG/Alea/releases?q=chords&expanded=false) (`AleaChordRandomizer-x.y.z` files) |
 
-Each product releases on its own - download just the one you want. Both
-check for their own updates from the in-app menu.
+Each product releases on its own - download just the one you want.
 
 ---
 

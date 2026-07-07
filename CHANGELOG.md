@@ -2,6 +2,15 @@
 
 (Chord Randomizer's changelog lives in [CHANGELOG-chords.md](CHANGELOG-chords.md).)
 
+## v0.3.1 - 2026-07-08
+
+- The transport is a drawn play/stop button, a design shared with the new
+  Alea Chord Randomizer; it also remembers its state when the window
+  reopens mid-playback.
+- FREEZE wears an icy blue when active - its old cyan belonged to Scale B.
+- PANIC calmed down: red text on a quiet button.
+- The tempo bar reads "120 BPM" by itself; the app drops the TEMPO label.
+
 ## v0.3.0 - 2026-07-07
 
 - **Root is the key**: scales now store their shape, and the root transposes
