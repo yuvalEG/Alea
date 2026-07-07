@@ -102,11 +102,20 @@ private:
         void scrollBy (float delta);
     };
 
+    // Centered transport: a drawn play triangle / pause bars (icon paths,
+    // not font glyphs - musical Unicode is unreliable in JUCE).
+    struct TransportButton : juce::Button
+    {
+        TransportButton() : juce::Button ("transport") { setClickingTogglesState (true); }
+        void paintButton (juce::Graphics&, bool over, bool down) override;
+    };
+
     ChordsProcessor& chordsProc;
     int seenRevision = -1;
 
     juce::Image logo;
-    juce::TextButton menuButton, rollButton { "ROLL" }, playButton { "PLAY" },
+    TransportButton playButton;
+    juce::TextButton menuButton, rollButton { "ROLL" },
                      freezeButton { "FREEZE" }, panicButton { "PANIC" };
     juce::Slider tempoBox;
     // DICE control language (QA round 11): buttons act, checkboxes toggle

@@ -47,9 +47,9 @@ namespace
                 "Alea Chord Randomizer - Version " CHORDS_VERSION "\n\n\n"
                 "HOW TO USE\n\n"
                 "Press ROLL (or R / Enter) and get a random series of chords. "
-                "Press PLAY (or the spacebar) and the loop plays them - each "
-                "chord held for its bars at your tempo - while you improvise "
-                "over it.\n\n"
+                "Press the play button in the middle of the header (or the "
+                "spacebar) and the loop plays them - each chord held for its "
+                "bars at your tempo - while you improvise over it.\n\n"
                 "CHORDS sets how many chords each roll gives you - a series of "
                 "1 behaves like a classic flash card. BARS sets how long each "
                 "chord holds, OCTAVE where the voicing sits. Rolling while "
@@ -142,7 +142,9 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
                                 (b.getWidth() - 16.0f) * juce::jlimit (0.0f, 1.0f, progress), 3.0f, 1.5f);
     }
 
-    g.setColour (incoming ? colors::cyan : colors::text);
+    // Chord labels are always white - the frame alone carries the color
+    // (a cyan label read as a different kind of object, QA).
+    g.setColour (colors::text);
     g.setFont (juce::FontOptions (fontSize));
     g.drawText (text, getLocalBounds(), juce::Justification::centred);
 
@@ -157,6 +159,30 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
     {
         g.setColour (colors::secondary.withAlpha (0.45f));
         g.drawEllipse (pin.reduced (0.5f), 1.2f);
+    }
+}
+
+void ChordsEditor::TransportButton::paintButton (juce::Graphics& g, bool over, bool)
+{
+    auto b = getLocalBounds().toFloat();
+    const bool on = getToggleState();
+    g.setColour (on ? colors::green : over ? colors::control.brighter (0.10f) : colors::control);
+    g.fillRoundedRectangle (b, 5.0f);
+    g.setColour (colors::border);
+    g.drawRoundedRectangle (b.reduced (0.5f), 5.0f, 1.0f);
+
+    g.setColour (on ? juce::Colours::black : colors::text);
+    const auto c = b.getCentre();
+    if (on) // pause bars while running
+    {
+        g.fillRoundedRectangle (c.x - 5.5f, c.y - 6.0f, 4.0f, 12.0f, 1.0f);
+        g.fillRoundedRectangle (c.x + 1.5f, c.y - 6.0f, 4.0f, 12.0f, 1.0f);
+    }
+    else // play triangle
+    {
+        juce::Path p;
+        p.addTriangle (c.x - 4.0f, c.y - 6.5f, c.x - 4.0f, c.y + 6.5f, c.x + 7.0f, c.y);
+        g.fillPath (p);
     }
 }
 
@@ -521,15 +547,9 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     addAndMakeVisible (rollButton);
 
     // Transport: the loop is the product (spec M2). Space toggles it.
-    playButton.setClickingTogglesState (true);
-    playButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    playButton.setColour (juce::TextButton::buttonOnColourId, colors::green);
-    playButton.setColour (juce::TextButton::textColourOffId, colors::text);
-    playButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
     playButton.onClick = [this]
     {
         const bool on = playButton.getToggleState();
-        playButton.setButtonText (on ? "STOP" : "PLAY");
         chordsProc.playing.store (on);
         if (! on)
             chordsProc.handleStopped(); // an unheard pending roll is discarded
@@ -887,7 +907,7 @@ void ChordsEditor::timerCallback()
     {
         lastPlaying = isPlaying;
         playButton.setToggleState (isPlaying, juce::dontSendNotification);
-        playButton.setButtonText (isPlaying ? "STOP" : "PLAY");
+        playButton.repaint();
         repaint (0, 0, getWidth(), 56); // status dot
     }
 }
@@ -1187,8 +1207,12 @@ void ChordsEditor::resized()
     tempoBox.setBounds (panicButton.getX() - 8 - 100, 15, 100, 26);
     clickVolKnob.setBounds (tempoBox.getX() - 4 - 30, 13, 30, 30);
     clickButton.setBounds (clickVolKnob.getX() - 4 - 62, 15, 62, 26);
-    playButton.setBounds (clickButton.getX() - 8 - 74, 15, 74, 26);
-    freezeButton.setBounds (playButton.getX() - 8 - 74, 15, 74, 26);
+    freezeButton.setBounds (clickButton.getX() - 8 - 74, 15, 74, 26);
+
+    // The transport sits mid-header (window-centered when there is room,
+    // nudged into the free lane between the status and the right cluster).
+    const int playX = juce::jlimit (384, freezeButton.getX() - 54, getWidth() / 2 - 22);
+    playButton.setBounds (playX, 14, 44, 28);
 
     auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
     ticker.setBounds (hist);
