@@ -1,60 +1,45 @@
 # Alea
 
-Small instruments for improvising musicians, built around dice
-(*alea* is Latin for dice). Two products live in this repo:
+Small instruments for improvising musicians, built around random elements
+(*alea* is Latin for dice, as in aleatoric music).
+
+<p align="center">
+  <img src="docs/ui.png" width="49%" alt="Alea Scale Shifter">
+  <img src="docs/chords-ui.png" width="49%" alt="Alea Chord Randomizer">
+</p>
 
 | | What it is | Get it |
 |---|---|---|
-| **[Alea Scale Shifter](#alea-scale-shifter)** | Generative MIDI plugin + app: random notes from a scale, morphing into another scale over time | [Latest release](https://github.com/yuvalEG/Alea/releases?q=%22v0.%22&expanded=false) (`Alea-x.y.z` files) |
-| **[Alea Chord Randomizer](#alea-chord-randomizer)** | Practice app: roll random chords, loop them, improvise over them | [Latest release](https://github.com/yuvalEG/Alea/releases?q=chords&expanded=false) (`AleaChordRandomizer-x.y.z` files) |
+| **[Alea Scale Shifter](#alea-scale-shifter)** | Random notes from a scale, slowly morphing into another scale | [Latest release](https://github.com/yuvalEG/Alea/releases?q=%22v0.%22&expanded=false) (`Alea-x.y.z` files) |
+| **[Alea Chord Randomizer](#alea-chord-randomizer)** | Random chords, looped - improvise over them | [Latest release](https://github.com/yuvalEG/Alea/releases?q=chords&expanded=false) (`AleaChordRandomizer-x.y.z` files) |
 
-Each product releases on its own: Scale Shifter releases are tagged
-`vX.Y.Z`, Chord Randomizer releases `chords-vX.Y.Z`, and every release
-carries only that product's installers - download just the one you want.
-Both apps check for their own updates from the in-app menu.
+Each product releases on its own - download just the one you want. Both
+check for their own updates from the in-app menu.
 
 ---
 
 ## Alea Scale Shifter
 
-A generative MIDI plugin. Pick a set of notes, press play, and Alea streams
-random notes from that set into your DAW, slowly morphing toward a second
-note set over time - made to explore the relationship between an improvising
-human player and a machine that drifts from a diatonic scale to complete
-dodecaphony.
+Pick a set of notes and press play: Alea streams an endless, never-repeating
+line from it, slowly drifting toward a second set - from a scale you know
+all the way to full dodecaphony, while you play against the drift.
 
-![Alea Scale Shifter UI](docs/ui.png)
+### What it does
 
-### Features
+- **Two scales**, A and B: notes, octaves, velocities - and rests that roll
+  just like notes.
+- **Scale Morph**: blend between them by hand, by automation, by MIDI CC -
+  or let **AUTO-SWEEP** travel on its own.
+- **Timing**: locked to your DAW, free-running, or rolled anew per note.
+- **A warm built-in synth** in four flavours, so it makes sound anywhere
+  with zero routing.
+- **10 presets**, from *Just an Arp* to *Order → Chaos* - and your own as
+  `.alea` files.
+- Replayable randomness: loop a section and it rolls the same dice again.
 
-- **Two scales** (A and B): pick pitch classes on a keyboard, set octave and
-  velocity ranges, and add weighted rests (2 bars down to 1/16) that roll
-  like notes do.
-- **Scale Morph**: blend the probability of drawing from A vs. B - drag the
-  bar, automate it, bind a MIDI CC (right-click the bar), or engage
-  **AUTO-SWEEP** to travel on its own: One-Shot, Loop, or Bounce, over bars
-  or free time, shaped by linear/exponential/S/logarithmic curves. Grab the
-  bar mid-sweep to scrub; the sweep re-anchors and keeps going.
-- **Timing**: note rate and length synced to the host (4 bars down to a
-  1/128 note), free-running in ms/seconds, or rolled randomly per note.
-- **Roots and transpose**: each scale picks the pitch its octave span starts
-  from; a global transpose shifts the whole output.
-- **Internal synth**: a warm 8-voice pad (detuned, phasing, velocity-aware,
-  with delay and reverb) so the AU, and the standalone app, make sound with
-  zero routing.
-- **Performance controls**: Freeze (hold the stream), Panic (all notes off).
-- **Monitoring**: activity LED, current note, bar/beat, an 88-key strip, and
-  an event history ticker - everything colored by which scale it came from.
-- **10 factory presets** - from *Just an Arp* through the eerie *Hexatonic
-  Pole* to *Order → Chaos*, the three-minute journey from five quiet notes
-  to full dodecaphony - plus save/load of your own patches as `.alea` files.
-- Deterministic per session: loop playback re-rolls the same choices, so what
-  you heard is what you'll hear again.
-
-**Status: v0.3** - VST3, AU and CLAP plugins plus a standalone app, for
-macOS and Windows. Every build passes
-[pluginval](https://github.com/Tracktion/pluginval) at strictness 10; the
-AU passes Apple's auval.
+VST3, AU and CLAP plus a standalone app, for macOS and Windows. Every build
+passes [pluginval](https://github.com/Tracktion/pluginval) at strictness 10
+and Apple's auval.
 
 ### Installing Scale Shifter
 
@@ -130,47 +115,38 @@ In Ableton Live (VST3):
 
 ## Alea Chord Randomizer
 
-A practice partner. Roll a short series of random chords, press play, and
-the app loops them - each chord held for its bars at your tempo - while you
-improvise over them on a real instrument. Born from an improvisation
-exercise by guitar teacher Yonatan Benaroche: a progression you did not
-choose forces your ear and hands out of familiar shapes.
+Roll a handful of random chords, press play, and improvise over the loop.
+Born from an improvisation exercise by guitar teacher Yonatan Benaroche:
+a progression you did not choose forces your ear and hands out of familiar
+shapes.
 
-![Alea Chord Randomizer UI](docs/chords-ui.png)
+### What it does
 
-### Features
+- **The dice**: a series of chords, with control over their complexity -
+  and a meticulous chord vocabulary.
+- **Key lock**: stay diatonic in any key - major, minor, or harmonic minor.
+- **The loop**: your tempo, your bars, your octaves - through the built-in
+  synth or any MIDI device.
+- **Practice flow**: auto roll every few loops, pin the chords you love,
+  bring back any past roll.
+- Metronome, FREEZE, PANIC, and a keyboard that shows what is sounding.
 
-- **The dice**: series of 1-8 chords; chord size (triads / 7th chords / 9th
-  chords), sus chords, a guitar-friendly Simplify mode, and a meticulous
-  chord vocabulary - every chord uniquely and correctly spelled.
-- **Key lock**: roll only the diatonic chords of a chosen key and scale -
-  major, minor, or harmonic minor - with the flavors kept strictly in-scale.
-- **The loop**: tempo, 1/2/4 bars per chord, block-chord voicings doubled
-  across your choice of octaves, played through the family synth (four
-  flavours) or sent as MIDI to any device.
-- **Practice flow**: auto roll every N loops (hands never leave the
-  instrument), pin the chords you love and reroll the rest, click a chord to
-  jump the loop there, click a past roll in HISTORY to bring it back.
-- **Switching you can see**: while a new roll waits for the chord boundary,
-  the sounding chord stays purple and the incoming chords preview in cyan.
-- **Performance controls**: metronome click with its own volume, FREEZE
-  (hold the chord, time stops), PANIC, and a monitor keyboard showing
-  exactly which notes sound.
-- Keyboard: **Space** play/stop, **R** roll, **A** auto-roll on/off.
-
-**Status: v0.1** - standalone app for macOS and Windows. Plugin formats may
-come later.
+Standalone app plus VST3, AU and CLAP plugins, for macOS and Windows.
 
 ### Installing Chord Randomizer
 
 Grab the [latest `chords-vX.Y.Z` release](https://github.com/yuvalEG/Alea/releases).
 
 **macOS**: download `AleaChordRandomizer-x.y.z.pkg` and double-click it
-(unsigned - right-click, **Open**, confirm, as above). Installs the app to
-/Applications.
+(unsigned - right-click, **Open**, confirm, as above). Tick what you want:
+VST3, AU, CLAP, and/or the standalone app.
 
 **Windows**: download `AleaChordRandomizer-x.y.z-Windows-Setup.exe` and run
-it, or grab the portable zip.
+it (components: VST3, CLAP, standalone), or grab the portable zip.
+
+In a DAW it works like Scale Shifter: route its MIDI to an instrument
+track, or flip OUT to the built-in synth (in Logic, use the AU with the
+synth). The Scale Shifter routing guide above applies as-is.
 
 Open the app, press ROLL, press play, and jam. Sound comes out of the box
 via the built-in synth; switch OUT to a MIDI device to drive hardware or a

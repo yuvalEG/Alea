@@ -117,7 +117,9 @@ juce_add_plugin(AleaChords
     FORMATS ${CHORDS_FORMATS}
     IS_SYNTH TRUE
     IS_MIDI_EFFECT FALSE
-    NEEDS_MIDI_INPUT FALSE
+    # MIDI input is declared (and ignored): Live refuses to open VST3
+    # instruments that expose no MIDI-in bus.
+    NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
     COPY_PLUGIN_AFTER_BUILD ${CHORDS_COPY_AFTER_BUILD})
 

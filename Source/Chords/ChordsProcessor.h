@@ -104,7 +104,7 @@ public:
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override                        { return true; }
     const juce::String getName() const override            { return "Alea Chord Randomizer"; }
-    bool acceptsMidi() const override                      { return false; }
+    bool acceptsMidi() const override                      { return true; } // declared, ignored - Live needs the bus
     bool producesMidi() const override                     { return true; }
     double getTailLengthSeconds() const override           { return 0.0; }
     int getNumPrograms() override                          { return 1; }
