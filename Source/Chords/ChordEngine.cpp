@@ -80,7 +80,7 @@ const juce::StringArray& simpleRoots()
 
 const juce::StringArray& scaleTypeNames()
 {
-    static const juce::StringArray types { "Major", "Minor", "Harmonic Minor" };
+    static const juce::StringArray types { "Major", "Minor", "Harm. minor" };
     return types;
 }
 
@@ -253,17 +253,23 @@ Chord roll (juce::Random& rng, const RollOptions& opts)
 
     Chord c;
 
-    // Roots and quality pool (sus arrives as a post-step, below).
+    // Roots and quality pool (sus arrives as a post-step, below). The odd
+    // qualities are deliberately rare: dim ~14% simplified; dim and aug
+    // 12.5% each in full mode (tuned down from uniform in QA).
     juce::Array<Quality> qualities;
     if (opts.simplified)
     {
         c.root = simpleRoots()[rng.nextInt (simpleRoots().size())];
-        qualities = { Quality::dim, Quality::minor, Quality::minor, Quality::major, Quality::major };
+        qualities = { Quality::dim,
+                      Quality::minor, Quality::minor, Quality::minor,
+                      Quality::major, Quality::major, Quality::major };
     }
     else
     {
         c.root = fullRoots()[rng.nextInt (fullRoots().size())];
-        qualities = { Quality::dim, Quality::minor, Quality::major, Quality::aug };
+        qualities = { Quality::dim, Quality::aug,
+                      Quality::minor, Quality::minor, Quality::minor,
+                      Quality::major, Quality::major, Quality::major };
     }
     c.quality = qualities[rng.nextInt (qualities.size())];
 

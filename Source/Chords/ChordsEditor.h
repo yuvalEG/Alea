@@ -63,6 +63,7 @@ private:
         juce::StringArray labels;
         int selected = 0;                       // single mode: index into labels
         bool multi = false;
+        bool allowEmpty = false;                // multi mode: may all segments go dark?
         int mask = 1;                           // multi mode: bit per label
         std::function<void (int)> onChange;     // index, or the new mask in multi mode
         void paint (juce::Graphics&) override;
@@ -110,16 +111,15 @@ private:
     juce::Slider tempoBox;
     // Toggle labels are sentence case throughout; ALL-CAPS is reserved for
     // captions, panel titles and buttons.
-    juce::ToggleButton simplifyToggle { "Simplify chords" },
-                       susToggle { "Add sus chords" },
-                       keyLockToggle { "Key lock" },
-                       autoRollToggle { "Auto roll after" };
+    juce::ToggleButton simplifyToggle { "Simplify" },
+                       keyLockToggle { "Key lock" };
     juce::ComboBox keyBox, scaleBox;            // key lock: tonic + scale type
     juce::TextButton clickButton { "CLICK" };   // metronome, next to the tempo
     juce::Slider clickVolKnob;                  // click level, beside CLICK
-    juce::ComboBox autoRollBox;
+    juce::TextButton autoButton { "AUTO" };     // auto roll: stacked right under ROLL
+    juce::ComboBox autoRollBox;                 // "... every N loops"
     SegmentRow lengthRow, barsRow, octaveRow,
-               extRow;                          // triads / 7ths / 9ths (a 9th presumes its 7th)
+               addRow;                          // ADD: 7ths / 9ths / sus (9ths light 7ths)
     juce::ComboBox outputBox;
     void rebuildKeyBox();
     juce::Slider volKnob;

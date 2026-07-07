@@ -73,6 +73,7 @@ void ChordsProcessor::rollSeries()
         fresh.push_back (pinned[(size_t) i] && i < (int) series.size() ? series[(size_t) i]
                                                                        : rollOne());
     series = std::move (fresh);
+    trimmedTail.clear();
 
     updateLoop();
     ++revision;
@@ -125,12 +126,24 @@ void ChordsProcessor::setSeriesLength (int newLength)
     markSeriesChange();
     seriesLength = juce::jlimit (1, 8, newLength);
 
-    // Growing rolls fresh chords into the new slots; shrinking truncates.
-    // Existing chords stay - the selector never silently rerolls your loop.
+    // Shrinking parks the trimmed chords; growing brings them back before
+    // rolling anything new - the selector never silently rerolls your loop,
+    // and 4 -> 3 -> 4 returns the same fourth chord.
     while ((int) series.size() > seriesLength)
+    {
+        trimmedTail.insert (trimmedTail.begin(), series.back());
         series.pop_back();
+    }
     while ((int) series.size() < seriesLength)
-        series.push_back (rollOne());
+    {
+        if (! trimmedTail.empty())
+        {
+            series.push_back (trimmedTail.front());
+            trimmedTail.erase (trimmedTail.begin());
+        }
+        else
+            series.push_back (rollOne());
+    }
 
     updateLoop();
     ++revision;
@@ -151,6 +164,7 @@ void ChordsProcessor::recallRoll (int index)
     series = std::move (recalled);
     seriesLength = juce::jlimit (1, 8, (int) series.size());
     pinned.fill (false); // a recalled roll starts unpinned
+    trimmedTail.clear();
     trimHistory();
     updateLoop();
     ++revision;

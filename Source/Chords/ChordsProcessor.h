@@ -112,6 +112,11 @@ private:
 
     chords::Chord rollOne();      // one roll under the current toggles
 
+    // Chords trimmed off by shrinking the series length; growing restores
+    // them (A B C D -> 3 -> 4 gives D back, not a new roll). A fresh roll
+    // or recall starts a new world and clears the memory.
+    std::vector<chords::Chord> trimmedTail;
+
     // History keeps roughly the last 1000 chords (the ticker scrolls),
     // trimmed in whole rolls.
     void trimHistory();
