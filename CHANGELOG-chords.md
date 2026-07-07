@@ -2,6 +2,26 @@
 
 (Scale Shifter's changelog lives in [CHANGELOG.md](CHANGELOG.md).)
 
+## chords-v0.2.0 - 2026-07-07
+
+Into the DAW.
+
+- **Plugin formats**: VST3, AU (macOS) and CLAP, alongside the standalone
+  app - pluginval strictness 10 and auval clean. Installers gained
+  selectable components on both platforms.
+- **The host owns time**: in a DAW the loop locks to the host timeline -
+  boundaries land exactly on bars, looping a section replays identically,
+  and rolling mid-loop swaps chords in place at the next boundary. The
+  transport and tempo follow the host.
+- **OUT in the plugin**: "MIDI to DAW" by default (route it to any
+  instrument), with the built-in synth one click away - so the AU makes
+  sound even where hosts can't route plugin MIDI (Logic).
+- No metronome in the plugin - DAWs bring their own.
+- Play/stop transport with drawn icons, shared family design; FREEZE in
+  ice blue; PANIC unified; sus rate tuned (~1 in 5); dim/aug rarer; key
+  lock scale types read "Major / Minor / Harm Min".
+- Fixed: Live refusing to open the VST3 (it requires a MIDI-in bus).
+
 ## chords-v0.1.0 - 2026-07-07
 
 First release. The old Random Chord Generator's meticulously tuned chord

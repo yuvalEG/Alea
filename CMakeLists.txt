@@ -86,10 +86,9 @@ clap_juce_extensions_plugin(TARGET Alea
     CLAP_FEATURES instrument "note-effect" generator)
 
 # ---------------------------------------------------------------------------
-# Alea Chord Randomizer: the second Alea product. Standalone-only until its
-# M4 milestone brings plugin formats. Versioned independently of Scale
-# Shifter; its release tags use the "chords-v" prefix.
-set(CHORDS_VERSION 0.1.0)
+# Alea Chord Randomizer: the second Alea product. Versioned independently of
+# Scale Shifter; its release tags use the "chords-v" prefix.
+set(CHORDS_VERSION 0.2.0)
 
 set(CHORDS_ICON_ARGS "")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon-chords.png")
