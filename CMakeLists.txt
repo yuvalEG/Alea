@@ -31,6 +31,16 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png")
     set(ALEA_ICON_ARGS ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png")
 endif()
 
+# AU exists only on Apple platforms; plugin auto-copy needs admin rights on
+# Windows, so it stays a macOS convenience.
+if(APPLE)
+    set(ALEA_FORMATS VST3 AU Standalone)
+    set(ALEA_COPY_AFTER_BUILD TRUE)
+else()
+    set(ALEA_FORMATS VST3 Standalone)
+    set(ALEA_COPY_AFTER_BUILD FALSE)
+endif()
+
 juce_add_plugin(Alea
     PRODUCT_NAME "Alea Scale Shifter"
     COMPANY_NAME "Alea Audio"
@@ -41,12 +51,12 @@ juce_add_plugin(Alea
     # Classified as an instrument (not a "MIDI effect"): Ableton Live refuses
     # VST3s with no audio output and has no slot for third-party MIDI effects,
     # so like other MIDI generators Alea is an instrument with a silent output.
-    FORMATS VST3 AU Standalone
+    FORMATS ${ALEA_FORMATS}
     IS_SYNTH TRUE
     IS_MIDI_EFFECT FALSE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
-    COPY_PLUGIN_AFTER_BUILD TRUE)
+    COPY_PLUGIN_AFTER_BUILD ${ALEA_COPY_AFTER_BUILD})
 
 target_sources(Alea PRIVATE
     Source/Params.cpp

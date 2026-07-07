@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Validate VST3 with pluginval
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+          & .\pluginval\pluginval.exe --strictness-level 10 --validate "build\Alea_artefacts\Release\VST3\Alea Scale Shifter.vst3"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Read version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path CMakeLists.txt -Pattern 'project\(Alea VERSION ([0-9.]+)\)').Matches.Groups[1].Value
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DVersion=${{ steps.ver.outputs.version }} installer\windows\alea.iss
+
+      - name: Zip portable build
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          New-Item -ItemType Directory portable | Out-Null
+          Copy-Item -Recurse "build\Alea_artefacts\Release\VST3\Alea Scale Shifter.vst3" portable\
+          Copy-Item "build\Alea_artefacts\Release\CLAP\Alea Scale Shifter.clap" portable\
+          Copy-Item "build\Alea_artefacts\Release\Standalone\Alea Scale Shifter.exe" portable\
+          Compress-Archive -Path portable\* -DestinationPath "build\Alea-$v-Windows-Portable.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alea-windows
+          path: |
+            build/Alea-*-Windows-Setup.exe
+            build/Alea-*-Windows-Portable.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload ${{ github.ref_name }} (Get-Item build\Alea-*-Windows-Setup.exe).FullName (Get-Item build\Alea-*-Windows-Portable.zip).FullName --clobber
