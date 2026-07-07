@@ -38,26 +38,31 @@ diatonic scale to complete dodecaphony over time.
 
 ## Status
 
-**v0.2** - VST3, AU and CLAP plugins plus a standalone app, on macOS.
-Every build passes [pluginval](https://github.com/Tracktion/pluginval) at
-strictness 10; the AU passes Apple's auval.
+**v0.3** - VST3, AU and CLAP plugins plus a standalone app, for macOS and
+Windows (Windows builds come from CI on every release). Every build passes
+[pluginval](https://github.com/Tracktion/pluginval) at strictness 10; the
+AU passes Apple's auval.
 
 `scripts/make_installer.sh` builds a pkg installer with selectable
 components (unsigned for now).
 
 ## Installing
 
-**Alea is macOS only for now** (Windows is on the wish list). You don't need
-to build anything:
+Grab the [latest release](https://github.com/yuvalEG/Alea/releases) - no
+building needed.
 
-1. Download `Alea-x.y.z.pkg` from the
-   [latest release](https://github.com/yuvalEG/Alea/releases).
-2. Double-click it. The installer is unsigned for now, so macOS may refuse
-   the first open - right-click (Control-click) the file, choose **Open**,
-   and confirm.
-3. Tick the versions you want: VST3, AU, CLAP, and/or the standalone app.
-4. Restart your DAW (or rescan plugins) - it appears as **Alea Scale
-   Shifter**.
+**macOS**: download `Alea-x.y.z.pkg` and double-click it. The installer is
+unsigned for now, so macOS may refuse the first open - right-click
+(Control-click) the file, choose **Open**, and confirm. Tick the versions
+you want: VST3, AU, CLAP, and/or the standalone app.
+
+**Windows**: download `Alea-x.y.z-Windows-Setup.exe` and run it (SmartScreen
+may warn about an unknown publisher - choose "More info" then "Run anyway"),
+or grab the portable zip and drop the files where you like. Components:
+VST3, CLAP, and the standalone app.
+
+Then restart your DAW (or rescan plugins) - it appears as **Alea Scale
+Shifter**.
 
 Which format to load:
 
