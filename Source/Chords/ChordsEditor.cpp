@@ -619,7 +619,8 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     clickButton.setColour (juce::TextButton::textColourOffId, colors::text);
     clickButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
     clickButton.onClick = [this] { chordsProc.metronomeOn.store (clickButton.getToggleState()); };
-    addAndMakeVisible (clickButton);
+    addChildComponent (clickButton);
+    clickButton.setVisible (standalone); // DAWs bring their own metronome
 
     clickVolKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     clickVolKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -630,7 +631,8 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     clickVolKnob.setValue ((double) chordsProc.clickVolDb.load(), juce::dontSendNotification);
     clickVolKnob.setTextValueSuffix (" dB click");
     clickVolKnob.onValueChange = [this] { chordsProc.clickVolDb.store ((float) clickVolKnob.getValue()); };
-    addAndMakeVisible (clickVolKnob);
+    addChildComponent (clickVolKnob);
+    clickVolKnob.setVisible (standalone);
 
     // AUTO ROLL is one self-describing dropdown under ROLL: off, or a
     // cadence. Switching to off also takes back a preview it already rolled.
@@ -1222,9 +1224,14 @@ void ChordsEditor::resized()
     menuButton.setBounds (header.getRight() - 48, 14, 36, 28);
     panicButton.setBounds (menuButton.getX() - 8 - 66, 15, 66, 26);
     tempoBox.setBounds (panicButton.getX() - 8 - 100, 15, 100, 26);
-    clickVolKnob.setBounds (tempoBox.getX() - 4 - 30, 13, 30, 30);
-    clickButton.setBounds (clickVolKnob.getX() - 4 - 62, 15, 62, 26);
-    freezeButton.setBounds (clickButton.getX() - 8 - 74, 15, 74, 26);
+    int leftEdge = tempoBox.getX();
+    if (standalone) // the plugin has no click - DAWs bring their own
+    {
+        clickVolKnob.setBounds (leftEdge - 4 - 30, 13, 30, 30);
+        clickButton.setBounds (clickVolKnob.getX() - 4 - 62, 15, 62, 26);
+        leftEdge = clickButton.getX();
+    }
+    freezeButton.setBounds (leftEdge - 8 - 74, 15, 74, 26);
 
     // The transport sits mid-header (window-centered when there is room,
     // nudged into the free lane between the status and the right cluster).

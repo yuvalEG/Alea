@@ -546,13 +546,7 @@ void ChordsProcessor::processHostBlock (juce::MidiBuffer& localMidi, int numSamp
                 autoRollPending.store (true);
         }
 
-        // Metronome on the quarter grid, accented on chord boundaries.
-        if (metronomeOn.load() && clickCount < 32
-            && std::abs (ppq - std::round (ppq)) * spq < 1.0)
-        {
-            const double intoChord = std::fmod (inPass, qpc);
-            clickEvents[clickCount++] = { offset, intoChord < eps || qpc - intoChord < eps };
-        }
+        // (No metronome in a DAW - hosts have their own click.)
 
         // Advance to the next event: beat, chord boundary, or block end.
         const double nextBeat = std::floor (ppq + eps) + 1.0;
