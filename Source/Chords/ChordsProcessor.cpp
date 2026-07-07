@@ -5,6 +5,13 @@ ChordsProcessor::ChordsProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
     rollSeries(); // never an empty screen: chords out of the box
+    startTimer (50); // message-thread side of the auto-roll handshake
+}
+
+void ChordsProcessor::timerCallback()
+{
+    if (autoRollPending.exchange (false))
+        rollSeries();
 }
 
 bool ChordsProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -78,12 +85,20 @@ void ChordsProcessor::trimHistory()
 
 void ChordsProcessor::updateLoop()
 {
+    // Each chord's voicing lands in a random one of the checked octaves.
+    juce::Array<int> octaves;
+    for (int o = 2; o <= 4; ++o)
+        if ((octaveMask.load() >> (o - 2)) & 1)
+            octaves.add (o);
+    if (octaves.isEmpty())
+        octaves.add (3);
+
     std::vector<PlayChord> fresh;
     fresh.reserve (series.size());
     for (const auto& c : series)
     {
         PlayChord pc;
-        for (auto note : chords::midiNotes (c, octave.load()))
+        for (auto note : chords::midiNotes (c, octaves[rng.nextInt (octaves.size())]))
             if (pc.count < 8 && note >= 0 && note <= 127)
                 pc.notes[pc.count++] = note;
         fresh.push_back (pc);
@@ -124,7 +139,11 @@ void ChordsProcessor::prepareToPlay (double sampleRate, int)
     wasPlaying = false;
     soundingCount = 0;
     samplesIntoChord = 0;
+    samplesIntoBeat = 0;
     chordIdx = 0;
+    loopsCompleted = 0;
+    clickCount = 0;
+    clickEnv = 0.0f;
 
     // Internal synth chain, as in Scale Shifter: soft attack, high sustain,
     // long release so tails ring well into the following chords.
@@ -175,6 +194,8 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         // Transport start: from the top, with the freshest series.
         chordIdx = 0;
         samplesIntoChord = 0;
+        samplesIntoBeat = 0;
+        loopsCompleted = 0;
         copyLoopIfDirty();
     }
     if (! isPlaying && wasPlaying)
@@ -189,7 +210,9 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     {
         stopSoundingNotes (localMidi, 0);
         localMidi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+        clickEnv = 0.0f;
     }
+    clickCount = 0;
 
     // A clicked card jumps the loop there on the spot.
     if (const int jump = jumpRequest.exchange (-1); jump >= 0 && isPlaying)
@@ -211,8 +234,8 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     {
         const double bpmNow = juce::jlimit (30.0, 300.0, (double) bpm.load());
         const auto barsNow = (double) juce::jlimit (1, 4, barsPerChord.load());
-        const auto chordLen = juce::jmax ((juce::int64) 1,
-            (juce::int64) (sampleRate * 60.0 / bpmNow * 4.0 * barsNow)); // 4/4 only
+        const auto beatLen = juce::jmax ((juce::int64) 1, (juce::int64) (sampleRate * 60.0 / bpmNow));
+        const auto chordLen = juce::jmax ((juce::int64) 1, beatLen * 4 * (juce::int64) barsNow); // 4/4 only
 
         int offset = 0;
         while (offset < numSamples && ! (currentLoop.empty() && ! loopDirty.load()))
@@ -223,7 +246,10 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
                 // restarts it from its top - rolling mid-loop never waits
                 // out the old pass (QA, July 7).
                 if (copyLoopIfDirty())
+                {
                     chordIdx = 0;
+                    loopsCompleted = 0;
+                }
                 if (currentLoop.empty())
                     break;
                 if (chordIdx >= (int) currentLoop.size())
@@ -239,17 +265,37 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
                     packed |= (juce::uint64) (pc.notes[i] + 1) << (8 * i);
                 }
                 soundingPacked.store (packed);
+                samplesIntoBeat = 0;
+
+                // Auto roll: entering the last chord of the Nth pass, ask the
+                // message thread for fresh dice - the swap lands on the wrap.
+                if (autoRollOn.load() && ! autoRollPending.load() && ! loopDirty.load()
+                    && chordIdx == (int) currentLoop.size() - 1
+                    && loopsCompleted >= autoRollLoops.load() - 1)
+                    autoRollPending.store (true);
             }
 
-            const auto chunk = (int) juce::jmin ((juce::int64) (numSamples - offset),
-                                                 chordLen - samplesIntoChord);
-            offset += juce::jmax (1, chunk);
-            samplesIntoChord += juce::jmax (1, chunk);
+            if (samplesIntoBeat >= beatLen)
+                samplesIntoBeat = 0;
+            if (samplesIntoBeat == 0 && metronomeOn.load() && clickCount < 32)
+                clickEvents[clickCount++] = { offset, samplesIntoChord == 0 };
+
+            auto chunk = (juce::int64) (numSamples - offset);
+            chunk = juce::jmin (chunk, chordLen - samplesIntoChord);
+            chunk = juce::jmin (chunk, beatLen - samplesIntoBeat);
+            const int step = juce::jmax (1, (int) chunk);
+            offset += step;
+            samplesIntoChord += step;
+            samplesIntoBeat += step;
 
             if (samplesIntoChord >= chordLen)
             {
                 samplesIntoChord = 0;
-                chordIdx = (chordIdx + 1) % juce::jmax (1, (int) currentLoop.size());
+                if (++chordIdx >= (int) currentLoop.size())
+                {
+                    chordIdx = 0;
+                    ++loopsCompleted;
+                }
             }
         }
 
@@ -276,6 +322,44 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         if (sl.isLocked() && midiOutput != nullptr)
             midiOutput->sendBlockOfMessages (localMidi, juce::Time::getMillisecondCounter() + 1.0, sampleRate);
     }
+
+    // The click renders after the synth chain - a dry tick, no reverb tail.
+    // It sounds in MIDI-device mode too: chords on the external instrument,
+    // the pulse from the app.
+    if (clickCount > 0 || clickEnv > 0.001f)
+        renderClicks (buffer);
+}
+
+void ChordsProcessor::renderClicks (juce::AudioBuffer<float>& buffer)
+{
+    const double sampleRate = getSampleRate();
+    auto* left = buffer.getWritePointer (0);
+    auto* right = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
+    const int numSamples = buffer.getNumSamples();
+
+    int next = 0;
+    for (int n = 0; n < numSamples; ++n)
+    {
+        if (next < clickCount && clickEvents[next].offset == n)
+        {
+            // Accented (chord-change) click sits a fifth above the beat click.
+            clickPhase = 0.0;
+            clickInc = juce::MathConstants<double>::twoPi * (clickEvents[next].accent ? 2093.0 : 1397.0) / sampleRate;
+            clickEnv = 1.0f;
+            clickGain = clickEvents[next].accent ? 0.22f : 0.15f;
+            ++next;
+        }
+        if (clickEnv > 0.001f)
+        {
+            const float s = clickGain * clickEnv * (float) std::sin (clickPhase);
+            left[n] += s;
+            if (right != nullptr)
+                right[n] += s;
+            clickPhase += clickInc;
+            clickEnv *= 0.9975f; // ~10 ms tick
+        }
+    }
+    clickCount = 0;
 }
 
 //==============================================================================
@@ -522,7 +606,10 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("uiHeight", lastUIHeight, nullptr);
     state.setProperty ("bpm", (double) bpm.load(), nullptr);
     state.setProperty ("barsPerChord", barsPerChord.load(), nullptr);
-    state.setProperty ("octave", octave.load(), nullptr);
+    state.setProperty ("octaves", octaveMask.load(), nullptr);
+    state.setProperty ("metronome", metronomeOn.load(), nullptr);
+    state.setProperty ("autoRoll", autoRollOn.load(), nullptr);
+    state.setProperty ("autoRollLoops", autoRollLoops.load(), nullptr);
     state.setProperty ("output", getStandaloneOutput(), nullptr);
     state.setProperty ("synthVol", (double) synthVolDb.load(), nullptr);
 
@@ -558,7 +645,12 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 560));
     bpm.store (juce::jlimit (30.0f, 300.0f, (float) (double) state.getProperty ("bpm", 90.0)));
     barsPerChord.store (juce::jlimit (1, 4, (int) state.getProperty ("barsPerChord", 1)));
-    octave.store (juce::jlimit (2, 4, (int) state.getProperty ("octave", 3)));
+    // "octave" (single) was the pre-multi-select property name.
+    const int legacyMask = 1 << (juce::jlimit (2, 4, (int) state.getProperty ("octave", 3)) - 2);
+    octaveMask.store (juce::jlimit (1, 7, (int) state.getProperty ("octaves", legacyMask)));
+    metronomeOn.store (state.getProperty ("metronome", false));
+    autoRollOn.store (state.getProperty ("autoRoll", false));
+    autoRollLoops.store (juce::jlimit (1, 8, (int) state.getProperty ("autoRollLoops", 2)));
     synthVolDb.store (juce::jlimit (-24.0f, 6.0f, (float) (double) state.getProperty ("synthVol", 0.0)));
     setStandaloneOutput (state.getProperty ("output", "synth").toString());
 

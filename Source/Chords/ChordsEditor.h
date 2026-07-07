@@ -51,13 +51,17 @@ private:
         void paint (juce::Graphics&) override;
     };
 
-    // A row of labeled segments; used for series length (1-8) and bars per
-    // chord (1/2/4). Same look as the family's mode selectors.
+    // A row of labeled segments; used for series length (1-8), bars per
+    // chord (1/2/4) and the octave picker. Same look as the family's mode
+    // selectors. In multi mode segments toggle independently (a bitmask,
+    // never empty) - the octave picker lets chords land in several octaves.
     struct SegmentRow : juce::Component
     {
         juce::StringArray labels;
-        int selected = 0;                       // index into labels
-        std::function<void (int)> onChange;     // index
+        int selected = 0;                       // single mode: index into labels
+        bool multi = false;
+        int mask = 1;                           // multi mode: bit per label
+        std::function<void (int)> onChange;     // index, or the new mask in multi mode
         void paint (juce::Graphics&) override;
         void mouseDown (const juce::MouseEvent&) override;
     };
@@ -102,7 +106,10 @@ private:
                      freezeButton { "FREEZE" }, panicButton { "PANIC" };
     juce::Slider tempoBox;
     juce::ToggleButton seventhToggle { "Use Seventh Chords" },
-                       simplifyToggle { "Simplify Chords" };
+                       simplifyToggle { "Simplify Chords" },
+                       metronomeToggle { "Click" },
+                       autoRollToggle { "Auto roll after" };
+    juce::ComboBox autoRollBox;
     SegmentRow lengthRow, barsRow, octaveRow;
     juce::ComboBox outputBox;
     juce::Slider volKnob;
@@ -113,9 +120,11 @@ private:
 
     juce::Rectangle<int> dicePanel, loopPanel;   // titled control blocks
     juce::Rectangle<int> meterRect;   // beside the knob when the synth is on
+    juce::Rectangle<int> pendingStrip; // amber drain bar above the cards
     float meterLevel = 0.0f;          // falling peak
     bool lastSynthOn = true;
     bool lastPlaying = false;
+    bool lastPending = false;
     juce::uint64 lastSounding = 0;
     int devicePollCountdown = 90;     // ~3s at 30 Hz: MIDI hotplug refresh
 

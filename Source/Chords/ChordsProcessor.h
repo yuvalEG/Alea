@@ -8,7 +8,8 @@
 // Alea Chord Randomizer: rolls random chord series for the loop-and-improvise
 // exercise (spec section 1) and plays them in a loop (M2) - each chord a
 // block voicing held for its bars, through the family synth or a MIDI device.
-class ChordsProcessor : public juce::AudioProcessor
+class ChordsProcessor : public juce::AudioProcessor,
+                        private juce::Timer
 {
 public:
     ChordsProcessor();
@@ -35,9 +36,20 @@ public:
     std::atomic<bool>  playing { false };
     std::atomic<float> bpm { 90.0f };                 // 30..300
     std::atomic<int>   barsPerChord { 1 };            // 1, 2 or 4 (4/4 only)
-    std::atomic<int>   octave { 3 };                  // voicing octave: 2, 3 or 4
+    std::atomic<int>   octaveMask { 0b010 };          // bits for octaves 2/3/4; each chord lands in a random checked one
     std::atomic<int>   playingChord { -1 };           // series index sounding now, -1 = none
     std::atomic<float> chordProgress { 0.0f };        // 0..1 through the current chord
+    std::atomic<bool>  metronomeOn { false };         // quarter-note click, accented on chord changes
+
+    // Auto roll: after N completed loops of the series, roll fresh dice.
+    // Triggered entering the last chord of the Nth pass, so the new series
+    // lands exactly on the wrap.
+    std::atomic<bool>  autoRollOn { false };
+    std::atomic<int>   autoRollLoops { 2 };
+
+    // A mid-play roll waits (at most one chord) for the next boundary; the
+    // UI shows the old chord draining out while this is true.
+    bool swapPending() const { return loopDirty.load(); }
 
     // Performance controls (family header pattern): FREEZE holds the current
     // chord - time stops, the notes sustain - and PANIC silences everything.
@@ -101,9 +113,25 @@ private:
     std::vector<PlayChord> currentLoop;
     int chordIdx = 0;
     juce::int64 samplesIntoChord = 0;
+    juce::int64 samplesIntoBeat = 0;
+    int loopsCompleted = 0;
     bool wasPlaying = false;
     int soundingNotes[8] = {};
     int soundingCount = 0;
+
+    // Auto roll handshake: the audio thread raises the flag, the message
+    // thread (timerCallback) rolls the dice.
+    std::atomic<bool> autoRollPending { false };
+    void timerCallback() override;
+
+    // Metronome: click events collected while scheduling, rendered as a
+    // short decaying sine after the synth (post reverb - a dry tick).
+    struct ClickEvent { int offset; bool accent; };
+    ClickEvent clickEvents[32];
+    int clickCount = 0;
+    double clickPhase = 0.0, clickInc = 0.0;
+    float clickEnv = 0.0f, clickGain = 0.0f;
+    void renderClicks (juce::AudioBuffer<float>&);
 
     // --- MIDI device output (standalone), as in Scale Shifter ---
     void setMidiOutputDevice (const juce::String& identifier);
