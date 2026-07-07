@@ -80,7 +80,7 @@ const juce::StringArray& simpleRoots()
 
 const juce::StringArray& scaleTypeNames()
 {
-    static const juce::StringArray types { "Major", "Minor", "Harmonic" };
+    static const juce::StringArray types { "Major", "Minor", "Harm Min" };
     return types;
 }
 

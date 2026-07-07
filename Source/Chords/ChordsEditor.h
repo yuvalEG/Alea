@@ -111,6 +111,7 @@ private:
     };
 
     ChordsProcessor& chordsProc;
+    const bool standalone;
     int seenRevision = -1;
 
     juce::Image logo;

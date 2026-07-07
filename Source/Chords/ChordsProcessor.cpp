@@ -5,6 +5,9 @@
 ChordsProcessor::ChordsProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
+    // Standalone: sound with zero setup. Plugin: MIDI to the DAW by default,
+    // with the synth as an option (the Scale Shifter AU lesson).
+    synthOn.store (isStandaloneLike());
     rollSeries(); // never an empty screen: chords out of the box
     startTimer (50); // message-thread side of the auto-roll handshake
 }
@@ -244,6 +247,26 @@ bool ChordsProcessor::copyLoopIfDirty()
     return true;
 }
 
+void ChordsProcessor::strikeChord (juce::MidiBuffer& midi, int sampleOffset)
+{
+    stopSoundingNotes (midi, sampleOffset); // offs, then ons, same sample
+    if (currentLoop.empty())
+        return;
+    if (chordIdx >= (int) currentLoop.size())
+        chordIdx = 0;
+    const auto& pc = currentLoop[(size_t) chordIdx];
+    juce::uint64 lo = 0, hi = 0;
+    for (int i = 0; i < pc.count; ++i)
+    {
+        midi.addEvent (juce::MidiMessage::noteOn (1, pc.notes[i], 0.72f), sampleOffset);
+        soundingNotes[soundingCount++] = pc.notes[i];
+        if (pc.notes[i] < 64) lo |= (juce::uint64) 1 << pc.notes[i];
+        else                  hi |= (juce::uint64) 1 << (pc.notes[i] - 64);
+    }
+    soundingBitsLo.store (lo);
+    soundingBitsHi.store (hi);
+}
+
 void ChordsProcessor::stopSoundingNotes (juce::MidiBuffer& midi, int sampleOffset)
 {
     for (int i = 0; i < soundingCount; ++i)
@@ -295,7 +318,7 @@ void ChordsProcessor::prepareToPlay (double sampleRate, int)
     reverb.reset();
 }
 
-void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
@@ -305,6 +328,22 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     if (numSamples <= 0 || sampleRate <= 0.0)
         return;
 
+    // In a DAW the host owns transport and tempo (spec M4).
+    const bool hostMode = ! isStandaloneLike();
+    double hostPpq = 0.0;
+    if (hostMode)
+    {
+        bool hostPlaying = false;
+        if (auto* ph = getPlayHead())
+            if (auto pos = ph->getPosition())
+            {
+                hostPlaying = pos->getIsPlaying();
+                if (auto b = pos->getBpm())         bpm.store ((float) *b);
+                if (auto p = pos->getPpqPosition()) hostPpq = *p;
+            }
+        playing.store (hostPlaying);
+    }
+
     juce::MidiBuffer localMidi;
     const bool isPlaying = playing.load();
 
@@ -312,16 +351,19 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     {
         // Transport start: from the top, with the freshest series. This is
         // a STOP transport by choice - holding a moment is FREEZE's job.
+        // (Host mode strikes whatever chord the timeline says instead.)
         chordIdx = 0;
         samplesIntoChord = 0;
         samplesIntoBeat = 0;
         loopsCompleted = 0;
+        needStrike = hostMode;
         copyLoopIfDirty();
     }
     if (! isPlaying && wasPlaying)
     {
         stopSoundingNotes (localMidi, 0);
         localMidi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+        needStrike = false;
     }
     wasPlaying = isPlaying;
 
@@ -334,8 +376,9 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     }
     clickCount = 0;
 
-    // A clicked card jumps the loop there on the spot.
-    if (const int jump = jumpRequest.exchange (-1); jump >= 0 && isPlaying)
+    // A clicked card jumps the loop there on the spot (standalone only -
+    // in a DAW the timeline owns the position).
+    if (const int jump = jumpRequest.exchange (-1); jump >= 0 && isPlaying && ! hostMode)
     {
         copyLoopIfDirty();
         if (! currentLoop.empty())
@@ -348,7 +391,13 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     if (isPlaying && frozen.load())
     {
         // FREEZE: time stops, the chord keeps sustaining. Nothing schedules,
-        // nothing advances; unfreeze resumes exactly where it held.
+        // nothing advances; unfreeze resumes (host mode snaps back to the
+        // timeline's chord).
+    }
+    else if (isPlaying && hostMode)
+    {
+        processHostBlock (localMidi, numSamples, sampleRate,
+                          hostPpq, juce::jlimit (30.0, 300.0, (double) bpm.load()));
     }
     else if (isPlaying)
     {
@@ -375,18 +424,7 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
                 if (chordIdx >= (int) currentLoop.size())
                     chordIdx = 0;
 
-                stopSoundingNotes (localMidi, offset); // offs, then ons, same sample
-                const auto& pc = currentLoop[(size_t) chordIdx];
-                juce::uint64 lo = 0, hi = 0;
-                for (int i = 0; i < pc.count; ++i)
-                {
-                    localMidi.addEvent (juce::MidiMessage::noteOn (1, pc.notes[i], 0.72f), offset);
-                    soundingNotes[soundingCount++] = pc.notes[i];
-                    if (pc.notes[i] < 64) lo |= (juce::uint64) 1 << pc.notes[i];
-                    else                  hi |= (juce::uint64) 1 << (pc.notes[i] - 64);
-                }
-                soundingBitsLo.store (lo);
-                soundingBitsHi.store (hi);
+                strikeChord (localMidi, offset);
                 samplesIntoBeat = 0;
             }
 
@@ -437,13 +475,15 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         chordProgress.store (0.0f);
     }
 
-    // Output: the family synth renders in-process; otherwise mirror the MIDI
-    // to the chosen device (try-lock: device swaps never stall audio).
+    // Output: the family synth renders in-process when chosen (in a DAW the
+    // MIDI still flows to the host alongside, like Scale Shifter); the
+    // device mirror is standalone-only (try-lock: device swaps never stall
+    // audio).
     if (synthOn.load())
     {
         renderSynth (buffer, localMidi);
     }
-    else if (! localMidi.isEmpty())
+    else if (! hostMode && ! localMidi.isEmpty())
     {
         const juce::ScopedTryLock sl (midiOutLock);
         if (sl.isLocked() && midiOutput != nullptr)
@@ -455,6 +495,77 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     // the pulse from the app.
     if (clickCount > 0 || clickEnv > 0.001f)
         renderClicks (buffer);
+
+    // The chords stream to the host as MIDI.
+    if (hostMode)
+    {
+        midiMessages.clear();
+        midiMessages.addEvents (localMidi, 0, numSamples, 0);
+    }
+}
+
+// In a DAW the loop is locked to the host timeline: position, boundaries and
+// beats all derive from ppq, so loop jumps and re-plays land identically.
+void ChordsProcessor::processHostBlock (juce::MidiBuffer& localMidi, int numSamples, double sampleRate,
+                                        double ppqStart, double bpmNow)
+{
+    const double spq = sampleRate * 60.0 / bpmNow;                                 // samples per quarter
+    const double qpc = 4.0 * (double) juce::jlimit (1, 4, barsPerChord.load());    // quarters per chord (4/4)
+
+    if (currentLoop.empty())
+        copyLoopIfDirty();
+    if (currentLoop.empty())
+        return;
+
+    constexpr double eps = 1.0e-4;
+    double ppq = juce::jmax (0.0, ppqStart);
+    int offset = 0;
+    while (offset < numSamples)
+    {
+        const int size = juce::jmax (1, (int) currentLoop.size());
+        const double passLen = qpc * (double) size;
+        const double inPass = std::fmod (ppq, passLen);
+        const int gridIdx = juce::jlimit (0, size - 1, (int) (inPass / qpc));
+
+        if (gridIdx != chordIdx || needStrike)
+        {
+            // Wrapping to the pass top completes a loop; a pending roll or
+            // re-voice is adopted at any chord boundary.
+            if (gridIdx == 0 && chordIdx == size - 1 && ! needStrike)
+                ++loopsCompleted;
+            if (copyLoopIfDirty())
+                loopsCompleted = 0;
+            chordIdx = juce::jmin (gridIdx, (int) currentLoop.size() - 1);
+            strikeChord (localMidi, offset);
+            needStrike = false;
+
+            // Auto roll: entering the last chord of the Nth pass.
+            if (autoRollOn.load() && ! autoRollPending.load() && ! loopDirty.load()
+                && chordIdx == (int) currentLoop.size() - 1
+                && loopsCompleted >= autoRollLoops.load() - 1)
+                autoRollPending.store (true);
+        }
+
+        // Metronome on the quarter grid, accented on chord boundaries.
+        if (metronomeOn.load() && clickCount < 32
+            && std::abs (ppq - std::round (ppq)) * spq < 1.0)
+        {
+            const double intoChord = std::fmod (inPass, qpc);
+            clickEvents[clickCount++] = { offset, intoChord < eps || qpc - intoChord < eps };
+        }
+
+        // Advance to the next event: beat, chord boundary, or block end.
+        const double nextBeat = std::floor (ppq + eps) + 1.0;
+        const double nextChord = ppq + (std::floor (inPass / qpc + eps) + 1.0) * qpc - inPass;
+        const int chunk = juce::jlimit (1, numSamples - offset,
+                                        (int) std::llround ((juce::jmin (nextBeat, nextChord) - ppq) * spq));
+        offset += chunk;
+        ppq += (double) chunk / spq;
+    }
+
+    playingChord.store (chordIdx);
+    const double qpcPass = qpc * (double) juce::jmax (1, (int) currentLoop.size());
+    chordProgress.store ((float) (std::fmod (std::fmod (ppq, qpcPass), qpc) / qpc));
 }
 
 void ChordsProcessor::renderClicks (juce::AudioBuffer<float>& buffer)
@@ -515,7 +626,7 @@ juce::String ChordsProcessor::getMidiOutputId() const
 
 void ChordsProcessor::setStandaloneOutput (const juce::String& choice)
 {
-    if (choice.startsWith ("synth") || choice.isEmpty())
+    if (choice.startsWith ("synth"))
     {
         const auto flavour = choice.fromFirstOccurrenceOf (":", false, false);
         synthVoice.store (flavour == "sine" ? 1 : flavour == "saw" ? 2 : flavour == "strings" ? 3 : 0);
@@ -524,8 +635,9 @@ void ChordsProcessor::setStandaloneOutput (const juce::String& choice)
     }
     else
     {
+        // Empty = MIDI to the DAW (plugin); a device id = standalone MIDI out.
         synthOn.store (false);
-        setMidiOutputDevice (choice);
+        setMidiOutputDevice (isStandaloneLike() ? choice : juce::String());
     }
 }
 
@@ -796,7 +908,8 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     autoRollOn.store (state.getProperty ("autoRoll", false));
     autoRollLoops.store (juce::jlimit (1, 8, (int) state.getProperty ("autoRollLoops", 2)));
     synthVolDb.store (juce::jlimit (-24.0f, 6.0f, (float) (double) state.getProperty ("synthVol", 0.0)));
-    setStandaloneOutput (state.getProperty ("output", "synth").toString());
+    setStandaloneOutput (state.getProperty ("output",
+        isStandaloneLike() ? "synth" : "").toString());
 
     auto seriesTree = state.getChildWithName ("Series");
     std::vector<chords::Chord> restored;

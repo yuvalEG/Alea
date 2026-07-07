@@ -153,7 +153,7 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
 void ChordsEditor::TransportButton::paintButton (juce::Graphics& g, bool over, bool)
 {
     // Shared family design (see ui::TransportButton in Scale Shifter):
-    // green, labeled, and the icon tells the truth - pausing holds.
+    // green, labeled, play/stop.
     auto b = getLocalBounds().toFloat();
     const bool on = getToggleState();
     g.setColour (on ? colors::green : colors::green.withAlpha (over ? 0.24f : 0.16f));
@@ -468,7 +468,9 @@ void ChordsEditor::HistoryTicker::mouseExit (const juce::MouseEvent&)
 
 //==============================================================================
 ChordsEditor::ChordsEditor (ChordsProcessor& p)
-    : AudioProcessorEditor (p), chordsProc (p), ticker (p), monitor (p)
+    : AudioProcessorEditor (p), chordsProc (p),
+      standalone (p.isStandaloneLike()),
+      ticker (p), monitor (p)
 {
     // Space Grotesk everywhere - the family typeface (spec section 7.1).
     struct ChordsLookAndFeel : juce::LookAndFeel_V4
@@ -538,6 +540,8 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     addAndMakeVisible (rollButton);
 
     // Transport: the loop is the product (spec M2). Space toggles it.
+    // In a DAW the host owns transport and tempo (spec M4), so the button
+    // hides and the tempo bar becomes a readout.
     playButton.onClick = [this]
     {
         const bool on = playButton.getToggleState();
@@ -545,7 +549,8 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
         if (! on)
             chordsProc.handleStopped(); // an unheard pending roll is discarded
     };
-    addAndMakeVisible (playButton);
+    addChildComponent (playButton);
+    playButton.setVisible (standalone);
 
     // Tempo: a draggable bar, exactly like Scale Shifter's tempo box.
     tempoBox.setSliderStyle (juce::Slider::LinearBar);
@@ -557,6 +562,8 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     tempoBox.setTextValueSuffix (" BPM");
     tempoBox.setValue ((double) chordsProc.bpm.load(), juce::dontSendNotification);
     tempoBox.onValueChange = [this] { chordsProc.bpm.store ((float) tempoBox.getValue()); };
+    tempoBox.setEnabled (standalone);
+    tempoBox.setAlpha (standalone ? 1.0f : 0.55f);
     addAndMakeVisible (tempoBox);
 
     // FREEZE holds the sounding chord (time stops); PANIC is instant silence.
@@ -760,7 +767,8 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
                      (juce::Component*) &keyLockToggle, (juce::Component*) &keyBox,
                      (juce::Component*) &scaleBox })
         c->setWantsKeyboardFocus (false);
-    setWantsKeyboardFocus (true);
+    // Space belongs to the host in a DAW; the plugin never grabs keys.
+    setWantsKeyboardFocus (standalone);
 
     setResizable (true, true);
     setResizeLimits (880, 500, 4096, 2400);
@@ -772,20 +780,27 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
 
 void ChordsEditor::buildOutputBox()
 {
-    // Synth flavours share ids 1-4; MIDI devices follow from id 10.
+    // Synth flavours share ids 1-4; "MIDI to DAW" is 9 (plugin); MIDI
+    // devices follow from id 10 (standalone) - the Scale Shifter scheme.
     static const std::array<const char*, 4> synthChoices { "synth", "synth:sine", "synth:saw", "synth:strings" };
     static const std::array<const char*, 4> synthNames { "Synth: Warm Pad", "Synth: Pure Sine", "Synth: Soft Saw", "Synth: Strings" };
 
     outputBox.clear (juce::dontSendNotification);
+    if (! standalone)
+        outputBox.addItem ("MIDI to DAW", 9); // plugin default, listed first
     for (int i = 0; i < 4; ++i)
         outputBox.addItem (synthNames[(size_t) i], i + 1);
 
-    devices = juce::MidiOutput::getAvailableDevices();
-    for (int i = 0; i < devices.size(); ++i)
-        outputBox.addItem ("MIDI: " + devices[i].name, 10 + i);
+    devices.clear();
+    if (standalone)
+    {
+        devices = juce::MidiOutput::getAvailableDevices();
+        for (int i = 0; i < devices.size(); ++i)
+            outputBox.addItem ("MIDI: " + devices[i].name, 10 + i);
+    }
 
     const auto current = chordsProc.getStandaloneOutput();
-    outputBox.setSelectedId (1, juce::dontSendNotification);
+    outputBox.setSelectedId (standalone ? 1 : 9, juce::dontSendNotification);
     for (int i = 0; i < 4; ++i)
         if (current == synthChoices[(size_t) i])
             outputBox.setSelectedId (i + 1, juce::dontSendNotification);
@@ -797,6 +812,7 @@ void ChordsEditor::buildOutputBox()
     {
         const int id = outputBox.getSelectedId();
         chordsProc.setStandaloneOutput (id >= 1 && id <= 4 ? juce::String (synthChoices[(size_t) (id - 1)])
+                                        : id == 9          ? juce::String()
                                                            : devices[id - 10].identifier);
     };
 }
@@ -832,11 +848,12 @@ void ChordsEditor::timerCallback()
     {
         auto* card = cards[i];
         const bool nowActive = (i == sounding);
-        if (card->clickable != loopRunning)
+        const bool canJump = loopRunning && standalone; // the DAW timeline owns position in a plugin
+        if (card->clickable != canJump)
         {
-            card->clickable = loopRunning;
-            card->setMouseCursor (loopRunning ? juce::MouseCursor::PointingHandCursor
-                                              : juce::MouseCursor::NormalCursor);
+            card->clickable = canJump;
+            card->setMouseCursor (canJump ? juce::MouseCursor::PointingHandCursor
+                                          : juce::MouseCursor::NormalCursor);
         }
         if (card->active != nowActive || (nowActive && std::abs (card->progress - progress) > 0.005f))
         {
@@ -856,8 +873,12 @@ void ChordsEditor::timerCallback()
         monitor.repaint();
     }
 
+    // Host mode: the tempo bar is a readout of the DAW's tempo.
+    if (! standalone && std::abs (tempoBox.getValue() - (double) chordsProc.bpm.load()) > 0.5)
+        tempoBox.setValue ((double) chordsProc.bpm.load(), juce::dontSendNotification);
+
     // MIDI hotplug: refresh the OUT list when devices appear or vanish.
-    if (--devicePollCountdown <= 0)
+    if (standalone && --devicePollCountdown <= 0)
     {
         devicePollCountdown = 90;
         auto fresh = juce::MidiOutput::getAvailableDevices();

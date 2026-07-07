@@ -33,6 +33,9 @@ jobs:
           $out = & .\pluginval\pluginval.exe --strictness-level 10 --skip-gui-tests --validate "build\Alea_artefacts\Release\VST3\Alea Scale Shifter.vst3" 2>&1 | Out-String
           Write-Host $out
           if ($out -notmatch "SUCCESS") { exit 1 }
+          $out2 = & .\pluginval\pluginval.exe --strictness-level 10 --skip-gui-tests --validate "build\AleaChords_artefacts\Release\VST3\Alea Chord Randomizer.vst3" 2>&1 | Out-String
+          Write-Host $out2
+          if ($out2 -notmatch "SUCCESS") { exit 1 }
 
       - name: Read versions
         id: ver
@@ -60,6 +63,8 @@ jobs:
           Compress-Archive -Path portable\* -DestinationPath "build\Alea-$v-Windows-Portable.zip"
           $c = "${{ steps.ver.outputs.chords_version }}"
           New-Item -ItemType Directory portable-chords | Out-Null
+          Copy-Item -Recurse "build\AleaChords_artefacts\Release\VST3\Alea Chord Randomizer.vst3" portable-chords\
+          Copy-Item "build\AleaChords_artefacts\Release\CLAP\Alea Chord Randomizer.clap" portable-chords\
           Copy-Item "build\AleaChords_artefacts\Release\Standalone\Alea Chord Randomizer.exe" portable-chords\
           Compress-Archive -Path portable-chords\* -DestinationPath "build\AleaChordRandomizer-$c-Windows-Portable.zip"
 

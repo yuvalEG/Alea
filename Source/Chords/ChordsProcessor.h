@@ -57,6 +57,14 @@ public:
     std::atomic<bool>  autoRollOn { false };
     std::atomic<int>   autoRollLoops { 2 };
 
+    // Standalone-like operation: the real standalone app, and bare
+    // processors in dev tools (wrapperType_Undefined). Everything else is
+    // a plugin following the host.
+    bool isStandaloneLike() const
+    {
+        return wrapperType == wrapperType_Standalone || wrapperType == wrapperType_Undefined;
+    }
+
     // A mid-play roll waits (at most one chord) for the next boundary; the
     // UI shows the old chord draining out while this is true. Re-voicing
     // (octave changes) also lands at the boundary but is NOT a swap - the
@@ -97,7 +105,7 @@ public:
     bool hasEditor() const override                        { return true; }
     const juce::String getName() const override            { return "Alea Chord Randomizer"; }
     bool acceptsMidi() const override                      { return false; }
-    bool producesMidi() const override                     { return false; }
+    bool producesMidi() const override                     { return true; }
     double getTailLengthSeconds() const override           { return 0.0; }
     int getNumPrograms() override                          { return 1; }
     int getCurrentProgram() override                       { return 0; }
@@ -147,8 +155,16 @@ private:
     juce::int64 samplesIntoBeat = 0;
     int loopsCompleted = 0;
     bool wasPlaying = false;
+    bool needStrike = false;   // host mode: transport start / jump re-strikes the grid chord
     int soundingNotes[16] = {};
     int soundingCount = 0;
+
+    // In a DAW the loop is locked to the host timeline: chord k sounds at
+    // the k-th chord slot of each pass, boundaries land exactly on the
+    // host's bars, and loop jumps just re-derive the position.
+    void processHostBlock (juce::MidiBuffer& localMidi, int numSamples, double sampleRate,
+                           double ppqStart, double bpmNow);
+    void strikeChord (juce::MidiBuffer&, int sampleOffset);
 
     // Auto roll handshake: the audio thread raises the flag, the message
     // thread (timerCallback) rolls the dice.

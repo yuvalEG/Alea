@@ -96,6 +96,16 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon-chords.png")
     set(CHORDS_ICON_ARGS ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon-chords.png")
 endif()
 
+# Same instrument-with-silent-output classification as Scale Shifter: hosts
+# have no universal slot for third-party MIDI effects.
+if(APPLE)
+    set(CHORDS_FORMATS VST3 AU Standalone)
+    set(CHORDS_COPY_AFTER_BUILD TRUE)
+else()
+    set(CHORDS_FORMATS VST3 Standalone)
+    set(CHORDS_COPY_AFTER_BUILD FALSE)
+endif()
+
 juce_add_plugin(AleaChords
     PRODUCT_NAME "Alea Chord Randomizer"
     VERSION ${CHORDS_VERSION}
@@ -104,12 +114,12 @@ juce_add_plugin(AleaChords
     PLUGIN_MANUFACTURER_CODE Alau
     PLUGIN_CODE Achd
     ${CHORDS_ICON_ARGS}
-    FORMATS Standalone
+    FORMATS ${CHORDS_FORMATS}
     IS_SYNTH TRUE
     IS_MIDI_EFFECT FALSE
     NEEDS_MIDI_INPUT FALSE
-    NEEDS_MIDI_OUTPUT FALSE
-    COPY_PLUGIN_AFTER_BUILD FALSE)
+    NEEDS_MIDI_OUTPUT TRUE
+    COPY_PLUGIN_AFTER_BUILD ${CHORDS_COPY_AFTER_BUILD})
 
 target_sources(AleaChords PRIVATE
     Source/Chords/ChordEngine.cpp
@@ -130,6 +140,11 @@ target_link_libraries(AleaChords
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+# CLAP build of the Chord Randomizer (for Bitwig, Reaper, and other CLAP hosts).
+clap_juce_extensions_plugin(TARGET AleaChords
+    CLAP_ID "com.alea-audio.chords"
+    CLAP_FEATURES instrument "note-effect" generator)
 
 # Dev tool: renders the Chord Randomizer editor to a PNG (not shipped).
 juce_add_console_app(ChordsUISnapshot PRODUCT_NAME "ChordsUISnapshot")
