@@ -182,7 +182,9 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
     scroll = juce::jlimit (0.0f, maxScroll, scroll);
 
     // Newest roll sits at the right edge; scrolling shifts the view into the
-    // past. Older rolls march left and fade.
+    // past. Older rolls march left and fade. Hovered rolls highlight -
+    // clicking one recalls it into the series row.
+    groupRects.clear();
     g.saveState();
     g.reduceClipRegion (area.toNearestInt());
 
@@ -203,7 +205,17 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
         if (rightX < area.getX())
             break;                          // everything older is off-screen left
 
+        const auto groupRect = juce::Rectangle<float> (startX - 8.0f, area.getY(),
+                                                       groupW + 16.0f, area.getHeight());
+        groupRects.push_back ({ groupRect, age });
+
         const float alpha = juce::jmax (0.25f, 1.0f - 0.15f * (float) age);
+
+        if (age == hoveredGroup)
+        {
+            g.setColour (colors::control.brighter (0.06f));
+            g.fillRoundedRectangle (groupRect, 6.0f);
+        }
 
         // A hair of a divider between this roll and the newer one to its right.
         if (age > 0)
@@ -213,7 +225,8 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
                                                 1.0f, area.getHeight() - 8.0f));
         }
 
-        g.setColour (colors::text.withAlpha (alpha * (age == 0 ? 1.0f : 0.85f)));
+        g.setColour (colors::text.withAlpha (age == hoveredGroup ? 1.0f
+                                                                 : alpha * (age == 0 ? 1.0f : 0.85f)));
         g.setFont (font);
 
         float x = startX;
@@ -232,20 +245,44 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
 
     g.restoreState();
 
-    // Edge chevrons hint that there is more history beyond the visible strip.
-    g.setColour (colors::secondary);
-    g.setFont (juce::FontOptions (12.0f));
+    // Edge page buttons, shown when there is more history in that direction.
+    auto drawPager = [&] (juce::Rectangle<float>& store, float x, const char* glyph)
+    {
+        store = { x, (float) getHeight() / 2.0f - 14.0f, 18.0f, 28.0f };
+        g.setColour (colors::control);
+        g.fillRoundedRectangle (store, 5.0f);
+        g.setColour (colors::border);
+        g.drawRoundedRectangle (store.reduced (0.5f), 5.0f, 1.0f);
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (12.0f));
+        g.drawText (juce::String::fromUTF8 (glyph), store, juce::Justification::centred);
+    };
+
+    olderButton = newerButton = {};
     if (scroll < maxScroll)
-        g.drawText (juce::String::fromUTF8 ("\xe2\x97\x82"), 2, 0, 10, getHeight(), juce::Justification::centred);
+        drawPager (olderButton, 4.0f, "\xe2\x97\x82");
     if (scroll > 0.0f)
-        g.drawText (juce::String::fromUTF8 ("\xe2\x96\xb8"), getWidth() - 12, 0, 10, getHeight(), juce::Justification::centred);
+        drawPager (newerButton, (float) getWidth() - 22.0f, "\xe2\x96\xb8");
+}
+
+int ChordsEditor::HistoryTicker::groupAt (juce::Point<float> pos) const
+{
+    for (const auto& [rect, index] : groupRects)
+        if (rect.contains (pos))
+            return index;
+    return -1;
+}
+
+void ChordsEditor::HistoryTicker::scrollBy (float delta)
+{
+    scroll = juce::jlimit (0.0f, maxScroll, scroll + delta);
+    repaint();
 }
 
 void ChordsEditor::HistoryTicker::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& wheel)
 {
     // Wheel down / trackpad swipe left = further into the past.
-    scroll = juce::jlimit (0.0f, maxScroll, scroll - (wheel.deltaX + wheel.deltaY) * 220.0f);
-    repaint();
+    scrollBy (-(wheel.deltaX + wheel.deltaY) * 220.0f);
 }
 
 void ChordsEditor::HistoryTicker::mouseDown (const juce::MouseEvent& e)
@@ -259,6 +296,41 @@ void ChordsEditor::HistoryTicker::mouseDrag (const juce::MouseEvent& e)
     // Dragging right moves the content right, revealing older rolls.
     scroll = juce::jlimit (0.0f, maxScroll, dragStartScroll + (float) (e.x - dragStartX));
     repaint();
+}
+
+void ChordsEditor::HistoryTicker::mouseUp (const juce::MouseEvent& e)
+{
+    if (e.mouseWasDraggedSinceMouseDown())
+        return;
+
+    const auto pos = e.position;
+    if (olderButton.contains (pos))  { scrollBy ((float) getWidth() * 0.8f);  return; }
+    if (newerButton.contains (pos))  { scrollBy ((float) getWidth() * -0.8f); return; }
+
+    if (const int group = groupAt (pos); group >= 0 && onRecall != nullptr)
+        onRecall (group);
+}
+
+void ChordsEditor::HistoryTicker::mouseMove (const juce::MouseEvent& e)
+{
+    const bool overButton = olderButton.contains (e.position) || newerButton.contains (e.position);
+    const int group = overButton ? -1 : groupAt (e.position);
+    setMouseCursor ((group >= 0 || overButton) ? juce::MouseCursor::PointingHandCursor
+                                               : juce::MouseCursor::NormalCursor);
+    if (group != hoveredGroup)
+    {
+        hoveredGroup = group;
+        repaint();
+    }
+}
+
+void ChordsEditor::HistoryTicker::mouseExit (const juce::MouseEvent&)
+{
+    if (hoveredGroup != -1)
+    {
+        hoveredGroup = -1;
+        repaint();
+    }
 }
 
 //==============================================================================
@@ -313,6 +385,13 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     menuButton.onClick = [this] { showMenu(); };
     addAndMakeVisible (menuButton);
 
+    ticker.onRecall = [this] (int index)
+    {
+        chordsProc.recallRoll (index);
+        ticker.scroll = 0.0f; // the outgoing series is now the newest entry
+        ticker.hoveredGroup = -1;
+        refresh();
+    };
     addAndMakeVisible (ticker);
 
     // Space must always mean ROLL: no child ever takes keyboard focus.

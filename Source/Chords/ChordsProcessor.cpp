@@ -46,6 +46,22 @@ void ChordsProcessor::setSeriesLength (int newLength)
     ++revision;
 }
 
+void ChordsProcessor::recallRoll (int index)
+{
+    if (index < 0 || index >= (int) history.size())
+        return;
+
+    // Non-destructive: the recalled roll stays in history; the outgoing
+    // series joins it up front, so nothing is ever lost by recalling.
+    auto recalled = history[(size_t) index];
+    if (! series.empty())
+        history.push_front (series);
+    series = std::move (recalled);
+    seriesLength = juce::jlimit (1, 8, (int) series.size());
+    trimHistory();
+    ++revision;
+}
+
 void ChordsProcessor::trimHistory()
 {
     int total = 0;

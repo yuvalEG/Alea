@@ -23,6 +23,7 @@ public:
 
     void rollSeries();            // current series joins history, new one rolls
     void setSeriesLength (int);   // grows by rolling extras, shrinks by truncating
+    void recallRoll (int index);  // copy a past roll back into the series
 
     // Bumped on every chord-state change; the editor polls it to stay in sync
     // (state can arrive from the wrapper before or after the editor exists).

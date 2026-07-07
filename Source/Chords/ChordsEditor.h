@@ -43,20 +43,35 @@ private:
     };
 
     // Past rolls, newest at the right, grouped by roll, fading with age.
-    // Scrollable (wheel, trackpad, or drag) - history holds ~1000 chords.
+    // Scrollable (wheel, trackpad, drag, or the edge page buttons); clicking
+    // a roll recalls it into the series row. History holds ~1000 chords.
     struct HistoryTicker : juce::Component
     {
         explicit HistoryTicker (ChordsProcessor& p) : proc (p) {}
         ChordsProcessor& proc;
+        std::function<void (int)> onRecall;
+
         float scroll = 0.0f;        // 0 = pinned to the newest roll; grows into the past
         float maxScroll = 0.0f;     // measured during paint
         float dragStartScroll = 0.0f;
         int dragStartX = 0;
+        int hoveredGroup = -1;
+
+        // Hit rects from the last paint, in ticker coordinates.
+        std::vector<std::pair<juce::Rectangle<float>, int>> groupRects;
+        juce::Rectangle<float> olderButton, newerButton;
 
         void paint (juce::Graphics&) override;
         void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
         void mouseDown (const juce::MouseEvent&) override;
         void mouseDrag (const juce::MouseEvent&) override;
+        void mouseUp (const juce::MouseEvent&) override;
+        void mouseMove (const juce::MouseEvent&) override;
+        void mouseExit (const juce::MouseEvent&) override;
+
+    private:
+        int groupAt (juce::Point<float>) const;
+        void scrollBy (float delta);
     };
 
     ChordsProcessor& chordsProc;
