@@ -43,6 +43,13 @@ public:
     // (560 hid the keyboard once it became its own panel - QA, July 8).
     int lastUIWidth = 900, lastUIHeight = 680;
 
+    // One-time migration: window heights saved before the MONITOR panel
+    // existed open with the keyboard tucked. The standalone wrapper
+    // restores its own saved window frame AFTER the editor is built, so
+    // the editor enforces the lift on its first timer tick (message
+    // thread), then clears this.
+    bool liftWindowOnce = false;
+
     // --- transport and loop (spec M2) ---
     std::atomic<bool>  playing { false };
     std::atomic<float> bpm { 90.0f };                 // 30..300

@@ -832,6 +832,7 @@ void ChordsProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const juce:
 void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::ValueTree state ("ChordsState");
+    state.setProperty ("uiV", 2, nullptr); // window-height migration marker (see setStateInformation)
     state.setProperty ("seriesLength", seriesLength, nullptr);
     state.setProperty ("useSevenths", useSevenths, nullptr);
     state.setProperty ("simplify", simplify, nullptr);
@@ -894,12 +895,15 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
                                  (int) state.getProperty ("keyIndex", 0));
     lastUIWidth  = juce::jlimit (560, 4000, (int) state.getProperty ("uiWidth", 900));
     lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 680));
-    // Window heights saved before the voicings build predate the MONITOR
-    // panel (the default was 560): opening them tucks the keyboard, which
-    // reads as a missing feature. Lift them once - heights saved from now
-    // on are the user's own choice (a tucked window is a practice mode).
-    if (! state.hasProperty ("smoothVoicing"))
-        lastUIHeight = juce::jmax (680, lastUIHeight);
+    // Window heights saved before the MONITOR panel settled (uiV 2) open
+    // with the keyboard tucked, which reads as a missing feature. Lift
+    // them once - heights saved from uiV 2 on are the user's own choice
+    // (a tucked window is a practice mode) and are never touched.
+    if ((int) state.getProperty ("uiV", 1) < 2 && lastUIHeight < 680)
+    {
+        lastUIHeight = 680;
+        liftWindowOnce = true; // the wrapper re-applies its own frame later - see ChordsProcessor.h
+    }
     bpm.store (juce::jlimit (30.0f, 300.0f, (float) (double) state.getProperty ("bpm", 90.0)));
     barsPerChord.store (juce::jlimit (1, 4, (int) state.getProperty ("barsPerChord", 1)));
     // "octave" (single) was the pre-multi-select property name.

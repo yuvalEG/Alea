@@ -43,43 +43,40 @@ namespace
             text.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
             text.setColour (juce::TextEditor::textColourId, colors::text);
             text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
-            text.setFont (juce::FontOptions (20.5f));
+            text.setFont (juce::FontOptions (17.5f));
             text.setText (juce::String::fromUTF8 (
-                "Alea Chord Randomizer, version " CHORDS_VERSION "\n\n\n"
+                "Alea Chord Randomizer, version " CHORDS_VERSION "\n\n"
                 "THE EXERCISE\n\n"
                 "This app was born from an improvisation exercise by my guitar "
                 "teacher, Yonatan Benaroche: generate a short random chord "
                 "progression, loop it, and improvise over it with your "
                 "instrument. A progression you did not choose forces your ear "
-                "and your hands out of familiar shapes.\n\n\n"
+                "and your hands out of familiar shapes.\n\n"
                 "HOW TO USE\n\n"
                 "ROLL the dice (or press R), hit play (or the spacebar), jam. "
-                "The DICE panel decides what the dice can roll. The LOOP "
-                "panel decides how it sounds, voicing included: spread it "
-                "open, smooth the voice-leading, add a bass note. Rolling "
-                "mid-loop swaps the new chords in at the next chord change, "
-                "and clicking a chord jumps the loop there.\n\n"
-                "The MONITOR keyboard shows what is sounding. Make the "
-                "window shorter to tuck it away and find every note of "
-                "the chord yourself, a nice theory workout.\n\n"
-                "Key lock keeps every roll diatonic to a chosen key and "
-                "scale, flavors included.\n\n"
+                "DICE decides what the dice can roll. LOOP decides how it "
+                "sounds, voicing included: spread it open, smooth the "
+                "voice-leading, add a bass note. Rolling mid-loop swaps the "
+                "new chords in at the next change, and clicking a chord jumps "
+                "there. Key lock keeps every roll diatonic, flavors included.\n\n"
+                "MONITOR shows what is sounding. Make the window shorter to "
+                "tuck it away and find the chord's notes yourself, a nice "
+                "theory workout.\n\n"
                 "AUTO ROLL rolls for you every few loops (press A to flip "
                 "it). Pin a chord (the little circle on its card) and it "
                 "survives rolls. Keep what you love, reroll the rest.\n\n"
-                "OUT plays the built-in synth (pick a flavour) or sends MIDI "
-                "to any device. Past rolls pile up in HISTORY. Scroll "
-                "through them, click one to bring it back.\n\n\n"
+                "OUT plays the built-in synth or sends MIDI to any device. "
+                "Past rolls pile up in HISTORY. Click one to bring it back.\n\n"
                 "GET IN TOUCH\n\n"
-                "I'll be more than happy to hear your feedback, ideas and music! "
-                "You can reach me through GitHub (github.com/yuvalEG/Alea) or my "
-                "email: yuvalprod@gmail.com\n\n"
-                "Alea Chord Randomizer is open source (GPLv3), built with JUCE. "
-                "Check for updates from the menu in the top-right corner.\n\n\n"
+                "I'll be happy to hear your feedback, ideas and music! Reach "
+                "me on GitHub (github.com/yuvalEG/Alea) or at "
+                "yuvalprod@gmail.com\n\n"
+                "Open source (GPLv3), built with JUCE. Check for updates "
+                "from the top-right menu.\n\n"
                 "Made By Yuval Egozi"),
                 juce::dontSendNotification);
             addAndMakeVisible (text);
-            setSize (720, 640);
+            setSize (720, 700);
         }
 
         void paint (juce::Graphics& g) override
@@ -897,6 +894,17 @@ ChordsEditor::~ChordsEditor()
 
 void ChordsEditor::timerCallback()
 {
+    // One-time pre-M5 height migration: the standalone wrapper restores
+    // its own saved window frame after this editor is built, undoing the
+    // lift from setStateInformation - so enforce it here, once, after
+    // that restore has already happened.
+    if (chordsProc.liftWindowOnce)
+    {
+        chordsProc.liftWindowOnce = false;
+        if (standalone && getHeight() < 680)
+            setSize (getWidth(), 680);
+    }
+
     if (seenRevision != chordsProc.revision)
         refresh();
 
