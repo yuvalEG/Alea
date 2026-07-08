@@ -11,27 +11,24 @@ namespace alea
 
 enum Flavour
 {
-    // The original four (their persisted strings predate this table).
+    // Named, not ordered - the display order lives in the table, and only
+    // the persisted "choice" strings need to stay stable (not these ints).
     warmPad = 0,
-    pureSine,
     softSaw,
-    strings,
-    // Synth flavours, July 8 2026.
+    pureSine,   // Pure Sine and Triangle stay surgically clear (near-dry, no
+    triangle,   // detune) even though they sit in the SYNTH group.
+    piano,      // Salamander Grand Piano by Alexander Holm (CC BY 3.0).
     ePiano,
     organ,
+    strings,
     pluck,
     bells,
-    // Clean practice tones: no detune, low effect sends - surgical pitch.
-    triangle,
-    glass,
-    // Sampled: Salamander Grand Piano by Alexander Holm (CC BY 3.0).
-    piano,
 
     numFlavours
 };
 
-// Menu groups, in display order.
-enum FlavourGroup { groupSampled = 0, groupSynth, groupClean };
+// Menu groups, in display order: pure synthesis, then emulated instruments.
+enum FlavourGroup { groupSynth = 0, groupInstrument };
 
 struct FlavourInfo
 {

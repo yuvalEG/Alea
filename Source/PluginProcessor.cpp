@@ -307,6 +307,17 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
                                                       : (double) pInternalTempo->load());
     hostBpm.store (bpm);
 
+    // A just-applied preset restarts its sweep from the top: adopt its sweep
+    // state and morph position now, so the switch never reads as the user
+    // toggling the sweep (which would park or resume mid-journey) and the old
+    // preset's morph never bleeds into the new one.
+    if (presetReanchor.exchange (false))
+    {
+        lastSweepOn = pAutoSweep->load() > 0.5f;
+        sweepAnchorPpq = hostPpq.load();      // anchor at the preset's morphPos (0) = start of the curve
+        morphPercent.store (pMorphPos->load());
+    }
+
     if (! isPlaying)
     {
         if (wasPlaying)

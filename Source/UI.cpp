@@ -490,12 +490,12 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
     const auto current = alea.getStandaloneOutput();
 
     // The sound list comes from the shared flavour table (Source/Sound.h),
-    // grouped by section: SAMPLED / SYNTH / CLEAN, then MIDI. Flavour ids
-    // are 1 + alea::Flavour; "MIDI to DAW" is 50; devices from 100.
+    // grouped by section: SYNTH / INSTRUMENT, then MIDI. Flavour ids are
+    // 1 + alea::Flavour; "MIDI to DAW" is 50; devices from 100.
     if (! standalone)
         outputBox->addItem ("MIDI to DAW", 50); // plugin default, listed first
 
-    for (int group : { alea::groupSampled, alea::groupSynth, alea::groupClean })
+    for (int group : { alea::groupSynth, alea::groupInstrument })
     {
         outputBox->addSectionHeading (alea::groupName (group));
         for (const auto& f : alea::flavourTable())

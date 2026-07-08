@@ -68,6 +68,7 @@ public:
     std::atomic<float>  scrubRequest { -1.0f };  // 0-100: re-anchor auto-sweep here
     std::atomic<bool>   ccLearnArmed { false };  // next incoming CC binds Morph Position
     std::atomic<int>    morphCC { -1 };          // learned controller number
+    std::atomic<bool>   presetReanchor { false };// a preset was applied: restart its sweep fresh
 
     // Event history ring buffer (spec 9.1: last 50). Entries pack
     // note | (source << 8) | (velocity << 10), or restIndex | (source << 8)

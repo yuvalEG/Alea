@@ -12,29 +12,25 @@ namespace alea
 const std::array<FlavourInfo, numFlavours>& flavourTable()
 {
     static const std::array<FlavourInfo, numFlavours> table { {
-        { warmPad,  groupSynth,   "synth",          "Warm Pad"  },
-        { pureSine, groupClean,   "synth:sine",     "Pure Sine" },
-        { softSaw,  groupSynth,   "synth:saw",      "Soft Saw"  },
-        { strings,  groupSynth,   "synth:strings",  "Strings"   },
-        { ePiano,   groupSynth,   "synth:epiano",   "E-Piano"   },
-        { organ,    groupSynth,   "synth:organ",    "Organ"     },
-        { pluck,    groupSynth,   "synth:pluck",    "Pluck"     },
-        { bells,    groupSynth,   "synth:bells",    "Bells"     },
-        { triangle, groupClean,   "synth:triangle", "Triangle"  },
-        { glass,    groupClean,   "synth:glass",    "Glass"     },
-        { piano,    groupSampled, "piano",          "Piano"     },
+        // SYNTH: abstract electronic textures.
+        { warmPad,  groupSynth,      "synth",          "Warm Pad"  },
+        { softSaw,  groupSynth,      "synth:saw",      "Soft Saw"  },
+        { pureSine, groupSynth,      "synth:sine",     "Pure Sine" },
+        { triangle, groupSynth,      "synth:triangle", "Triangle"  },
+        // INSTRUMENT: emulations of real acoustic and electric instruments.
+        { piano,    groupInstrument, "piano",          "Piano"     },
+        { ePiano,   groupInstrument, "synth:epiano",   "E-Piano"   },
+        { organ,    groupInstrument, "synth:organ",    "Organ"     },
+        { strings,  groupInstrument, "synth:strings",  "Strings"   },
+        { pluck,    groupInstrument, "synth:pluck",    "Pluck"     },
+        { bells,    groupInstrument, "synth:bells",    "Bells"     },
     } };
     return table;
 }
 
 const char* groupName (int group)
 {
-    switch (group)
-    {
-        case groupSampled: return "SAMPLED";
-        case groupClean:   return "CLEAN";
-        default:           return "SYNTH";
-    }
+    return group == groupInstrument ? "INSTRUMENT" : "SYNTH";
 }
 
 int flavourFromChoice (const juce::String& choice)
@@ -108,11 +104,11 @@ namespace
     {
         switch (flavour)
         {
-            case pureSine: case triangle: case glass: return 0.25f;
-            case piano:                               return 0.0f;
-            case organ:                               return 0.35f;
-            case ePiano: case bells:                  return 0.8f;
-            default:                                  return 1.0f;
+            case pureSine: case triangle: return 0.25f; // clear tones stay near-dry
+            case piano:                   return 0.0f;  // room is reverb only
+            case organ:                   return 0.35f;
+            case ePiano: case bells:      return 0.8f;
+            default:                      return 1.0f;
         }
     }
 }
@@ -180,7 +176,6 @@ void SoundEngine::startVoice (Voice& v, int note, float velocity, int newFlavour
         case softSaw:  amp.attack = 0.003f; break;                      // plucky
         case strings:  amp.attack = 0.280f; break;                      // bow in
         case triangle: amp.attack = 0.006f; break;
-        case glass:    amp.attack = 0.008f; break;
         case organ:    amp.attack = 0.004f; amp.sustain = 1.0f;  amp.decay = 0.05f; break;
         case ePiano:   amp.attack = 0.002f; amp.sustain = 0.35f; amp.decay = 1.2f;
                        bright = { 0.001f, 0.45f, 0.03f, 0.50f }; break; // the tine dies fast
@@ -247,7 +242,7 @@ void SoundEngine::releaseVoice (Voice& v, bool)
             // notes get a snappy tail, pads ring long. The clean tones
             // keep a higher floor - without it their tails vanish and
             // the polyphony is inaudible.
-            const bool clean = v.flavour == pureSine || v.flavour == triangle || v.flavour == glass;
+            const bool clean = v.flavour == pureSine || v.flavour == triangle;
             const float releaseFloor = v.flavour == pureSine ? 0.65f : clean ? 0.50f : 0.12f;
             params.release = juce::jlimit (releaseFloor, 2.2f,
                                            1.1f * (float) v.heldSamples / (float) sr);
@@ -299,17 +294,6 @@ float SoundEngine::renderVoiceSample (Voice& v)
             if (harmonics >= 5) acc += (float) std::sin (5.0 * v.phase) / 25.0f;
             if (harmonics >= 7) acc -= (float) std::sin (7.0 * v.phase) / 49.0f;
             s = 0.85f * acc;
-            break;
-        }
-
-        case glass:
-        {
-            // Crystalline: pure octaves above a sine, zero detune.
-            const float b = v.bright.getNextSample();
-            float acc = 0.80f * (float) std::sin (v.phase);
-            if (harmonics >= 4)  acc += 0.20f * b * (float) std::sin (4.0 * v.phase);
-            if (harmonics >= 8)  acc += 0.05f * b * b * (float) std::sin (8.0 * v.phase);
-            s = acc;
             break;
         }
 

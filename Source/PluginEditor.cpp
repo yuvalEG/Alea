@@ -128,6 +128,21 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         juce::Font getLabelFont (juce::Label& label) override
         { return juce::FontOptions (juce::jmin (15.5f, (float) label.getHeight() * 0.72f)); }
 
+        // OUT menu group titles read as real titles, not the greyed default:
+        // a purple-to-cyan divider above, then the name in bright bold caps.
+        void drawPopupMenuSectionHeader (juce::Graphics& g, const juce::Rectangle<int>& area,
+                                         const juce::String& name) override
+        {
+            auto r = area.toFloat();
+            g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.55f), r.getX() + 10.0f, 0.0f,
+                                                     colors::cyan.withAlpha (0.55f), r.getRight() - 10.0f, 0.0f, false));
+            g.fillRect (r.getX() + 10.0f, r.getY() + 4.0f, r.getWidth() - 20.0f, 1.5f);
+            g.setColour (colors::text);
+            g.setFont (juce::Font (juce::FontOptions (13.5f)).boldened());
+            g.drawText (name.toUpperCase(), area.reduced (12, 0).withTrimmedTop (4),
+                        juce::Justification::centredLeft);
+        }
+
         // Sleek knob: small filled body, hairline value arc, thin pointer.
         void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
                                float startAngle, float endAngle, juce::Slider& slider) override
@@ -409,6 +424,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
 void AleaAudioProcessorEditor::applyPresetAndMark (int index)
 {
     presets::apply (alea.apvts, presets::factory()[(size_t) index]);
+    alea.presetReanchor.store (true); // its sweep starts fresh, not mid-journey from the last preset
     alea.currentPreset.store (index);
     shownPreset = index;
     // Don't snapshot yet: the host echoes parameter edits back asynchronously
