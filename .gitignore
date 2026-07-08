@@ -20,3 +20,7 @@ compile_commands.json
 
 # Internal product spec stays out of the public repo
 docs/SPEC.md
+
+# Design references and local tooling stay out of the public repo
+design_handoff_hardware_faceplate/
+.claude/

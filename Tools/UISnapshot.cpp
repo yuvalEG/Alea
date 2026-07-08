@@ -140,6 +140,11 @@ int main (int argc, char* argv[])
     processor.setPlayConfigDetails (0, 2, 44100.0, 512);
     processor.prepareToPlay (44100.0, 512);
 
+    // Optional: pose with a synth output so the OUTPUT panel shows the
+    // level meter + volume knob (dev-only calibration flag).
+    if (argc > 2 && juce::String (argv[2]) == "synth")
+        processor.setStandaloneOutput ("synth");
+
     // Major -> Minor, sweep off, morph posed by hand.
     presets::apply (processor.apvts, presets::factory()[6]);
     processor.currentPreset.store (6); // keep its bubble lit

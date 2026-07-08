@@ -23,6 +23,38 @@ namespace colors
     const juce::Colour ice        { 0xff9bdcf0 }; // FREEZE active - icy, distinct from scale-B cyan
 }
 
+// Hardware faceplate drawing (the skeuomorphic reskin, July 8 2026). Shared
+// free functions so both the editor's paintMain and the individual component
+// paints render the same brushed-gunmetal language. The CSS handoff's layered
+// gradients/shadows are translated to juce::Graphics fills here.
+namespace hw
+{
+    const juce::Colour metalLine { 0xff0b0c0e }; // the near-black seam between parts
+    const juce::Colour led        { 0xff10b981 }; // the single "selected/lit" emerald
+
+    // Brushed gunmetal. isPlate = a recessed module plate (flatter, bordered);
+    // otherwise the raised faceplate slab (broad sheen sweep + top highlight).
+    void brushedMetal (juce::Graphics&, juce::Rectangle<float> r, float radius, bool isPlate);
+
+    // A single pan-head screw; slotDeg rotates the slot per instance.
+    void screw (juce::Graphics&, juce::Point<float> centre, float slotDeg, float size = 10.0f);
+
+    // A recessed inset well (segmented tracks, fader/slider grooves, keybeds).
+    void insetWell (juce::Graphics&, juce::Rectangle<float> r, float radius);
+
+    // Glass LCD: dark phosphor screen with scanlines + gloss. Fills the
+    // background; the caller draws glowing text in `phosphor`.
+    void lcd (juce::Graphics&, juce::Rectangle<float> r, juce::Colour phosphor);
+
+    // Segmented vertical output meter (12 cells bottom-up; amber near top, red at clip).
+    void meter (juce::Graphics&, juce::Rectangle<float> r, float level01);
+
+    // A backlit push-button face. lit = the coloured/LED state (black legend);
+    // returns the colour the caller should draw the legend in.
+    juce::Colour button (juce::Graphics&, juce::Rectangle<float> r, bool lit,
+                         juce::Colour ledColour, bool over, bool down);
+}
+
 // Standalone transport: drawn play triangle / pause bars plus a label -
 // prominent, green, and the icon tells the truth (pausing holds the clock).
 // Shared design language with Alea Chord Randomizer's transport.

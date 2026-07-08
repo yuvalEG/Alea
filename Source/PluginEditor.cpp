@@ -120,10 +120,14 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         {
             setDefaultSansSerifTypeface (juce::Typeface::createSystemTypefaceFor (
                 BinaryData::SpaceGroteskMedium_ttf, BinaryData::SpaceGroteskMedium_ttfSize));
+            // Toggle buttons light emerald by default (the hardware LED);
+            // FREEZE overrides to ice, PANIC never lights (red legend).
+            setColour (juce::TextButton::buttonOnColourId, ui::hw::led);
+            setColour (juce::TextButton::textColourOffId, juce::Colour (0xffc0c4d0));
+            setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
         }
         juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override
         { return juce::FontOptions (juce::jmin (16.5f, (float) buttonHeight * 0.62f)); }
-        juce::Font getComboBoxFont (juce::ComboBox&) override { return juce::FontOptions (16.0f); }
         juce::Font getPopupMenuFont() override { return juce::FontOptions (16.0f); }
         juce::Font getLabelFont (juce::Label& label) override
         { return juce::FontOptions (juce::jmin (15.5f, (float) label.getHeight() * 0.72f)); }
@@ -143,29 +147,100 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                         juce::Justification::centredLeft);
         }
 
-        // Sleek knob: small filled body, hairline value arc, thin pointer.
+        // Hardware knob: a chunky metal cap in a recessed well, a backlit
+        // value arc in the accent colour, a tick ring and a lit pointer tip.
         void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
                                float startAngle, float endAngle, juce::Slider& slider) override
         {
-            const auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (5.0f);
-            const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f - 3.0f;
-            const auto centre = bounds.getCentre();
+            const auto area = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (4.0f);
+            const float radius = juce::jmin (area.getWidth(), area.getHeight()) * 0.5f;
+            const auto c = area.getCentre();
+            const auto accent = slider.findColour (juce::Slider::rotarySliderFillColourId);
             const float angle = startAngle + pos * (endAngle - startAngle);
+            const float midAngle = startAngle + 0.5f * (endAngle - startAngle);
+            const bool bipolar = slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0;
 
-            g.setColour (colors::control.brighter (0.10f));
-            g.fillEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f);
-            g.setColour (colors::border);
-            g.drawEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f, 1.0f);
+            // Recessed well.
+            juce::ColourGradient well (juce::Colour (0xff0c0d10), c.x, c.y - radius,
+                                       juce::Colour (0xff26282e), c.x, c.y + radius, false);
+            g.setGradientFill (well);
+            g.fillEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (c));
 
+            // Tick ring.
+            g.setColour (juce::Colours::white.withAlpha (0.22f));
+            for (int i = 0; i <= 10; ++i)
+            {
+                const float a = startAngle + (float) i / 10.0f * (endAngle - startAngle);
+                const float ro = radius * 0.98f, ri = radius * 0.86f;
+                g.drawLine (c.x + std::sin (a) * ri, c.y - std::cos (a) * ri,
+                            c.x + std::sin (a) * ro, c.y - std::cos (a) * ro, 1.0f);
+            }
+
+            // Backlit value arc (bipolar grows from centre; else from start).
+            const float arcR = radius * 0.92f;
             juce::Path arc;
-            arc.addCentredArc (centre.x, centre.y, radius + 2.5f, radius + 2.5f, 0.0f, startAngle, angle, true);
-            g.setColour (slider.findColour (juce::Slider::rotarySliderFillColourId));
-            g.strokePath (arc, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            arc.addCentredArc (c.x, c.y, arcR, arcR, 0.0f,
+                               bipolar ? midAngle : startAngle, angle, true);
+            g.setColour (accent);
+            g.strokePath (arc, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.setColour (accent.withAlpha (0.35f)); // bloom
+            g.strokePath (arc, juce::PathStrokeType (5.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-            g.setColour (colors::text.withAlpha (0.9f));
-            g.drawLine (centre.x + std::sin (angle) * radius * 0.45f, centre.y - std::cos (angle) * radius * 0.45f,
-                        centre.x + std::sin (angle) * radius * 0.88f, centre.y - std::cos (angle) * radius * 0.88f, 1.8f);
+            // Metal cap.
+            const float capR = radius * 0.74f;
+            juce::ColourGradient body (juce::Colour (0xff3a3d44), c.x, c.y - capR,
+                                       juce::Colour (0xff101114), c.x, c.y + capR, false);
+            body.addColour (0.45, juce::Colour (0xff26282d));
+            g.setGradientFill (body);
+            g.fillEllipse (juce::Rectangle<float> (capR * 2.0f, capR * 2.0f).withCentre (c));
+            g.setColour (juce::Colours::white.withAlpha (0.20f));
+            g.drawEllipse (juce::Rectangle<float> (capR * 2.0f, capR * 2.0f).withCentre (c).reduced (0.5f), 1.0f);
+            g.setColour (juce::Colours::black.withAlpha (0.5f));
+            g.drawEllipse (juce::Rectangle<float> (capR * 2.0f + 1.0f, capR * 2.0f + 1.0f).withCentre (c), 1.0f);
+
+            // Pointer with a lit accent tip.
+            const float px1 = c.x + std::sin (angle) * capR * 0.30f, py1 = c.y - std::cos (angle) * capR * 0.30f;
+            const float px2 = c.x + std::sin (angle) * capR * 0.92f, py2 = c.y - std::cos (angle) * capR * 0.92f;
+            g.setColour (accent.brighter (0.3f));
+            g.drawLine (px1, py1, px2, py2, 3.0f);
         }
+
+        // Hardware push-button: metal face, or a backlit LED key when lit.
+        void drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&,
+                                   bool over, bool down) override
+        {
+            const bool lit = b.getToggleState();
+            const auto led = b.findColour (juce::TextButton::buttonOnColourId);
+            ui::hw::button (g, b.getLocalBounds().toFloat(), lit, led, over, down);
+        }
+
+        void drawButtonText (juce::Graphics& g, juce::TextButton& b, bool over, bool) override
+        {
+            const bool lit = b.getToggleState();
+            auto colour = lit ? b.findColour (juce::TextButton::textColourOnId)
+                              : b.findColour (juce::TextButton::textColourOffId);
+            if (over && ! lit)
+                colour = colour.brighter (0.4f);
+            g.setColour (colour);
+            g.setFont (juce::FontOptions (juce::jmin (13.0f, (float) b.getHeight() * 0.5f)));
+            g.drawText (b.getButtonText().toUpperCase(), b.getLocalBounds(), juce::Justification::centred);
+        }
+
+        // Recessed metal combo box with a chevron.
+        void drawComboBox (juce::Graphics& g, int width, int height, bool,
+                           int, int, int, int, juce::ComboBox&) override
+        {
+            const auto r = juce::Rectangle<float> (0.0f, 0.0f, (float) width, (float) height);
+            ui::hw::insetWell (g, r, 4.0f);
+            juce::Path chev;
+            const float cx = (float) width - 14.0f, cy = (float) height * 0.5f;
+            chev.startNewSubPath (cx - 4.0f, cy - 2.0f);
+            chev.lineTo (cx, cy + 2.5f);
+            chev.lineTo (cx + 4.0f, cy - 2.0f);
+            g.setColour (juce::Colour (0xff7f8496));
+            g.strokePath (chev, juce::PathStrokeType (1.6f));
+        }
+        juce::Font getComboBoxFont (juce::ComboBox&) override { return juce::FontOptions (14.5f); }
     };
     static AleaLookAndFeel aleaLnf; // process lifetime: dialogs may outlive the editor
     juce::LookAndFeel::setDefaultLookAndFeel (&aleaLnf);
@@ -344,9 +419,9 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     autoSweep.setButtonText (juce::String::fromUTF8 ("AUTO-SWEEP \xe2\x86\x92"));
     autoSweep.setClickingTogglesState (true);
     autoSweep.setColour (juce::TextButton::buttonColourId, colors::control);
-    autoSweep.setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.9f));
-    autoSweep.setColour (juce::TextButton::textColourOffId, colors::secondary);
-    autoSweep.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+    autoSweep.setColour (juce::TextButton::buttonOnColourId, ui::hw::led);
+    autoSweep.setColour (juce::TextButton::textColourOffId, juce::Colour (0xffc0c4d0));
+    autoSweep.setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
     content.addAndMakeVisible (autoSweep);
     sweepAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         alea.apvts, "autoSweep", autoSweep);
@@ -356,9 +431,9 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     {
         auto b = std::make_unique<juce::TextButton> (juce::String::fromUTF8 (presets::factory()[i].name));
         b->setColour (juce::TextButton::buttonColourId, colors::control);
-        b->setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.9f));
-        b->setColour (juce::TextButton::textColourOffId, colors::text);
-        b->setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+        b->setColour (juce::TextButton::buttonOnColourId, ui::hw::led);
+        b->setColour (juce::TextButton::textColourOffId, juce::Colour (0xffc0c4d0));
+        b->setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
         const int idx = (int) i;
         b->onClick = [this, idx] { applyPresetAndMark (idx); };
         content.addAndMakeVisible (*b);
@@ -708,7 +783,8 @@ void AleaAudioProcessorEditor::paint (juce::Graphics& g)
 
 void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
 {
-    g.fillAll (colors::background);
+    // The whole window is one raised brushed-gunmetal faceplate slab.
+    ui::hw::brushedMetal (g, content.getLocalBounds().toFloat(), 16.0f, false);
 
     // Header: the wordmark image, with the subtitle beside it
     {
@@ -737,36 +813,41 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
         g.fillEllipse (126.0f, 22.0f, 12.0f, 12.0f); // dot only, next to the logo
     }
 
-    // (The tempo bar reads "120 BPM" itself now; in the plugin, the
-    // Host/Free-Run selector still earns a label.)
-    if (! standalone)
-    {
-        g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (14.0f));
-        g.drawText ("TEMPO", tempoSource.getX() - 66, 16, 58, 26, juce::Justification::centredRight);
-    }
+    // (The tempo bar reads "120 BPM" itself; the word "TEMPO" was dropped in
+    // the hardware redesign - the HOST/FREE-RUN switch names itself.)
 
-    auto drawPanel = [&g] (const juce::Rectangle<int>& r, const juce::String& title, juce::Colour accent)
+    // Each panel is a recessed module plate with two corner screws and an
+    // engraved label. Scale plates carry a colour tab that dims when their
+    // side of the morph can't currently sound.
+    auto drawPlate = [&g] (const juce::Rectangle<int>& r, const juce::String& title,
+                           juce::Colour tab, float tabAlpha)
     {
-        g.setColour (colors::panel);
-        g.fillRoundedRectangle (r.toFloat(), 8.0f);
-        g.setColour (colors::border);
-        g.drawRoundedRectangle (r.toFloat().reduced (0.5f), 8.0f, 1.0f);
-        g.setColour (accent);
-        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-        g.drawText (title, r.getX() + 12, r.getY() + 8, r.getWidth() - 24, 18, juce::Justification::centredLeft);
+        const auto rf = r.toFloat();
+        ui::hw::brushedMetal (g, rf, 10.0f, true);
+        ui::hw::screw (g, { rf.getX() + 10.0f, rf.getY() + 10.0f }, 42.0f);
+        ui::hw::screw (g, { rf.getRight() - 10.0f, rf.getY() + 10.0f }, -20.0f);
+
+        float tx = rf.getX() + 22.0f; // clear the top-left screw
+        if (tab.getAlpha() > 0)
+        {
+            g.setColour (tab.withMultipliedAlpha (tabAlpha));
+            g.fillRoundedRectangle (tx, rf.getY() + 13.0f, 20.0f, 4.0f, 2.0f);
+            tx += 28.0f;
+        }
+        // Engraved label: light legend with a dark drop shadow.
+        g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
+        g.setColour (juce::Colours::black.withAlpha (0.8f));
+        g.drawText (title, (int) tx + 1, r.getY() + 9, r.getWidth(), 16, juce::Justification::centredLeft);
+        g.setColour (juce::Colour (0xffc2c5d0));
+        g.drawText (title, (int) tx, r.getY() + 8, r.getWidth(), 16, juce::Justification::centredLeft);
     };
 
-    drawPanel (scaleAPanel, "SCALE A", colors::purple.withMultipliedAlpha (alphaA));
-    drawPanel (scaleBPanel, "SCALE B", colors::cyan.withMultipliedAlpha (alphaB));
-    drawPanel (timingPanel, "TIMING", colors::text.withAlpha (0.9f));
-    drawPanel (morphPanel, "SCALE MORPH", colors::text.withAlpha (0.9f));
-    drawPanel (outputPanel, "OUTPUT", colors::text.withAlpha (0.9f));
-    drawPanel (presetsPanel, "", colors::secondary);
-    g.setColour (colors::secondary);
-    g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-    g.drawText ("PRESETS", presetsPanel.getX() + 12, presetsPanel.getY(), 76, presetsPanel.getHeight(),
-                juce::Justification::centredLeft);
+    drawPlate (scaleAPanel, "SCALE A", colors::purple, alphaA);
+    drawPlate (scaleBPanel, "SCALE B", colors::cyan, alphaB);
+    drawPlate (timingPanel, "TIMING", juce::Colours::transparentBlack, 1.0f);
+    drawPlate (morphPanel, "SCALE MORPH", juce::Colours::transparentBlack, 1.0f);
+    drawPlate (outputPanel, "OUTPUT", juce::Colours::transparentBlack, 1.0f);
+    drawPlate (presetsPanel, "PRESETS", juce::Colours::transparentBlack, 1.0f);
 
     // Small row labels
     g.setColour (colors::secondary);

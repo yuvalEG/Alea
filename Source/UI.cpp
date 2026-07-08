@@ -11,6 +11,193 @@ juce::String noteName (int midiNote)
 }
 
 //==============================================================================
+// Hardware faceplate drawing (the skeuomorphic reskin).
+
+namespace hw
+{
+    // Faint horizontal brushed grain, clipped to a rounded rect.
+    static void brushGrain (juce::Graphics& g, juce::Rectangle<float> r, float radius, float strength)
+    {
+        juce::Path clip;
+        clip.addRoundedRectangle (r, radius);
+        g.saveState();
+        g.reduceClipRegion (clip);
+        for (float y = r.getY(); y < r.getBottom(); y += 3.0f)
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.045f * strength));
+            g.fillRect (r.getX(), y, r.getWidth(), 1.0f);
+            g.setColour (juce::Colours::black.withAlpha (0.10f * strength));
+            g.fillRect (r.getX(), y + 1.0f, r.getWidth(), 1.0f);
+        }
+        g.restoreState();
+    }
+
+    void brushedMetal (juce::Graphics& g, juce::Rectangle<float> r, float radius, bool isPlate)
+    {
+        if (isPlate)
+        {
+            // Flatter vertical base, hairline seam, top inner highlight.
+            juce::ColourGradient grad (juce::Colour (0xff262a30), r.getX(), r.getY(),
+                                       juce::Colour (0xff191b20), r.getX(), r.getBottom(), false);
+            grad.addColour (0.5, juce::Colour (0xff202329));
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (r, radius);
+            brushGrain (g, r, radius, 0.6f);
+            g.setColour (metalLine);
+            g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
+            g.setColour (juce::Colours::white.withAlpha (0.10f));
+            g.drawLine (r.getX() + radius, r.getY() + 1.0f, r.getRight() - radius, r.getY() + 1.0f, 1.0f);
+        }
+        else
+        {
+            // Raised slab: a broad anisotropic sheen sweep across the width.
+            juce::ColourGradient grad (juce::Colour (0xff1b1d22), r.getX(), r.getY(),
+                                       juce::Colour (0xff191a1f), r.getRight(), r.getBottom(), false);
+            grad.addColour (0.18, juce::Colour (0xff23262d));
+            grad.addColour (0.34, juce::Colour (0xff2b2f38)); // sheen peak
+            grad.addColour (0.50, juce::Colour (0xff191b20));
+            grad.addColour (0.68, juce::Colour (0xff262a32));
+            grad.addColour (0.84, juce::Colour (0xff1a1b20));
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (r, radius);
+            brushGrain (g, r, radius, 1.0f);
+            // Travelling specular highlight, top-left.
+            juce::ColourGradient spec (juce::Colours::white.withAlpha (0.16f), r.getX() + r.getWidth() * 0.3f, r.getY(),
+                                       juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.3f, r.getY() + r.getHeight() * 0.5f, true);
+            g.setGradientFill (spec);
+            g.fillRoundedRectangle (r, radius);
+            // Raised edge: bright top seam, dark bottom.
+            g.setColour (juce::Colours::white.withAlpha (0.14f));
+            g.drawLine (r.getX() + radius, r.getY() + 1.0f, r.getRight() - radius, r.getY() + 1.0f, 1.5f);
+            g.setColour (metalLine);
+            g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
+        }
+    }
+
+    void screw (juce::Graphics& g, juce::Point<float> centre, float slotDeg, float size)
+    {
+        const auto r = juce::Rectangle<float> (size, size).withCentre (centre);
+        juce::ColourGradient body (juce::Colour (0xff3d4046), r.getX() + size * 0.4f, r.getY() + size * 0.34f,
+                                   juce::Colour (0xff0d0e11), r.getRight(), r.getBottom(), true);
+        body.addColour (0.58, juce::Colour (0xff202226));
+        g.setGradientFill (body);
+        g.fillEllipse (r);
+        g.setColour (juce::Colours::black.withAlpha (0.6f));
+        g.drawEllipse (r.reduced (0.3f), 0.6f);
+        // Slot.
+        juce::Path slot;
+        slot.addRoundedRectangle (centre.x - size * 0.29f, centre.y - 0.6f, size * 0.58f, 1.2f, 0.6f);
+        slot.applyTransform (juce::AffineTransform::rotation (juce::degreesToRadians (slotDeg), centre.x, centre.y));
+        g.setColour (juce::Colours::black.withAlpha (0.65f));
+        g.fillPath (slot);
+    }
+
+    void insetWell (juce::Graphics& g, juce::Rectangle<float> r, float radius)
+    {
+        juce::ColourGradient grad (juce::Colour (0xff101114), r.getX(), r.getY(),
+                                   juce::Colour (0xff1a1b20), r.getX(), r.getBottom(), false);
+        g.setGradientFill (grad);
+        g.fillRoundedRectangle (r, radius);
+        // Inner top shadow reads as recessed.
+        g.setColour (juce::Colours::black.withAlpha (0.55f));
+        g.drawLine (r.getX() + radius, r.getY() + 0.8f, r.getRight() - radius, r.getY() + 0.8f, 1.4f);
+        g.setColour (juce::Colours::white.withAlpha (0.04f));
+        g.drawLine (r.getX() + radius, r.getBottom() - 0.8f, r.getRight() - radius, r.getBottom() - 0.8f, 1.0f);
+    }
+
+    void lcd (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour phosphor)
+    {
+        juce::ColourGradient bg (phosphor.withMultipliedBrightness (0.16f).withMultipliedSaturation (1.4f), r.getCentreX(), r.getY(),
+                                 juce::Colour (0xff06120d), r.getCentreX(), r.getBottom(), false);
+        g.setGradientFill (bg);
+        g.fillRoundedRectangle (r, 8.0f);
+        // Inner glow.
+        g.setColour (phosphor.withAlpha (0.10f));
+        g.fillRoundedRectangle (r.reduced (2.0f), 6.0f);
+        // Scanlines.
+        juce::Path clip;
+        clip.addRoundedRectangle (r, 8.0f);
+        g.saveState();
+        g.reduceClipRegion (clip);
+        g.setColour (juce::Colours::black.withAlpha (0.28f));
+        for (float y = r.getY(); y < r.getBottom(); y += 3.0f)
+            g.fillRect (r.getX(), y, r.getWidth(), 1.0f);
+        // Corner gloss.
+        juce::ColourGradient gloss (juce::Colours::white.withAlpha (0.10f), r.getX(), r.getY(),
+                                    juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.5f, r.getY() + r.getHeight() * 0.5f, false);
+        g.setGradientFill (gloss);
+        g.fillRect (r);
+        g.restoreState();
+        g.setColour (juce::Colours::black.withAlpha (0.7f));
+        g.drawRoundedRectangle (r.reduced (0.5f), 8.0f, 1.0f);
+    }
+
+    void meter (juce::Graphics& g, juce::Rectangle<float> r, float level01)
+    {
+        g.setColour (juce::Colour (0xff0a0b0d));
+        g.fillRoundedRectangle (r, 4.0f);
+        g.setColour (juce::Colours::black.withAlpha (0.6f));
+        g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
+        constexpr int segs = 12;
+        const auto inner = r.reduced (3.0f);
+        const float gap = 2.0f;
+        const float segH = (inner.getHeight() - gap * (segs - 1)) / (float) segs;
+        const int lit = juce::jlimit (0, segs, (int) std::ceil (level01 * segs));
+        for (int i = 0; i < segs; ++i)
+        {
+            const float y = inner.getBottom() - (float) (i + 1) * segH - (float) i * gap;
+            auto cell = juce::Rectangle<float> (inner.getX(), y, inner.getWidth(), segH);
+            const bool on = i < lit;
+            juce::Colour c = i >= segs - 1 ? colors::red
+                           : i >= segs - 3 ? colors::amber
+                                           : colors::playing;
+            if (on)
+            {
+                g.setColour (c);
+                g.fillRoundedRectangle (cell, 1.0f);
+            }
+            else
+            {
+                g.setColour (juce::Colour (0xff1e2733));
+                g.fillRoundedRectangle (cell, 1.0f);
+            }
+        }
+    }
+
+    juce::Colour button (juce::Graphics& g, juce::Rectangle<float> r, bool lit,
+                         juce::Colour ledColour, bool over, bool down)
+    {
+        if (lit)
+        {
+            juce::ColourGradient grad (ledColour.brighter (0.5f), r.getX(), r.getY(),
+                                       ledColour.darker (0.35f), r.getX(), r.getBottom(), false);
+            grad.addColour (0.5, ledColour);
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (r, 4.0f);
+            g.setColour (ledColour.withAlpha (0.55f)); // bloom
+            g.drawRoundedRectangle (r.expanded (0.6f), 4.0f, 1.6f);
+            g.setColour (juce::Colours::white.withAlpha (0.5f));
+            g.drawLine (r.getX() + 3.0f, r.getY() + 1.0f, r.getRight() - 3.0f, r.getY() + 1.0f, 1.0f);
+            return juce::Colour (0xff07120d); // black legend
+        }
+        auto top = juce::Colour (0xff30323a), mid = juce::Colour (0xff23252b), bot = juce::Colour (0xff191a1e);
+        if (down) { std::swap (top, bot); }
+        juce::ColourGradient grad (top, r.getX(), r.getY(), bot, r.getX(), r.getBottom(), false);
+        grad.addColour (0.46, mid);
+        g.setGradientFill (grad);
+        g.fillRoundedRectangle (r, 4.0f);
+        g.setColour (metalLine);
+        g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
+        if (! down)
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.14f));
+            g.drawLine (r.getX() + 3.0f, r.getY() + 1.0f, r.getRight() - 3.0f, r.getY() + 1.0f, 1.0f);
+        }
+        return over ? juce::Colour (0xffe8eaf1) : juce::Colour (0xffc0c4d0);
+    }
+} // namespace hw
+
+//==============================================================================
 SegmentedSelector::SegmentedSelector (juce::RangedAudioParameter& param,
                                       const juce::StringArray& opts, juce::Colour accentColour,
                                       const juce::StringArray& tips)
@@ -31,31 +218,21 @@ juce::String SegmentedSelector::getTooltip()
 
 void SegmentedSelector::paint (juce::Graphics& g)
 {
+    // Hardware segmented switch: a recessed inset track holding push-button
+    // keys; the selected one is a backlit emerald key (the single lit colour).
     const auto bounds = getLocalBounds().toFloat();
-    g.setColour (colors::control);
-    g.fillRoundedRectangle (bounds, 5.0f);
+    hw::insetWell (g, bounds, 6.0f);
 
     const float w = bounds.getWidth() / (float) options.size();
     for (int i = 0; i < options.size(); ++i)
     {
-        auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight());
-        if (i == value)
-        {
-            g.setGradientFill (juce::ColourGradient (accent.brighter (0.10f), seg.getX(), seg.getY(),
-                                                     accent.darker (0.15f), seg.getX(), seg.getBottom(), false));
-            g.fillRoundedRectangle (seg.reduced (2.0f), 4.0f);
-            g.setColour (juce::Colours::black.withAlpha (0.8f));
-        }
-        else
-        {
-            g.setColour (colors::secondary);
-        }
-        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-        g.drawText (options[i], seg, juce::Justification::centred);
+        auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight())
+                       .reduced (3.0f, 3.0f);
+        const auto legend = hw::button (g, seg, i == value, hw::led, false, false);
+        g.setColour (legend);
+        g.setFont (juce::FontOptions (12.0f));
+        g.drawText (options[i].toUpperCase(), seg, juce::Justification::centred);
     }
-
-    g.setColour (colors::border);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 5.0f, 1.0f);
 }
 
 void SegmentedSelector::mouseDown (const juce::MouseEvent& e)
@@ -91,23 +268,16 @@ void CurveSelector::paint (juce::Graphics& g)
         }
     };
 
+    // Four hardware keys, each engraving its curve glyph; the selected one
+    // lights emerald with a black glyph.
     const float w = bounds.getWidth() / 4.0f;
     for (int i = 0; i < 4; ++i)
     {
-        auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight());
-        if (i == value)
-        {
-            g.setGradientFill (juce::ColourGradient (accent.brighter (0.10f), seg.getX(), seg.getY(),
-                                                     accent.darker (0.15f), seg.getX(), seg.getBottom(), false));
-            g.fillRoundedRectangle (seg.reduced (2.0f), 4.0f);
-            g.setColour (juce::Colours::black.withAlpha (0.8f));
-        }
-        else
-        {
-            g.setColour (colors::secondary);
-        }
+        auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight())
+                       .reduced (3.0f, 2.0f);
+        const auto glyph = hw::button (g, seg, i == value, hw::led, false, false);
 
-        const auto plot = seg.withSizeKeepingCentre (juce::jmin (34.0f, w - 16.0f), seg.getHeight() - 12.0f);
+        const auto plot = seg.withSizeKeepingCentre (juce::jmin (34.0f, seg.getWidth() - 16.0f), seg.getHeight() - 14.0f);
         juce::Path path;
         for (int s = 0; s <= 20; ++s)
         {
@@ -119,11 +289,9 @@ void CurveSelector::paint (juce::Graphics& g)
             else
                 path.lineTo (pt);
         }
+        g.setColour (glyph);
         g.strokePath (path, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
-
-    g.setColour (colors::border);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 5.0f, 1.0f);
 }
 
 void CurveSelector::mouseDown (const juce::MouseEvent& e)
@@ -632,28 +800,34 @@ void OutputPanel::paint (juce::Graphics& g)
     // the history ticker.
     const auto srcColour = alea.activeSource.load() == 1 ? colors::cyan : colors::purple;
 
+    // Glass LCD behind the sounding note + bar/beat: phosphor glows in the
+    // active scale's colour (green when idle).
+    const auto phosphor = active >= 0 ? srcColour : colors::green;
+    hw::lcd (g, juce::Rectangle<float> ((float) area.getX(), (float) area.getY(),
+                                        (float) area.getWidth(), 52.0f), phosphor);
+
     // Activity LED + big note display (shows the sounding rest, too)
-    auto noteRow = area.removeFromTop (outputBox != nullptr ? 30 : 56);
-    g.setColour (active >= 0 ? colors::playing : colors::control);
-    g.fillEllipse (noteRow.removeFromLeft (26).withSizeKeepingCentre (14, 14).toFloat());
+    auto noteRow = area.removeFromTop (outputBox != nullptr ? 30 : 56).reduced (8, 0);
+    g.setColour (active >= 0 ? colors::playing : colors::playing.withAlpha (0.3f));
+    g.fillEllipse (noteRow.removeFromLeft (24).withSizeKeepingCentre (11, 11).toFloat());
 
     const float bigNote = outputBox != nullptr ? 26.0f : 36.0f;
     if (active >= 0)
     {
-        g.setColour (srcColour);
-        g.setFont (juce::FontOptions (bigNote, juce::Font::bold));
+        g.setColour (srcColour.brighter (0.35f)); // lit phosphor
+        g.setFont (juce::Font (juce::FontOptions (bigNote)).boldened());
         g.drawText (noteName (active), noteRow, juce::Justification::centredLeft);
     }
     else if (rest >= 0)
     {
-        g.setColour (colors::secondary);
+        g.setColour (phosphor.withAlpha (0.65f));
         g.setFont (juce::FontOptions (20.0f, juce::Font::italic));
         g.drawText ("rest " + params::restNames[rest], noteRow, juce::Justification::centredLeft);
     }
     else
     {
-        g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (bigNote, juce::Font::bold));
+        g.setColour (phosphor.withAlpha (0.5f));
+        g.setFont (juce::Font (juce::FontOptions (bigNote)).boldened());
         g.drawText (noteName (last), noteRow, juce::Justification::centredLeft);
     }
 
@@ -662,9 +836,9 @@ void OutputPanel::paint (juce::Graphics& g)
     const int bar  = juce::jmax (1, (int) std::floor (ppq / 4.0) + 1);
     const int beat = juce::jmax (1, ((int) std::floor (ppq) % 4 + 4) % 4 + 1);
 
-    auto row = area.removeFromTop (20);
-    g.setFont (juce::FontOptions (14.0f));
-    g.setColour (colors::secondary);
+    auto row = area.removeFromTop (20).reduced (8, 0);
+    g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
+    g.setColour (phosphor.withAlpha (0.7f));
     g.drawText ("BAR " + juce::String (playing ? bar : 1)
                 + "  BEAT " + juce::String (playing ? beat : 1), row, juce::Justification::centredLeft);
 
