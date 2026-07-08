@@ -50,7 +50,7 @@ cat > "$OUT/distribution.xml" <<EOF
     <options customize="always" require-scripts="false" rootVolumeOnly="true"/>
     <background file="background.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
     <background-darkAqua file="background.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
-    <welcome language="en" mime-type="text/plain">Alea Chord Randomizer - roll random chords, loop them, improvise over them. Choose which versions to install.</welcome>
+    <welcome language="en" mime-type="text/plain">Alea Chord Randomizer. Roll random chords, loop them, improvise over them. Choose which versions to install.</welcome>
     <choices-outline>
         <line choice="vst3"/>
         <line choice="au"/>

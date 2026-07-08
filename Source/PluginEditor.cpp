@@ -24,18 +24,18 @@ namespace
             text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
             text.setFont (juce::FontOptions (20.5f));
             text.setText (juce::String::fromUTF8 (
-                "Aleatoric Scale Shifter - Version " ALEA_VERSION "\n\n\n"
+                "Aleatoric Scale Shifter, version " ALEA_VERSION "\n\n\n"
                 "HOW TO USE\n\n"
-                "Alea generates MIDI notes - it makes no sound of its own "
+                "Alea generates MIDI notes. It makes no sound of its own "
                 "(unless you pick Internal Synth under OUT).\n\n"
                 "1. Load Alea on a MIDI track.\n"
                 "2. Create a second MIDI track and put any instrument on it.\n"
                 "3. Route the instrument track's MIDI input from the Alea track "
                 "(in Ableton Live: set 'MIDI From' to the Alea track and pick "
-                "'Alea' in the chooser below it). In Live use the VST3 - Live "
-                "cannot route MIDI from AU plugins. In Logic or GarageBand use "
+                "'Alea' in the chooser below it). In Live use the VST3, since "
+                "Live cannot route MIDI from AU plugins. In Logic or GarageBand use "
                 "the AU with OUT set to Internal Synth.\n"
-                "4. Arm the instrument track and press Play - Alea follows the "
+                "4. Arm the instrument track and press Play. Alea follows the "
                 "host transport and you should hear notes drawn from Scale A.\n"
                 "5. From there: pick a preset, set up your own Scale A and "
                 "Scale B, drag the morph bar to blend between them, or hit "
@@ -248,7 +248,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                     else if (latest == current)
                     {
                         juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
-                            "Check for Updates", "You're up to date - Alea " + current + ".");
+                            "Check for Updates", "You're up to date. Alea " + current + ".");
                     }
                     else
                     {
