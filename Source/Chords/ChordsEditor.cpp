@@ -208,10 +208,11 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
 
     auto isBlack = [] (int n) { const int pc = n % 12; return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
 
-    // C2 (36) to C6 (84): the range the octave picker can actually reach,
-    // 29 white keys, blacks drawn over the gaps.
-    constexpr int low = 36, high = 84;
-    const float ww = b.getWidth() / 29.0f;
+    // C1 (24) to C7 (96): the voicing options stretched the reach (QA,
+    // July 8) - the bass bottoms out at C1, open voicings at octave 4 top
+    // out near A6. 43 white keys, blacks drawn over the gaps.
+    constexpr int low = 24, high = 96;
+    const float ww = b.getWidth() / 43.0f;
     int white = 0;
     for (int n = low; n <= high; ++n)
     {
@@ -229,8 +230,9 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
         g.fillRect (juce::Rectangle<float> (b.getX() + (float) white * ww - bw / 2.0f, b.getY(), bw, b.getHeight() * 0.62f));
     }
 
-    // Notes beyond the strip (the bass dips below C2; open voicings can
-    // spill past C6) get a small edge arrow - the Scale Shifter idiom.
+    // Notes beyond the strip get a small edge arrow - the Scale Shifter
+    // idiom. C1-C7 covers everything reachable today; this is the safety
+    // net for whatever a future option adds.
     bool below = false, above = false;
     for (int n = 0; n < low; ++n)        below = below || lit[n];
     for (int n = high + 1; n < 128; ++n) above = above || lit[n];
@@ -1364,7 +1366,10 @@ void ChordsEditor::resized()
     outputBox.setBounds (controlsRow);
 
     // Voicing row (M5): spacing selector, then the two voicing checkboxes.
-    auto voiceRow = loop.removeFromTop (40).withTrimmedTop (14).withHeight (26);
+    // The caption needs the same breathing room as every other row (QA,
+    // July 8: it sat too close to the BARS row above).
+    loop.removeFromTop (6);
+    auto voiceRow = loop.removeFromTop (42).withTrimmedTop (16).withHeight (26);
     voicingRow.setBounds (voiceRow.removeFromLeft (118));
     voiceRow.removeFromLeft (14);
     smoothToggle.setBounds (voiceRow.removeFromLeft (juce::jmin (158, voiceRow.getWidth() / 2)));
