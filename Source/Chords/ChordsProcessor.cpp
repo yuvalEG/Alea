@@ -894,6 +894,12 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
                                  (int) state.getProperty ("keyIndex", 0));
     lastUIWidth  = juce::jlimit (560, 4000, (int) state.getProperty ("uiWidth", 900));
     lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 680));
+    // Window heights saved before the voicings build predate the MONITOR
+    // panel (the default was 560): opening them tucks the keyboard, which
+    // reads as a missing feature. Lift them once - heights saved from now
+    // on are the user's own choice (a tucked window is a practice mode).
+    if (! state.hasProperty ("smoothVoicing"))
+        lastUIHeight = juce::jmax (680, lastUIHeight);
     bpm.store (juce::jlimit (30.0f, 300.0f, (float) (double) state.getProperty ("bpm", 90.0)));
     barsPerChord.store (juce::jlimit (1, 4, (int) state.getProperty ("barsPerChord", 1)));
     // "octave" (single) was the pre-multi-select property name.
