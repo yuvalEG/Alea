@@ -893,7 +893,7 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     keyIndex     = juce::jlimit (0, chords::keyNamesFor ((chords::ScaleType) keyScale).size() - 1,
                                  (int) state.getProperty ("keyIndex", 0));
     lastUIWidth  = juce::jlimit (560, 4000, (int) state.getProperty ("uiWidth", 900));
-    lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 560));
+    lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 680));
     bpm.store (juce::jlimit (30.0f, 300.0f, (float) (double) state.getProperty ("bpm", 90.0)));
     barsPerChord.store (juce::jlimit (1, 4, (int) state.getProperty ("barsPerChord", 1)));
     // "octave" (single) was the pre-multi-select property name.

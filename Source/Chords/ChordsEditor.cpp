@@ -1239,7 +1239,15 @@ void ChordsEditor::paint (juce::Graphics& g)
     paintPanel (dicePanel, "DICE");
     paintPanel (loopPanel, "LOOP");
     if (monitor.isVisible())
-        paintPanel (monitorPanel, "MONITOR");
+    {
+        if (monitorPanel.getHeight() >= 70) // title zone still has room
+            paintPanel (monitorPanel, "MONITOR");
+        else // squeezed: keys only
+        {
+            g.setColour (colors::panel);
+            g.fillRoundedRectangle (monitorPanel.toFloat(), 8.0f);
+        }
+    }
 
     // Divider between the roll column and the dice configuration - both are
     // dice business, but acting and configuring are different verbs.
@@ -1310,20 +1318,30 @@ void ChordsEditor::resized()
     const int playX = juce::jlimit (384, freezeButton.getX() - 86, getWidth() / 2 - 38);
     playButton.setBounds (playX, 14, 76, 28);
 
-    auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
+    // MONITOR: the keyboard earns the full window width (QA, July 8 -
+    // C1-C7 was cramped at half width inside LOOP). Its height FLEXES:
+    // full when the window allows, compressing smoothly before the cards
+    // (the stars) give up their minimum. The card size stays a CONTINUOUS
+    // function of window height - a hard show/hide threshold popped the
+    // cards (QA), so below the readable floor the remaining pixels go to
+    // HISTORY, never back to the cards. The panel title fades out before
+    // the keys shrink.
+    constexpr int cardsMinimum = 150, monitorMax = 116, monitorFloor = 52;
+    const int monitorBlock = juce::jlimit (0, monitorMax,
+                                           b.getHeight() - 100 - 208 - cardsMinimum);
+    const bool showMonitor = monitorBlock >= monitorFloor;
+
+    auto hist = b.removeFromBottom (100 + (showMonitor ? 0 : monitorBlock))
+                    .reduced (16, 0).withTrimmedBottom (12);
     ticker.setBounds (hist);
 
-    // MONITOR: the keyboard earns the full window width (QA, July 8 -
-    // C1-C7 was cramped at half width inside LOOP). A dedicated panel
-    // between the control blocks and HISTORY; when height gets tight it
-    // hides first - hiding beats collision.
-    const bool showMonitor = getHeight() >= 580;
-    monitor.setVisible (showMonitor);
     monitorPanel = {};
+    monitor.setVisible (showMonitor);
     if (showMonitor)
     {
-        monitorPanel = b.removeFromBottom (116).reduced (16, 0).withTrimmedBottom (10);
-        monitor.setBounds (monitorPanel.reduced (12).withTrimmedTop (18));
+        monitorPanel = b.removeFromBottom (monitorBlock).reduced (16, 0).withTrimmedBottom (8);
+        const int titleZone = juce::jlimit (0, 16, monitorPanel.getHeight() - 56);
+        monitor.setBounds (monitorPanel.reduced (10).withTrimmedTop (titleZone));
     }
 
     // The two control blocks. DICE, top to bottom: roll + series length,

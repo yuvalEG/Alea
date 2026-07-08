@@ -39,7 +39,9 @@ public:
     // (state can arrive from the wrapper before or after the editor exists).
     int revision = 0;
 
-    int lastUIWidth = 900, lastUIHeight = 560;
+    // 680 fits everything a fresh install shows, full MONITOR included
+    // (560 hid the keyboard once it became its own panel - QA, July 8).
+    int lastUIWidth = 900, lastUIHeight = 680;
 
     // --- transport and loop (spec M2) ---
     std::atomic<bool>  playing { false };
