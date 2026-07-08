@@ -71,8 +71,9 @@ namespace
                 "I'll be happy to hear your feedback, ideas and music! Reach "
                 "me on GitHub (github.com/yuvalEG/Alea) or at "
                 "yuvalprod@gmail.com\n\n"
-                "Open source (GPLv3), built with JUCE. Check for updates "
-                "from the top-right menu.\n\n"
+                "Open source (GPLv3), built with JUCE. The piano is the "
+                "Salamander Grand Piano by Alexander Holm (CC BY 3.0). "
+                "Check for updates from the top-right menu.\n\n"
                 "Made By Yuval Egozi"),
                 juce::dontSendNotification);
             addAndMakeVisible (text);
@@ -843,40 +844,48 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
 
 void ChordsEditor::buildOutputBox()
 {
-    // Synth flavours share ids 1-4; "MIDI to DAW" is 9 (plugin); MIDI
-    // devices follow from id 10 (standalone) - the Scale Shifter scheme.
-    static const std::array<const char*, 4> synthChoices { "synth", "synth:sine", "synth:saw", "synth:strings" };
-    static const std::array<const char*, 4> synthNames { "Synth: Warm Pad", "Synth: Pure Sine", "Synth: Soft Saw", "Synth: Strings" };
-
+    // The sound list comes from the shared flavour table (Source/Sound.h),
+    // grouped by section: SAMPLED / SYNTH / CLEAN, then MIDI. Flavour ids
+    // are 1 + alea::Flavour; "MIDI to DAW" is 50; devices from 100.
     outputBox.clear (juce::dontSendNotification);
     if (! standalone)
-        outputBox.addItem ("MIDI to DAW", 9); // plugin default, listed first
-    for (int i = 0; i < 4; ++i)
-        outputBox.addItem (synthNames[(size_t) i], i + 1);
+        outputBox.addItem ("MIDI to DAW", 50); // plugin default, listed first
+
+    for (int group : { alea::groupSampled, alea::groupSynth, alea::groupClean })
+    {
+        outputBox.addSectionHeading (alea::groupName (group));
+        for (const auto& f : alea::flavourTable())
+            if (f.group == group)
+                outputBox.addItem (f.name, 1 + f.flavour);
+    }
 
     devices.clear();
     if (standalone)
     {
         devices = juce::MidiOutput::getAvailableDevices();
+        if (! devices.isEmpty())
+            outputBox.addSectionHeading ("MIDI");
         for (int i = 0; i < devices.size(); ++i)
-            outputBox.addItem ("MIDI: " + devices[i].name, 10 + i);
+            outputBox.addItem (devices[i].name, 100 + i);
     }
 
     const auto current = chordsProc.getStandaloneOutput();
-    outputBox.setSelectedId (standalone ? 1 : 9, juce::dontSendNotification);
-    for (int i = 0; i < 4; ++i)
-        if (current == synthChoices[(size_t) i])
-            outputBox.setSelectedId (i + 1, juce::dontSendNotification);
+    outputBox.setSelectedId (standalone ? 1 + alea::warmPad : 50, juce::dontSendNotification);
+    if (const int flavour = alea::flavourFromChoice (current); flavour >= 0 && chordsProc.synthOn.load())
+        outputBox.setSelectedId (1 + flavour, juce::dontSendNotification);
     for (int i = 0; i < devices.size(); ++i)
         if (devices[i].identifier == current)
-            outputBox.setSelectedId (10 + i, juce::dontSendNotification);
+            outputBox.setSelectedId (100 + i, juce::dontSendNotification);
 
     outputBox.onChange = [this]
     {
         const int id = outputBox.getSelectedId();
-        chordsProc.setStandaloneOutput (id >= 1 && id <= 4 ? juce::String (synthChoices[(size_t) (id - 1)])
-                                        : id == 9          ? juce::String()
-                                                           : devices[id - 10].identifier);
+        if (id >= 1 && id <= alea::numFlavours)
+            chordsProc.setStandaloneOutput (alea::choiceForFlavour (id - 1));
+        else if (id == 50)
+            chordsProc.setStandaloneOutput ({});
+        else if (id >= 100 && id - 100 < devices.size())
+            chordsProc.setStandaloneOutput (devices[id - 100].identifier);
     };
 }
 

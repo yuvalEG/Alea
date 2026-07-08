@@ -2,6 +2,7 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "ChordEngine.h"
+#include "../Sound.h"
 #include <deque>
 #include <vector>
 
@@ -98,7 +99,7 @@ public:
     // Output choice, mirroring Scale Shifter's standalone OUT chooser:
     // built-in synth (default) or a MIDI device.
     std::atomic<bool>  synthOn { true };
-    std::atomic<int>   synthVoice { 0 };              // 0 warm pad / 1 pure sine / 2 soft saw / 3 strings
+    std::atomic<int>   synthVoice { 0 };              // alea::Flavour - the shared sound library
     std::atomic<float> synthVolDb { 0.0f };
     std::atomic<float> synthPeak { 0.0f };            // post-limiter block peak, for the meter
     void setStandaloneOutput (const juce::String& choice); // "synth[:flavour]" or device identifier; message thread only
@@ -196,21 +197,8 @@ private:
     std::unique_ptr<juce::MidiOutput> midiOutput;
     juce::String midiOutputId;
 
-    // --- internal synth, ported from Scale Shifter (spec 7.1: "as-is") ---
-    void renderSynth (juce::AudioBuffer<float>&, const juce::MidiBuffer&);
-    struct SynthVoice
-    {
-        juce::ADSR amp, bright;
-        double phase = 0.0, phase2 = 0.0, phase3 = 0.0, freq = 440.0; // three detuned oscillators
-        float gain = 0.0f, velocity = 0.0f;
-        int note = -1;        // -1 = released (may still be ringing)
-        int heldSamples = 0;  // how long the note was held - scales the release
-    };
-    std::array<SynthVoice, 16> voices; // room for a full three-octave doubling
-    int nextVoice = 0;
-    std::vector<float> delayLineL, delayLineR;
-    int delayPosL = 0, delayPosR = 0;
-    juce::Reverb reverb;
+    // --- the shared Alea sound engine (Source/Sound.h) ---
+    alea::SoundEngine sound;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChordsProcessor)
 };

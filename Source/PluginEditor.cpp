@@ -54,8 +54,9 @@ namespace
                 "I'll be more than happy to hear your feedback, ideas and music "
                 "made with ALEA! You can reach me through GitHub "
                 "(github.com/yuvalEG/Alea) or my email: yuvalprod@gmail.com\n\n"
-                "Alea is open source (GPLv3), built with JUCE. Check for "
-                "updates from the menu in the top-right corner.\n\n\n"
+                "Alea is open source (GPLv3), built with JUCE. The piano is "
+                "the Salamander Grand Piano by Alexander Holm (CC BY 3.0). "
+                "Check for updates from the menu in the top-right corner.\n\n\n"
                 "Plugin Made By Yuval Egozi"),
                 juce::dontSendNotification);
             addAndMakeVisible (text);

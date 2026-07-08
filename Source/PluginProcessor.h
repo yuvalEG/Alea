@@ -2,6 +2,7 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "Params.h"
+#include "Sound.h"
 
 // Alea: generates a random monophonic MIDI note stream from Scale A,
 // morphing toward Scale B (spec sections 5-8). Timing is driven by the host
@@ -60,7 +61,7 @@ public:
     // matters most for the AU, since Live and Logic can't route AU MIDI out.
     std::atomic<bool> standaloneTransport { false }; // standalone PLAY/STOP
     std::atomic<bool> synthOn { false };
-    std::atomic<int>  synthVoice { 0 };              // 0 warm pad / 1 pure sine / 2 soft saw / 3 strings
+    std::atomic<int>  synthVoice { 0 };              // alea::Flavour - the shared sound library
     void setStandaloneOutput (const juce::String& choice); // "synth", device identifier, or "" = MIDI to host; message thread only
     juce::String getStandaloneOutput() const;              // "synth", device identifier, or ""
     juce::String getMidiOutputId() const;
@@ -108,24 +109,9 @@ private:
     std::unique_ptr<juce::MidiOutput> midiOutput;
     juce::String midiOutputId;
 
-    // Internal synth (standalone): polyphonic so releases ring out under the
-    // next note. Each voice is additive sine partials whose upper partials
-    // are opened by a velocity-scaled brightness envelope (a filter-envelope
-    // feel without filtering a harmonic-free sine), into delay + reverb.
-    void renderSynth (juce::AudioBuffer<float>&, const juce::MidiBuffer&);
-    struct SynthVoice
-    {
-        juce::ADSR amp, bright;
-        double phase = 0.0, phase2 = 0.0, phase3 = 0.0, freq = 440.0; // three detuned oscillators
-        float gain = 0.0f, velocity = 0.0f;
-        int note = -1;        // -1 = released (may still be ringing)
-        int heldSamples = 0;  // how long the note was held - scales the release
-    };
-    std::array<SynthVoice, 8> voices;
-    int nextVoice = 0;
-    std::vector<float> delayLineL, delayLineR;
-    int delayPosL = 0, delayPosR = 0;
-    juce::Reverb reverb;
+    // The shared Alea sound engine (Source/Sound.h): synth flavours plus
+    // the sampled piano, identical in both products.
+    alea::SoundEngine sound;
     double intervalPpqAt (double bpm);                  // gap to next event, in beats
     double lengthPpqAt (double bpm);                    // gate length, in beats
     void sendAllNotesOff (juce::MidiBuffer&, int sampleOffset);

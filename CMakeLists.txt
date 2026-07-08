@@ -25,6 +25,33 @@ juce_add_binary_data(AleaAssets SOURCES
     Assets/logo.png
     Assets/fonts/SpaceGrotesk-Medium.ttf)
 
+# Embedded piano multisample (Assets/piano/p<midi>.ogg, mono, one velocity
+# layer every minor third): Salamander Grand Piano by Alexander Holm,
+# CC BY 3.0, trimmed by Tools/SamplePrep.cpp. Both products embed it.
+file(GLOB ALEA_PIANO_SAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/Assets/piano/*.ogg")
+if(NOT ALEA_PIANO_SAMPLES)
+    # Bootstrap: build SamplePrep, generate Assets/piano, re-configure. The
+    # placeholder keeps the target alive (the engine skips non-sample names).
+    message(WARNING "Assets/piano is empty - piano flavour will be silent until SamplePrep runs.")
+    set(ALEA_PIANO_SAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/Assets/logo.png")
+endif()
+juce_add_binary_data(AleaPianoSamples
+    NAMESPACE PianoData
+    HEADER_NAME PianoData.h
+    SOURCES ${ALEA_PIANO_SAMPLES})
+
+# Dev tool: prepares the embedded piano samples from raw flacs (not shipped).
+juce_add_console_app(SamplePrep PRODUCT_NAME "SamplePrep")
+target_sources(SamplePrep PRIVATE Tools/SamplePrep.cpp)
+target_compile_definitions(SamplePrep PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_USE_OGGVORBIS=1
+    JUCE_USE_FLAC=1)
+target_link_libraries(SamplePrep
+    PRIVATE juce::juce_audio_utils
+    PUBLIC juce::juce_recommended_config_flags)
+
 # App/plugin icon: picked up automatically once Assets/icon.png exists.
 set(ALEA_ICON_ARGS "")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png")
@@ -59,6 +86,7 @@ juce_add_plugin(Alea
     COPY_PLUGIN_AFTER_BUILD ${ALEA_COPY_AFTER_BUILD})
 
 target_sources(Alea PRIVATE
+    Source/Sound.cpp
     Source/Params.cpp
     Source/Presets.cpp
     Source/PluginProcessor.cpp
@@ -74,6 +102,7 @@ target_compile_definitions(Alea PUBLIC
 target_link_libraries(Alea
     PRIVATE
         AleaAssets
+        AleaPianoSamples
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
@@ -123,6 +152,7 @@ juce_add_plugin(AleaChords
     COPY_PLUGIN_AFTER_BUILD ${CHORDS_COPY_AFTER_BUILD})
 
 target_sources(AleaChords PRIVATE
+    Source/Sound.cpp
     Source/Chords/ChordEngine.cpp
     Source/Chords/ChordsProcessor.cpp
     Source/Chords/ChordsEditor.cpp)
@@ -136,6 +166,7 @@ target_compile_definitions(AleaChords PUBLIC
 target_link_libraries(AleaChords
     PRIVATE
         AleaAssets
+        AleaPianoSamples
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
@@ -151,6 +182,7 @@ clap_juce_extensions_plugin(TARGET AleaChords
 juce_add_console_app(ChordsUISnapshot PRODUCT_NAME "ChordsUISnapshot")
 target_sources(ChordsUISnapshot PRIVATE
     Tools/ChordsUISnapshot.cpp
+    Source/Sound.cpp
     Source/Chords/ChordEngine.cpp
     Source/Chords/ChordsProcessor.cpp
     Source/Chords/ChordsEditor.cpp)
@@ -161,13 +193,14 @@ target_compile_definitions(ChordsUISnapshot PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1  # the tool pumps the message loop for posed shots
     JucePlugin_Name="Alea Chord Randomizer")
 target_link_libraries(ChordsUISnapshot
-    PRIVATE AleaAssets juce::juce_audio_utils
+    PRIVATE AleaAssets AleaPianoSamples juce::juce_audio_utils
     PUBLIC juce::juce_recommended_config_flags)
 
 # Dev tool: renders the editor to a PNG for layout checks (not shipped).
 juce_add_console_app(AleaUISnapshot PRODUCT_NAME "AleaUISnapshot")
 target_sources(AleaUISnapshot PRIVATE
     Tools/UISnapshot.cpp
+    Source/Sound.cpp
     Source/Params.cpp
     Source/Presets.cpp
     Source/PluginProcessor.cpp
@@ -180,5 +213,5 @@ target_compile_definitions(AleaUISnapshot PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1  # the tool pumps the message loop for posed shots
     JucePlugin_Name="Alea")
 target_link_libraries(AleaUISnapshot
-    PRIVATE AleaAssets juce::juce_audio_utils
+    PRIVATE AleaAssets AleaPianoSamples juce::juce_audio_utils
     PUBLIC juce::juce_recommended_config_flags)

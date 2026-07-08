@@ -251,21 +251,29 @@ int main (int argc, char* argv[])
     if (playingShot)
         return 0; // posed shot: the loop already ran, skip the smoke test
 
-    // Audio smoke test: run the loop offline for ~4 seconds and report the
-    // peak level - proof the transport schedules chords and the synth sounds.
+    // Audio smoke test: run the loop offline through EVERY internal sound
+    // and report each peak - proof the transport schedules chords and every
+    // flavour, the sampled piano included, actually makes sound.
     processor.setPlayConfigDetails (0, 2, 44100.0, 512); // what the wrapper would do
     processor.prepareToPlay (44100.0, 512);
-    processor.playing.store (true);
     juce::AudioBuffer<float> buffer (2, 512);
     juce::MidiBuffer midi;
-    float peak = 0.0f;
-    for (int block = 0; block < 350; ++block)
+    bool allSounding = true;
+    for (const auto& f : alea::flavourTable())
     {
-        processor.processBlock (buffer, midi);
-        peak = juce::jmax (peak, buffer.getMagnitude (0, 512));
+        processor.setStandaloneOutput (f.choice);
+        processor.playing.store (true);
+        float peak = 0.0f;
+        for (int block = 0; block < 130; ++block) // ~1.5 s per flavour
+        {
+            processor.processBlock (buffer, midi);
+            peak = juce::jmax (peak, buffer.getMagnitude (0, 512));
+        }
+        processor.playing.store (false);
+        processor.processBlock (buffer, midi); // note-offs between flavours
+        std::cout << juce::String (f.name).paddedRight (' ', 10) << " peak: " << peak
+                  << (peak > 0.01f ? "" : "   <-- SILENT") << std::endl;
+        allSounding = allSounding && peak > 0.01f;
     }
-    processor.playing.store (false);
-    processor.processBlock (buffer, midi); // note-offs on stop
-    std::cout << "audio peak over 4s of playback: " << peak << std::endl;
-    return peak > 0.01f ? 0 : 2;
+    return allSounding ? 0 : 2;
 }

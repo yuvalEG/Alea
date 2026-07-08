@@ -79,35 +79,8 @@ void AleaAudioProcessor::prepareToPlay (double sampleRate, int)
     internalPpq = 0.0;
     wasPlaying = false;
 
-    // Internal synth chain: a warm pad voicing. Soft attack, high sustain,
-    // long release so tails ring well into the following notes.
-    for (auto& v : voices)
-    {
-        v.amp.setSampleRate (sampleRate);
-        v.amp.setParameters ({ 0.012f, 0.25f, 0.80f, 2.20f });
-        v.amp.reset();
-        v.bright.setSampleRate (sampleRate);
-        v.bright.setParameters ({ 0.002f, 0.50f, 0.25f, 1.00f });
-        v.bright.reset();
-        v.phase = v.phase2 = v.phase3 = 0.0;
-        v.note = -1;
-    }
-    nextVoice = 0;
-
-    // Different L/R delay times give the single sine voice a stereo field.
-    delayLineL.assign ((size_t) juce::jmax (1, (int) (sampleRate * 0.32)), 0.0f);
-    delayLineR.assign ((size_t) juce::jmax (1, (int) (sampleRate * 0.48)), 0.0f);
-    delayPosL = delayPosR = 0;
-
-    reverb.setSampleRate (sampleRate);
-    juce::Reverb::Parameters rv;
-    rv.roomSize = 0.70f;
-    rv.damping = 0.35f;
-    rv.wetLevel = 0.33f;
-    rv.dryLevel = 0.85f;
-    rv.width = 1.0f;
-    reverb.setParameters (rv);
-    reverb.reset();
+    // The shared family sound engine (synth flavours + sampled piano).
+    sound.prepare (sampleRate);
 }
 
 void AleaAudioProcessor::sendAllNotesOff (juce::MidiBuffer& midi, int sampleOffset)
@@ -252,10 +225,9 @@ juce::String AleaAudioProcessor::getMidiOutputId() const
 
 void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
 {
-    if (choice.startsWith ("synth"))
+    if (const int flavour = alea::flavourFromChoice (choice); flavour >= 0)
     {
-        const auto flavour = choice.fromFirstOccurrenceOf (":", false, false);
-        synthVoice.store (flavour == "sine" ? 1 : flavour == "saw" ? 2 : flavour == "strings" ? 3 : 0);
+        synthVoice.store (flavour);
         synthOn.store (true);
         setMidiOutputDevice ({});
     }
@@ -270,192 +242,8 @@ void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
 
 juce::String AleaAudioProcessor::getStandaloneOutput() const
 {
-    if (! synthOn.load())
-        return getMidiOutputId();
-    switch (synthVoice.load())
-    {
-        case 1:  return "synth:sine";
-        case 2:  return "synth:saw";
-        case 3:  return "synth:strings";
-        default: return "synth";
-    }
-}
-
-// Polyphonic additive voices following our own note stream, into stereo
-// delay + reverb. Velocity opens the brightness envelope (upper partials),
-// not just the volume.
-void AleaAudioProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi)
-{
-    const double sampleRate = getSampleRate();
-    const int numSamples = buffer.getNumSamples();
-    if (sampleRate <= 0.0 || numSamples <= 0 || buffer.getNumChannels() < 1)
-        return;
-
-    auto* left = buffer.getWritePointer (0);
-    const float master = juce::Decibels::decibelsToGain (pSynthVol->load());
-
-    int pos = 0;
-    auto renderTo = [&] (int end)
-    {
-        for (auto& v : voices)
-        {
-            if (! v.amp.isActive())
-                continue;
-            // Four voice flavours share the oscillator trio. Warm Pad: a
-            // dominant equal pair ~10 cents apart for the audible slow
-            // phasing, plus sub and fixed harmonics. Pure Sine: one clean
-            // oscillator. Soft Saw: one band-limited saw. Strings: three
-            // detuned soft saws with a slow bow-in. Normalized so eight
-            // ringing voices stay clear of the limiter.
-            const int flavour = synthVoice.load();
-            const double inc1 = juce::MathConstants<double>::twoPi * v.freq / sampleRate;
-            const double inc2 = inc1 * 1.0055;
-            const double inc3 = inc1 * 0.9965;
-            const int harmonics = juce::jlimit (3, 9, (int) (sampleRate * 0.35 / juce::jmax (20.0, v.freq)));
-            auto saw = [harmonics] (double p) // band-limited-ish, gentle top
-            {
-                float acc = 0.0f;
-                for (int k = 1; k <= harmonics; ++k)
-                    acc += (float) std::sin (k * p) / (float) k;
-                return acc * 0.62f;
-            };
-            for (int n = pos; n < end; ++n)
-            {
-                const float env = v.amp.getNextSample();
-                const float shimmer = 0.14f * v.velocity * v.bright.getNextSample();
-                float s;
-                switch (flavour)
-                {
-                    case 1: // Pure Sine
-                        s = 0.9f * (float) std::sin (v.phase);
-                        break;
-                    case 2: // Soft Saw
-                        s = 0.75f * saw (v.phase);
-                        break;
-                    case 3: // Strings
-                        s = 0.42f * (saw (v.phase) + saw (v.phase2) + saw (v.phase3));
-                        break;
-                    default: // Warm Pad
-                        s = (0.44f * ((float) std::sin (v.phase) + (float) std::sin (v.phase2))
-                           + 0.16f * (float) std::sin (v.phase3)
-                           + 0.28f * (float) std::sin (0.5 * v.phase)
-                           + (0.22f + shimmer) * (float) std::sin (2.0 * v.phase)
-                           + 0.08f * (float) std::sin (3.0 * v.phase)) / 1.55f;
-                        break;
-                }
-                left[n] += 0.16f * master * v.gain * env * s;
-                v.phase += inc1;
-                v.phase2 += inc2;
-                v.phase3 += inc3;
-            }
-            if (v.note >= 0)
-                v.heldSamples += end - pos;
-            if (v.phase > juce::MathConstants<double>::twoPi * 1024.0)
-            {
-                v.phase = std::fmod (v.phase, juce::MathConstants<double>::twoPi);
-                v.phase2 = std::fmod (v.phase2, juce::MathConstants<double>::twoPi);
-                v.phase3 = std::fmod (v.phase3, juce::MathConstants<double>::twoPi);
-            }
-        }
-        pos = end;
-    };
-
-    for (const auto metadata : midi)
-    {
-        renderTo (juce::jlimit (0, numSamples, metadata.samplePosition));
-        const auto msg = metadata.getMessage();
-        if (msg.isNoteOn())
-        {
-            // Prefer an idle voice; otherwise round-robin steal, so releases
-            // ring out under the following notes.
-            SynthVoice* voice = nullptr;
-            for (auto& v : voices)
-                if (! v.amp.isActive())
-                    { voice = &v; break; }
-            if (voice == nullptr)
-            {
-                voice = &voices[(size_t) nextVoice];
-                nextVoice = (nextVoice + 1) % (int) voices.size();
-            }
-            voice->freq = juce::MidiMessage::getMidiNoteInHertz (msg.getNoteNumber());
-            voice->velocity = msg.getFloatVelocity();
-            // A sine has no timbre to spend velocity on, so spend it on
-            // dynamics: a power curve gives soft notes a real pianissimo.
-            voice->gain = 0.06f + 0.94f * std::pow (msg.getFloatVelocity(), 1.7f);
-            voice->note = msg.getNoteNumber();
-            voice->heldSamples = 0;
-            {
-                auto params = voice->amp.getParameters();
-                switch (synthVoice.load())
-                {
-                    case 1:  params.attack = 0.006f; break; // sine: clean
-                    case 2:  params.attack = 0.003f; break; // saw: plucky
-                    case 3:  params.attack = 0.280f; break; // strings: bow in
-                    default: params.attack = 0.012f; break; // warm pad
-                }
-                voice->amp.setParameters (params);
-            }
-            voice->amp.noteOn();
-            voice->bright.noteOn();
-        }
-        else if (msg.isNoteOff() || msg.isAllNotesOff())
-        {
-            // Release scales with how long the note was held: staccato notes
-            // get a snappy tail, pads ring long. Pure Sine keeps a longer
-            // floor - without it, its clean tails vanish and the polyphony
-            // is inaudible.
-            const float releaseFloor = synthVoice.load() == 1 ? 0.65f : 0.12f;
-            for (auto& v : voices)
-                if (v.note >= 0 && (msg.isAllNotesOff() || v.note == msg.getNoteNumber()))
-                {
-                    auto params = v.amp.getParameters();
-                    params.release = juce::jlimit (releaseFloor, 2.2f,
-                                                   1.1f * (float) v.heldSamples / (float) sampleRate);
-                    v.amp.setParameters (params);
-                    v.amp.noteOff();
-                    v.bright.noteOff();
-                    v.note = -1;
-                }
-        }
-    }
-    renderTo (numSamples);
-
-    // Stereo delay: different L/R times widen the mono voice.
-    auto* right = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
-    for (int n = 0; n < numSamples; ++n)
-    {
-        const float dry = left[n];
-        auto tap = [&] (std::vector<float>& line, int& p) -> float
-        {
-            const float delayed = line[(size_t) p];
-            line[(size_t) p] = dry + delayed * 0.35f;
-            p = (p + 1) % (int) line.size();
-            return delayed;
-        };
-        left[n] = dry + 0.30f * tap (delayLineL, delayPosL);
-        if (right != nullptr)
-            right[n] = dry + 0.30f * tap (delayLineR, delayPosR);
-    }
-
-    if (right != nullptr)
-        reverb.processStereo (left, right, numSamples);
-    else
-        reverb.processMono (left, numSamples);
-
-    // Soft safety limiter: transparent at normal levels, rounds off the
-    // peaks when eight ringing voices + delay + reverb stack up.
-    float peak = 0.0f;
-    for (int n = 0; n < numSamples; ++n)
-    {
-        left[n] = std::tanh (left[n]);
-        peak = juce::jmax (peak, std::abs (left[n]));
-        if (right != nullptr)
-        {
-            right[n] = std::tanh (right[n]);
-            peak = juce::jmax (peak, std::abs (right[n]));
-        }
-    }
-    synthPeak.store (peak);
+    return synthOn.load() ? alea::choiceForFlavour (synthVoice.load())
+                          : getMidiOutputId();
 }
 
 void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -467,7 +255,9 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     // with a try-lock so device swaps never stall the audio thread.
     if (synthOn.load())
     {
-        renderSynth (buffer, midi);
+        sound.render (buffer, midi, synthVoice.load(),
+                      juce::Decibels::decibelsToGain (pSynthVol->load()));
+        synthPeak.store (sound.lastPeak());
     }
     else if (wrapperType == wrapperType_Standalone && ! midi.isEmpty())
     {
