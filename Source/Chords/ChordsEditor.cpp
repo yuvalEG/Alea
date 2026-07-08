@@ -59,6 +59,9 @@ namespace
                 "open, smooth the voice-leading, add a bass note. Rolling "
                 "mid-loop swaps the new chords in at the next chord change, "
                 "and clicking a chord jumps the loop there.\n\n"
+                "The MONITOR keyboard shows what is sounding. Make the "
+                "window shorter to tuck it away and name the notes "
+                "yourself, a nice ear workout.\n\n"
                 "Key lock keeps every roll diatonic to a chosen key and "
                 "scale, flavors included.\n\n"
                 "AUTO ROLL rolls for you every few loops (press A to flip "
@@ -830,14 +833,11 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     // Space belongs to the host in a DAW; the plugin never grabs keys.
     setWantsKeyboardFocus (standalone);
 
-    // The height floor fits everything at full size - header, cards at a
-    // useful minimum, both control blocks, the full MONITOR keyboard and
-    // HISTORY (the plugin adds its 20 px footer). Nothing ever condenses
-    // or hides with height; only the cards flex (QA, July 8).
+    // Short windows are legitimate (the tucked-monitor practice mode);
+    // the default (900x680) shows the full MONITOR with room to spare.
     setResizable (true, true);
-    setResizeLimits (880, standalone ? 620 : 640, 4096, 2400);
-    setSize (juce::jmax (880, chordsProc.lastUIWidth),
-             juce::jmax (standalone ? 620 : 640, chordsProc.lastUIHeight));
+    setResizeLimits (880, 500, 4096, 2400);
+    setSize (juce::jmax (880, chordsProc.lastUIWidth), juce::jmax (500, chordsProc.lastUIHeight));
 
     refresh();
     startTimerHz (30); // fast enough for the bar-progress strip and meter
@@ -1243,7 +1243,8 @@ void ChordsEditor::paint (juce::Graphics& g)
     };
     paintPanel (dicePanel, "DICE");
     paintPanel (loopPanel, "LOOP");
-    paintPanel (monitorPanel, "MONITOR");
+    if (monitor.isVisible())
+        paintPanel (monitorPanel, "MONITOR");
 
     // Divider between the roll column and the dice configuration - both are
     // dice business, but acting and configuring are different verbs.
@@ -1318,13 +1319,20 @@ void ChordsEditor::resized()
     ticker.setBounds (hist);
 
     // MONITOR: the keyboard earns the full window width (QA, July 8 -
-    // C1-C7 was cramped at half width inside LOOP). Always present, full
-    // height, titled: two flexing designs fell in QA (a show/hide
-    // threshold popped the cards; smooth compression bred condensed,
-    // title-less states Yuval rejected). The window minimum guarantees
-    // the room instead - only the cards flex with height.
-    monitorPanel = b.removeFromBottom (116).reduced (16, 0).withTrimmedBottom (8);
-    monitor.setBounds (monitorPanel.reduced (10).withTrimmedTop (16));
+    // C1-C7 was cramped at half width inside LOOP). Full and titled, or
+    // tucked away entirely - never condensed or title-less (two flexing
+    // designs fell in QA). Hiding it by dragging the window shorter is a
+    // FEATURE (Yuval): practice naming a chord's notes without the
+    // keyboard giving them away. The default window shows it with room
+    // to spare, so only a deliberate drag tucks it.
+    const bool showMonitor = b.getHeight() >= 208 + 116 + 120; // panels + monitor + a card floor (history already taken)
+    monitor.setVisible (showMonitor);
+    monitorPanel = {};
+    if (showMonitor)
+    {
+        monitorPanel = b.removeFromBottom (116).reduced (16, 0).withTrimmedBottom (8);
+        monitor.setBounds (monitorPanel.reduced (10).withTrimmedTop (16));
+    }
 
     // The two control blocks. DICE, top to bottom: roll + series length,
     // extensions + wideners, key lock, and auto roll on its own at the
