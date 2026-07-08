@@ -147,62 +147,74 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                         juce::Justification::centredLeft);
         }
 
-        // Hardware knob: a chunky metal cap in a recessed well, a backlit
-        // value arc in the accent colour, a tick ring and a lit pointer tip.
+        // Hardware knob, 1:1 with the handoff: a recessed well, a backlit
+        // value-arc ring (from 225deg over 270deg of travel), a fine tick
+        // ring, a domed metal cap, and an accent pointer at the top.
         void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
                                float startAngle, float endAngle, juce::Slider& slider) override
         {
-            const auto area = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (4.0f);
-            const float radius = juce::jmin (area.getWidth(), area.getHeight()) * 0.5f;
-            const auto c = area.getCentre();
+            const auto c = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).getCentre();
+            const float R = juce::jmin ((float) width, (float) height) * 0.5f - 1.0f;
             const auto accent = slider.findColour (juce::Slider::rotarySliderFillColourId);
             const float angle = startAngle + pos * (endAngle - startAngle);
             const float midAngle = startAngle + 0.5f * (endAngle - startAngle);
             const bool bipolar = slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0;
+            auto ring = [&] (float rad) { return juce::Rectangle<float> (rad * 2.0f, rad * 2.0f).withCentre (c); };
 
-            // Recessed well.
-            juce::ColourGradient well (juce::Colour (0xff0c0d10), c.x, c.y - radius,
-                                       juce::Colour (0xff26282e), c.x, c.y + radius, false);
+            // Recessed well the knob sits in.
+            juce::ColourGradient well (juce::Colour (0xff0c0d10), c.x, c.y - R * 0.3f,
+                                       juce::Colour (0xff26282e), c.x, c.y + R, true);
             g.setGradientFill (well);
-            g.fillEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (c));
+            g.fillEllipse (ring (R));
 
-            // Tick ring.
+            // Value-arc ring (bipolar grows from centre). Faint full-travel
+            // groove behind, accent arc on top, with a bloom.
+            const float arcR = R * 0.9f;
+            juce::Path groove;
+            groove.addCentredArc (c.x, c.y, arcR, arcR, 0.0f, startAngle, endAngle, true);
+            g.setColour (juce::Colours::black.withAlpha (0.5f));
+            g.strokePath (groove, juce::PathStrokeType (3.4f));
+            juce::Path arc;
+            arc.addCentredArc (c.x, c.y, arcR, arcR, 0.0f, bipolar ? midAngle : startAngle, angle, true);
+            g.setColour (accent.withAlpha (0.30f));
+            g.strokePath (arc, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.setColour (accent);
+            g.strokePath (arc, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+            // Fine tick ring (11 ticks over the 270deg travel).
             g.setColour (juce::Colours::white.withAlpha (0.22f));
             for (int i = 0; i <= 10; ++i)
             {
                 const float a = startAngle + (float) i / 10.0f * (endAngle - startAngle);
-                const float ro = radius * 0.98f, ri = radius * 0.86f;
-                g.drawLine (c.x + std::sin (a) * ri, c.y - std::cos (a) * ri,
-                            c.x + std::sin (a) * ro, c.y - std::cos (a) * ro, 1.0f);
+                g.drawLine (c.x + std::sin (a) * R * 0.74f, c.y - std::cos (a) * R * 0.74f,
+                            c.x + std::sin (a) * R * 0.80f, c.y - std::cos (a) * R * 0.80f, 1.0f);
             }
 
-            // Backlit value arc (bipolar grows from centre; else from start).
-            const float arcR = radius * 0.92f;
-            juce::Path arc;
-            arc.addCentredArc (c.x, c.y, arcR, arcR, 0.0f,
-                               bipolar ? midAngle : startAngle, angle, true);
-            g.setColour (accent);
-            g.strokePath (arc, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-            g.setColour (accent.withAlpha (0.35f)); // bloom
-            g.strokePath (arc, juce::PathStrokeType (5.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-            // Metal cap.
-            const float capR = radius * 0.74f;
+            // Domed metal cap.
+            const float capR = R * 0.66f;
             juce::ColourGradient body (juce::Colour (0xff3a3d44), c.x, c.y - capR,
-                                       juce::Colour (0xff101114), c.x, c.y + capR, false);
-            body.addColour (0.45, juce::Colour (0xff26282d));
+                                       juce::Colour (0xff101114), c.x, c.y + capR, true);
+            body.addColour (0.42, juce::Colour (0xff26282d));
+            body.addColour (0.72, juce::Colour (0xff191a1e));
             g.setGradientFill (body);
-            g.fillEllipse (juce::Rectangle<float> (capR * 2.0f, capR * 2.0f).withCentre (c));
-            g.setColour (juce::Colours::white.withAlpha (0.20f));
-            g.drawEllipse (juce::Rectangle<float> (capR * 2.0f, capR * 2.0f).withCentre (c).reduced (0.5f), 1.0f);
-            g.setColour (juce::Colours::black.withAlpha (0.5f));
-            g.drawEllipse (juce::Rectangle<float> (capR * 2.0f + 1.0f, capR * 2.0f + 1.0f).withCentre (c), 1.0f);
+            g.fillEllipse (ring (capR));
+            g.setColour (juce::Colours::white.withAlpha (0.18f));
+            g.drawEllipse (ring (capR).reduced (0.5f), 1.0f);
+            g.setColour (juce::Colours::black.withAlpha (0.55f));
+            g.drawEllipse (ring (capR + 1.0f), 1.0f);
+            // Domed inner top-lit centre.
+            const float domR = capR * 0.52f;
+            juce::ColourGradient dome (juce::Colour (0xff33363d), c.x, c.y - domR,
+                                       juce::Colour (0xff16171b), c.x, c.y + domR, true);
+            g.setGradientFill (dome);
+            g.fillEllipse (ring (domR));
 
-            // Pointer with a lit accent tip.
-            const float px1 = c.x + std::sin (angle) * capR * 0.30f, py1 = c.y - std::cos (angle) * capR * 0.30f;
-            const float px2 = c.x + std::sin (angle) * capR * 0.92f, py2 = c.y - std::cos (angle) * capR * 0.92f;
-            g.setColour (accent.brighter (0.3f));
-            g.drawLine (px1, py1, px2, py2, 3.0f);
+            // Accent pointer at the top of the cap.
+            juce::Path ptr;
+            ptr.addRoundedRectangle (c.x - 1.5f, c.y - capR * 0.95f, 3.0f, capR * 0.5f, 1.5f);
+            ptr.applyTransform (juce::AffineTransform::rotation (angle, c.x, c.y));
+            g.setColour (accent.brighter (0.25f));
+            g.fillPath (ptr);
         }
 
         // Hardware push-button: metal face, or a backlit LED key when lit.
@@ -241,6 +253,24 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
             g.strokePath (chev, juce::PathStrokeType (1.6f));
         }
         juce::Font getComboBoxFont (juce::ComboBox&) override { return juce::FontOptions (14.5f); }
+
+        // The tempo readout is a glass green BPM LCD (design). Every other
+        // linear slider keeps the JUCE default draw.
+        void drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height,
+                               float pos, float minPos, float maxPos,
+                               juce::Slider::SliderStyle style, juce::Slider& s) override
+        {
+            if (s.getComponentID() == "bpm")
+            {
+                const auto r = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height);
+                ui::hw::lcd (g, r, colors::green);
+                g.setColour (colors::green.brighter (0.35f).withAlpha (s.isEnabled() ? 1.0f : 0.55f));
+                g.setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
+                g.drawText (s.getTextFromValue (s.getValue()), r, juce::Justification::centred);
+                return;
+            }
+            juce::LookAndFeel_V4::drawLinearSlider (g, x, y, width, height, pos, minPos, maxPos, style, s);
+        }
     };
     static AleaLookAndFeel aleaLnf; // process lifetime: dialogs may outlive the editor
     juce::LookAndFeel::setDefaultLookAndFeel (&aleaLnf);
@@ -258,16 +288,29 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     content.addAndMakeVisible (tempoSource);
     content.addAndMakeVisible (output);
 
-    // Octave is a position, not an amount: dot-on-a-track, no bar fill.
-    setupSlider (aOctMin, "aOctMin", colors::purple, true);  setupSlider (aOctMax, "aOctMax", colors::purple, true);
-    setupSlider (aVelMin, "aVelMin", colors::purple);        setupSlider (aVelMax, "aVelMax", colors::purple);
-    setupSlider (bOctMin, "bOctMin", colors::cyan, true);    setupSlider (bOctMax, "bOctMax", colors::cyan, true);
-    setupSlider (bVelMin, "bVelMin", colors::cyan);          setupSlider (bVelMax, "bVelMax", colors::cyan);
+    // Oct/Vel are hardware knobs (design 1:1): rotary, accent value-arc, the
+    // caption + value painted below each in paintMain. Attach to params.
+    auto makeKnob = [this] (juce::Slider& s, const juce::String& paramID, juce::Colour accent)
+    {
+        s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        s.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
+                               juce::MathConstants<float>::pi * 2.75f, true);
+        s.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+        s.setColour (juce::Slider::rotarySliderFillColourId, accent);
+        s.setVelocityBasedMode (false);
+        content.addAndMakeVisible (s);
+        sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            alea.apvts, paramID, s));
+    };
+    makeKnob (aOctMin, "aOctMin", colors::purple); makeKnob (aOctMax, "aOctMax", colors::purple);
+    makeKnob (aVelMin, "aVelMin", colors::purple); makeKnob (aVelMax, "aVelMax", colors::purple);
+    makeKnob (bOctMin, "bOctMin", colors::cyan);   makeKnob (bOctMax, "bOctMax", colors::cyan);
+    makeKnob (bVelMin, "bVelMin", colors::cyan);   makeKnob (bVelMax, "bVelMax", colors::cyan);
     setupSlider (intervalFree, "intervalFree", colors::text.withAlpha (0.6f));
     setupSlider (lengthFree, "lengthFree", colors::text.withAlpha (0.6f));
     setupSlider (morphDurFree, "morphDurFree", colors::amber);
     setupSlider (internalTempo, "internalTempo", colors::green);
-    // Compact "120 BPM" readout, matching the Chord Randomizer's tempo bar.
+    internalTempo.setComponentID ("bpm"); // drawn as a glass green BPM LCD
     internalTempo.textFromValueFunction = [] (double v)
     { return juce::String ((int) std::lround (v)) + " BPM"; };
     internalTempo.updateText();
@@ -565,7 +608,7 @@ void AleaAudioProcessorEditor::layoutMain()
 
     presetsPanel = { 10, 64, vw - 20, 76 };
     const int scaleW = (vw - 30) / 2;
-    const int scaleH = 240 + juce::jmax (0, vh - kHeight) * 2 / 5; // keyboards grow on big windows
+    const int scaleH = 264 + juce::jmax (0, vh - kHeight) * 2 / 5; // keyboards grow on big windows
     scaleAPanel = { 10, 148, scaleW, scaleH };
     scaleBPanel = { 20 + scaleW, 148, vw - 30 - scaleW, scaleH };
 
@@ -591,22 +634,28 @@ void AleaAudioProcessorEditor::layoutMain()
     tempoSource.setBounds (vw - 410, 16, 140, 26);
     playButton.setBounds (vw - 412, 16, 76, 26);
 
+    // Bottom of each scale plate, top to bottom: keybed, RESTS + ROOT row,
+    // then a row of four knobs (OCT LO / OCT HI / VEL LO / VEL HI).
     auto scaleControls = [] (const juce::Rectangle<int>& panel, PianoKeyboard& kb, RestSelector& rests,
                                  juce::Slider& octMin, juce::Slider& octMax,
                                  juce::Slider& velMin, juce::Slider& velMax)
     {
         const int x = panel.getX() + 12, w = panel.getWidth() - 24;
-        kb.setBounds (x, panel.getY() + 30, w, panel.getHeight() - 144);
-        rests.setBounds (x + 44, panel.getBottom() - 108, w - 44 - 110, 26);
-        const int half = (w - 52) / 2;
-        octMin.setBounds (x + 44, panel.getBottom() - 72, half, 24);
-        octMax.setBounds (x + 52 + half, panel.getBottom() - 72, half, 24);
-        velMin.setBounds (x + 44, panel.getBottom() - 38, half, 24);
-        velMax.setBounds (x + 52 + half, panel.getBottom() - 38, half, 24);
+        const int knobRowH = 92;
+        const int restsY = panel.getBottom() - knobRowH - 34;
+        kb.setBounds (x, panel.getY() + 30, w, restsY - (panel.getY() + 30) - 10);
+        rests.setBounds (x + 44, restsY, w - 44 - 110, 26);
+
+        const int col = w / 4;
+        const int knob = juce::jmin (58, col - 8);
+        const int ky = panel.getBottom() - knobRowH + 4;
+        juce::Slider* ks[] = { &octMin, &octMax, &velMin, &velMax };
+        for (int i = 0; i < 4; ++i)
+            ks[i]->setBounds (x + col * i + (col - knob) / 2, ky, knob, knob);
     };
 
-    rootABox.setBounds (scaleAPanel.getRight() - 12 - 58, scaleAPanel.getBottom() - 108, 58, 26);
-    rootBBox.setBounds (scaleBPanel.getRight() - 12 - 58, scaleBPanel.getBottom() - 108, 58, 26);
+    rootABox.setBounds (scaleAPanel.getRight() - 12 - 58, scaleAPanel.getBottom() - 92 - 34, 58, 26);
+    rootBBox.setBounds (scaleBPanel.getRight() - 12 - 58, scaleBPanel.getBottom() - 92 - 34, 58, 26);
 
     scaleControls (scaleAPanel, keyboardA, restsA, aOctMin, aOctMax, aVelMin, aVelMax);
     scaleControls (scaleBPanel, keyboardB, restsB, bOctMin, bOctMax, bVelMin, bVelMax);
@@ -853,13 +902,32 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     g.setColour (colors::secondary);
     g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
 
-    for (const auto& [panel, alpha] : { std::pair { &scaleAPanel, alphaA }, std::pair { &scaleBPanel, alphaB } })
+    struct ScaleRef { juce::Rectangle<int>* panel; float alpha; char id;
+                      juce::Slider* octMin; juce::Slider* octMax; juce::Slider* velMin; juce::Slider* velMax; };
+    for (const auto& s : { ScaleRef { &scaleAPanel, alphaA, 'a', &aOctMin, &aOctMax, &aVelMin, &aVelMax },
+                           ScaleRef { &scaleBPanel, alphaB, 'b', &bOctMin, &bOctMax, &bVelMin, &bVelMax } })
     {
-        g.setColour (colors::secondary.withMultipliedAlpha (alpha));
-        g.drawText ("RESTS", panel->getX() + 12, panel->getBottom() - 108, 40, 26, juce::Justification::centredLeft);
-        g.drawText ("ROOT", panel->getRight() - 12 - 58 - 44, panel->getBottom() - 108, 40, 26, juce::Justification::centredRight);
-        g.drawText ("OCT",   panel->getX() + 12, panel->getBottom() - 72, 40, 24, juce::Justification::centredLeft);
-        g.drawText ("VEL",   panel->getX() + 12, panel->getBottom() - 38, 40, 24, juce::Justification::centredLeft);
+        g.setColour (colors::secondary.withMultipliedAlpha (s.alpha));
+        g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+        g.drawText ("RESTS", s.panel->getX() + 12, s.panel->getBottom() - 126, 40, 26, juce::Justification::centredLeft);
+        g.drawText ("ROOT", s.panel->getRight() - 12 - 58 - 44, s.panel->getBottom() - 126, 40, 26, juce::Justification::centredRight);
+
+        // Each knob's caption + live value, painted below the dial.
+        auto knobLabel = [&] (juce::Slider* k, const juce::String& cap, const juce::String& id)
+        {
+            const auto b = k->getBounds();
+            const int val = (int) std::lround (alea.apvts.getRawParameterValue (id)->load());
+            g.setColour (colors::secondary.withMultipliedAlpha (s.alpha));
+            g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+            g.drawText (cap, b.getX() - 20, b.getBottom() - 2, b.getWidth() + 40, 13, juce::Justification::centred);
+            g.setColour (colors::text.withMultipliedAlpha (s.alpha));
+            g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
+            g.drawText (juce::String (val), b.getX() - 20, b.getBottom() + 10, b.getWidth() + 40, 15, juce::Justification::centred);
+        };
+        knobLabel (s.octMin, "OCT LO", juce::String::charToString (s.id) + "OctMin");
+        knobLabel (s.octMax, "OCT HI", juce::String::charToString (s.id) + "OctMax");
+        knobLabel (s.velMin, "VEL LO", juce::String::charToString (s.id) + "VelMin");
+        knobLabel (s.velMax, "VEL HI", juce::String::charToString (s.id) + "VelMax");
     }
     g.setColour (colors::secondary);
 

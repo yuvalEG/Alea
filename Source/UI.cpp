@@ -15,60 +15,47 @@ juce::String noteName (int midiNote)
 
 namespace hw
 {
-    // Faint horizontal brushed grain, clipped to a rounded rect.
-    static void brushGrain (juce::Graphics& g, juce::Rectangle<float> r, float radius, float strength)
-    {
-        juce::Path clip;
-        clip.addRoundedRectangle (r, radius);
-        g.saveState();
-        g.reduceClipRegion (clip);
-        for (float y = r.getY(); y < r.getBottom(); y += 3.0f)
-        {
-            g.setColour (juce::Colours::white.withAlpha (0.045f * strength));
-            g.fillRect (r.getX(), y, r.getWidth(), 1.0f);
-            g.setColour (juce::Colours::black.withAlpha (0.10f * strength));
-            g.fillRect (r.getX(), y + 1.0f, r.getWidth(), 1.0f);
-        }
-        g.restoreState();
-    }
+    // Baked finish (design handoff): brush 0 = clean satin, no grain;
+    // sheen 1.9 = strong specular; glow 1.4 = brighter LED bloom.
+    constexpr float kSheen = 1.9f, kGlow = 1.4f;
 
     void brushedMetal (juce::Graphics& g, juce::Rectangle<float> r, float radius, bool isPlate)
     {
         if (isPlate)
         {
-            // Flatter vertical base, hairline seam, top inner highlight.
+            // Flat satin vertical base (hsl(220 12% 17->12%)), hairline seam,
+            // top inner highlight - no grain.
             juce::ColourGradient grad (juce::Colour (0xff262a30), r.getX(), r.getY(),
-                                       juce::Colour (0xff191b20), r.getX(), r.getBottom(), false);
-            grad.addColour (0.5, juce::Colour (0xff202329));
+                                       juce::Colour (0xff191b1f), r.getX(), r.getBottom(), false);
+            grad.addColour (0.46, juce::Colour (0xff21242a));
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, radius);
-            brushGrain (g, r, radius, 0.6f);
             g.setColour (metalLine);
             g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
-            g.setColour (juce::Colours::white.withAlpha (0.10f));
+            g.setColour (juce::Colours::white.withAlpha (0.11f));
             g.drawLine (r.getX() + radius, r.getY() + 1.0f, r.getRight() - radius, r.getY() + 1.0f, 1.0f);
         }
         else
         {
-            // Raised slab: a broad anisotropic sheen sweep across the width.
-            juce::ColourGradient grad (juce::Colour (0xff1b1d22), r.getX(), r.getY(),
-                                       juce::Colour (0xff191a1f), r.getRight(), r.getBottom(), false);
-            grad.addColour (0.18, juce::Colour (0xff23262d));
-            grad.addColour (0.34, juce::Colour (0xff2b2f38)); // sheen peak
-            grad.addColour (0.50, juce::Colour (0xff191b20));
-            grad.addColour (0.68, juce::Colour (0xff262a32));
-            grad.addColour (0.84, juce::Colour (0xff1a1b20));
+            // Raised slab: a broad anisotropic sheen sweep across the width
+            // (the 97deg gradient), plus a pronounced top-left specular.
+            juce::ColourGradient grad (juce::Colour (0xff191b20), r.getX(), r.getY(),
+                                       juce::Colour (0xff191a1e), r.getRight(), r.getBottom(), false);
+            grad.addColour (0.18, juce::Colour (0xff262a32));
+            grad.addColour (0.34, juce::Colour (0xff333844)); // sheen peak
+            grad.addColour (0.50, juce::Colour (0xff1a1c22));
+            grad.addColour (0.68, juce::Colour (0xff2c313b));
+            grad.addColour (0.84, juce::Colour (0xff1c1e24));
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, radius);
-            brushGrain (g, r, radius, 1.0f);
-            // Travelling specular highlight, top-left.
-            juce::ColourGradient spec (juce::Colours::white.withAlpha (0.16f), r.getX() + r.getWidth() * 0.3f, r.getY(),
-                                       juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.3f, r.getY() + r.getHeight() * 0.5f, true);
+            // Pronounced travelling specular (sheen 1.9), top-left origin.
+            juce::ColourGradient spec (juce::Colours::white.withAlpha (0.16f * kSheen), r.getX() + r.getWidth() * 0.30f, r.getY() - r.getHeight() * 0.15f,
+                                       juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.30f, r.getY() + r.getHeight() * 0.55f, true);
             g.setGradientFill (spec);
             g.fillRoundedRectangle (r, radius);
-            // Raised edge: bright top seam, dark bottom.
+            // Raised edge: bright top seam, dark seam all round.
             g.setColour (juce::Colours::white.withAlpha (0.14f));
-            g.drawLine (r.getX() + radius, r.getY() + 1.0f, r.getRight() - radius, r.getY() + 1.0f, 1.5f);
+            g.drawLine (r.getX() + radius, r.getY() + 1.5f, r.getRight() - radius, r.getY() + 1.5f, 2.0f);
             g.setColour (metalLine);
             g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
         }
@@ -169,13 +156,16 @@ namespace hw
     {
         if (lit)
         {
-            juce::ColourGradient grad (ledColour.brighter (0.5f), r.getX(), r.getY(),
-                                       ledColour.darker (0.35f), r.getX(), r.getBottom(), false);
+            // Backlit key: bloom halo first, then the top-lit coloured face.
+            g.setColour (ledColour.withAlpha (0.30f * kGlow));
+            g.fillRoundedRectangle (r.expanded (3.0f), 6.0f);
+            juce::ColourGradient grad (ledColour.brighter (0.55f), r.getX(), r.getY(),
+                                       ledColour.darker (0.4f), r.getX(), r.getBottom(), false);
             grad.addColour (0.5, ledColour);
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, 4.0f);
-            g.setColour (ledColour.withAlpha (0.55f)); // bloom
-            g.drawRoundedRectangle (r.expanded (0.6f), 4.0f, 1.6f);
+            g.setColour (ledColour.darker (0.5f));
+            g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
             g.setColour (juce::Colours::white.withAlpha (0.5f));
             g.drawLine (r.getX() + 3.0f, r.getY() + 1.0f, r.getRight() - 3.0f, r.getY() + 1.0f, 1.0f);
             return juce::Colour (0xff07120d); // black legend

@@ -22,5 +22,6 @@ compile_commands.json
 docs/SPEC.md
 
 # Design references and local tooling stay out of the public repo
+design_handoff_alea_hardware_suite/
 design_handoff_hardware_faceplate/
 .claude/
