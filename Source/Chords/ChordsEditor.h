@@ -124,14 +124,18 @@ private:
     // Toggle labels are sentence case; ALL-CAPS is for captions/titles/buttons.
     juce::ToggleButton simplifyToggle { "Simplify chords" },
                        susToggle { "Add sus chords" },
-                       keyLockToggle { "Key lock" };
+                       keyLockToggle { "Key lock" },
+                       // Voicings (spec M5) live in LOOP - how it sounds, never what rolls.
+                       smoothToggle { "Smooth voicing" },
+                       bassToggle { "Add bass note" };
     juce::ComboBox keyBox, scaleBox;            // key lock: tonic + scale type
     juce::TextButton clickButton { "CLICK" };   // metronome, next to the tempo
     juce::Slider clickVolKnob;                  // click level, beside CLICK
     juce::HyperlinkButton helpLink;             // plugin only: routing help in the README
     juce::ComboBox autoRollBox;                 // AUTO ROLL: off / every N loops - one control
     SegmentRow lengthRow, barsRow, octaveRow,
-               sizeRow;                         // CHORD SIZE: triads / 7ths / 9ths
+               sizeRow,                         // CHORD SIZE: triads / 7ths / 9ths
+               voicingRow;                      // VOICING: close / open spacing
     juce::ComboBox outputBox;
     void rebuildKeyBox();
     juce::Slider volKnob;

@@ -45,7 +45,7 @@ namespace
             text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
             text.setFont (juce::FontOptions (20.5f));
             text.setText (juce::String::fromUTF8 (
-                "Alea Chord Randomizer - Version " CHORDS_VERSION "\n\n\n"
+                "Alea Chord Randomizer, version " CHORDS_VERSION "\n\n\n"
                 "THE EXERCISE\n\n"
                 "This app was born from an improvisation exercise by my guitar "
                 "teacher, Yonatan Benaroche: generate a short random chord "
@@ -54,17 +54,18 @@ namespace
                 "and your hands out of familiar shapes.\n\n\n"
                 "HOW TO USE\n\n"
                 "ROLL the dice (or press R), hit play (or the spacebar), jam. "
-                "The DICE panel decides what the dice can roll; the LOOP "
-                "panel decides how it sounds. Rolling mid-loop swaps the new "
-                "chords in at the next chord change; clicking a chord jumps "
-                "the loop there.\n\n"
+                "The DICE panel decides what the dice can roll. The LOOP "
+                "panel decides how it sounds, voicing included: spread it "
+                "open, smooth the voice-leading, add a bass note. Rolling "
+                "mid-loop swaps the new chords in at the next chord change, "
+                "and clicking a chord jumps the loop there.\n\n"
                 "Key lock keeps every roll diatonic to a chosen key and "
-                "scale - flavors included.\n\n"
+                "scale, flavors included.\n\n"
                 "AUTO ROLL rolls for you every few loops (press A to flip "
-                "it). Pin a chord - the little circle on its card - and it "
-                "survives rolls: keep what you love, reroll the rest.\n\n"
+                "it). Pin a chord (the little circle on its card) and it "
+                "survives rolls. Keep what you love, reroll the rest.\n\n"
                 "OUT plays the built-in synth (pick a flavour) or sends MIDI "
-                "to any device. Past rolls pile up in HISTORY - scroll "
+                "to any device. Past rolls pile up in HISTORY. Scroll "
                 "through them, click one to bring it back.\n\n\n"
                 "GET IN TOUCH\n\n"
                 "I'll be more than happy to hear your feedback, ideas and music! "
@@ -227,6 +228,24 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
         g.setColour (lit[n] ? colors::purple.brighter (0.25f) : juce::Colour (0xff08080c));
         g.fillRect (juce::Rectangle<float> (b.getX() + (float) white * ww - bw / 2.0f, b.getY(), bw, b.getHeight() * 0.62f));
     }
+
+    // Notes beyond the strip (the bass dips below C2; open voicings can
+    // spill past C6) get a small edge arrow - the Scale Shifter idiom.
+    bool below = false, above = false;
+    for (int n = 0; n < low; ++n)        below = below || lit[n];
+    for (int n = high + 1; n < 128; ++n) above = above || lit[n];
+    auto arrow = [&g, &b] (bool left)
+    {
+        const float cy = b.getCentreY();
+        const float x = left ? b.getX() + 3.0f : b.getRight() - 3.0f;
+        const float back = left ? 9.0f : -9.0f;
+        juce::Path p;
+        p.addTriangle (x, cy, x + back, cy - 7.0f, x + back, cy + 7.0f);
+        g.setColour (colors::purple.brighter (0.25f));
+        g.fillPath (p);
+    };
+    if (below) arrow (true);
+    if (above) arrow (false);
 }
 
 //==============================================================================
@@ -601,7 +620,7 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     };
     addAndMakeVisible (barsRow);
 
-    // Voicing octaves, multi-select: each chord lands in a random checked one.
+    // Voicing octaves, multi-select: every checked octave sounds together.
     octaveRow.labels = { "2", "3", "4" };
     octaveRow.multi = true;
     octaveRow.onChange = [this] (int newMask)
@@ -610,6 +629,33 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
         chordsProc.updateLoop();
     };
     addAndMakeVisible (octaveRow);
+
+    // Voicings (spec M5), output stage only - never the dice. Changes
+    // re-voice at the next chord boundary silently: the chords aren't
+    // changing, so no switching theater.
+    voicingRow.labels = { "close", "open" };
+    voicingRow.onChange = [this] (int idx)
+    {
+        voicingRow.selected = idx;
+        voicingRow.repaint();
+        chordsProc.openVoicing.store (idx == 1);
+        chordsProc.updateLoop();
+    };
+    addAndMakeVisible (voicingRow);
+
+    smoothToggle.onClick = [this]
+    {
+        chordsProc.smoothVoicing.store (smoothToggle.getToggleState());
+        chordsProc.updateLoop();
+    };
+    addAndMakeVisible (smoothToggle);
+
+    bassToggle.onClick = [this]
+    {
+        chordsProc.bassNote.store (bassToggle.getToggleState());
+        chordsProc.updateLoop();
+    };
+    addAndMakeVisible (bassToggle);
 
     // Metronome lives next to the tempo - a mode toggle, so the shared
     // white accent (colored accents stay reserved for meaning).
@@ -774,7 +820,8 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
                      (juce::Component*) &volKnob, (juce::Component*) &tempoBox,
                      (juce::Component*) &clickButton, (juce::Component*) &susToggle,
                      (juce::Component*) &autoRollBox, (juce::Component*) &clickVolKnob,
-                     (juce::Component*) &sizeRow,
+                     (juce::Component*) &sizeRow, (juce::Component*) &voicingRow,
+                     (juce::Component*) &smoothToggle, (juce::Component*) &bassToggle,
                      (juce::Component*) &keyLockToggle, (juce::Component*) &keyBox,
                      (juce::Component*) &scaleBox })
         c->setWantsKeyboardFocus (false);
@@ -946,6 +993,10 @@ void ChordsEditor::refresh()
     barsRow.repaint();
     octaveRow.mask = juce::jlimit (1, 7, chordsProc.octaveMask.load());
     octaveRow.repaint();
+    voicingRow.selected = chordsProc.openVoicing.load() ? 1 : 0;
+    voicingRow.repaint();
+    smoothToggle.setToggleState (chordsProc.smoothVoicing.load(), juce::dontSendNotification);
+    bassToggle.setToggleState (chordsProc.bassNote.load(), juce::dontSendNotification);
     autoRollBox.setSelectedId (chordsProc.autoRollOn.load() ? chordsProc.autoRollLoops.load() + 1 : 1,
                                juce::dontSendNotification);
     keyLockToggle.setToggleState (chordsProc.keyLockOn, juce::dontSendNotification);
@@ -1106,7 +1157,7 @@ void ChordsEditor::showMenu()
                 else if (latest.isEmpty() || latest == current)
                 {
                     juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
-                        "Check for Updates", "You're up to date - Chord Randomizer " + current + ".");
+                        "Check for Updates", "You're up to date. Chord Randomizer " + current + ".");
                 }
                 else
                 {
@@ -1204,6 +1255,8 @@ void ChordsEditor::paint (juce::Graphics& g)
                 barsRow.getWidth(), 14, juce::Justification::centredLeft);
     g.drawText ("OCTAVE", octaveRow.getX(), octaveRow.getY() - 16,
                 octaveRow.getWidth(), 14, juce::Justification::centredLeft);
+    g.drawText ("VOICING", voicingRow.getX(), voicingRow.getY() - 16,
+                voicingRow.getWidth(), 14, juce::Justification::centredLeft);
     g.drawText ("OUT", outputBox.getX(), outputBox.getY() - 16,
                 outputBox.getWidth(), 14, juce::Justification::centredLeft);
 
@@ -1258,8 +1311,9 @@ void ChordsEditor::resized()
 
     // The two control blocks. DICE, top to bottom: roll + series length,
     // extensions + wideners, key lock, and auto roll on its own at the
-    // bottom. LOOP: bars, octaves, output chain, and the monitor keyboard.
-    auto panels = b.removeFromBottom (208).reduced (16, 6);
+    // bottom. LOOP: bars, octaves, output chain, the voicing row (M5), and
+    // the monitor keyboard.
+    auto panels = b.removeFromBottom (240).reduced (16, 6);
     dicePanel = panels.removeFromLeft ((int) ((float) panels.getWidth() * 0.46f));
     panels.removeFromLeft (12);
     loopPanel = panels;
@@ -1309,8 +1363,15 @@ void ChordsEditor::resized()
     controlsRow.removeFromRight (4);
     outputBox.setBounds (controlsRow);
 
+    // Voicing row (M5): spacing selector, then the two voicing checkboxes.
+    auto voiceRow = loop.removeFromTop (40).withTrimmedTop (14).withHeight (26);
+    voicingRow.setBounds (voiceRow.removeFromLeft (118));
+    voiceRow.removeFromLeft (14);
+    smoothToggle.setBounds (voiceRow.removeFromLeft (juce::jmin (158, voiceRow.getWidth() / 2)));
+    bassToggle.setBounds (voiceRow);
+
     // Monitor keyboard: the sounding chord, visible.
-    monitor.setBounds (loop.withTrimmedTop (10));
+    monitor.setBounds (loop.withTrimmedTop (8));
 
     // Series cards fill the middle, growing with the window.
     auto area = b.reduced (16, 12);

@@ -45,7 +45,13 @@ public:
     std::atomic<bool>  playing { false };
     std::atomic<float> bpm { 90.0f };                 // 30..300
     std::atomic<int>   barsPerChord { 1 };            // 1, 2 or 4 (4/4 only)
-    std::atomic<int>   octaveMask { 0b010 };          // bits for octaves 2/3/4; each chord lands in a random checked one
+    std::atomic<int>   octaveMask { 0b010 };          // bits for octaves 2/3/4; every checked octave sounds together
+    // Voicing options (spec M5) - output stage only, never the dice. All
+    // default off = exactly the pre-M5 sound; changes re-voice at the next
+    // chord boundary silently (the chords aren't changing).
+    std::atomic<bool>  smoothVoicing { false };       // inversions chosen for minimal movement
+    std::atomic<bool>  openVoicing { false };         // spread across the checked octaves instead of doubling
+    std::atomic<bool>  bassNote { false };            // root an octave below the lowest voiced note
     std::atomic<int>   playingChord { -1 };           // series index sounding now, -1 = none
     std::atomic<float> chordProgress { 0.0f };        // 0..1 through the current chord
     std::atomic<bool>  metronomeOn { false };         // quarter-note click, accented on chord changes
@@ -133,7 +139,7 @@ private:
     // The message thread publishes the series as pre-voiced chords; the audio
     // thread adopts them at transport start and at each loop wrap, so a roll
     // during playback lets the current pass finish cleanly.
-    struct PlayChord { int notes[16] = {}; int count = 0; }; // up to 4 notes x 3 octaves
+    struct PlayChord { int notes[16] = {}; int count = 0; }; // up to 5 notes x 3 octaves + bass, minus overlaps
     bool copyLoopIfDirty();                  // audio thread, try-lock
     void stopSoundingNotes (juce::MidiBuffer&, int sampleOffset);
     void markSeriesChange();                 // message thread, BEFORE mutating series

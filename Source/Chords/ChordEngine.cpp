@@ -351,4 +351,114 @@ juce::Array<int> midiNotes (const Chord& c, int octave)
     return notes;
 }
 
+juce::Array<int> voice (const Chord& c, const VoicingOptions& opts, juce::Array<int>& anchor)
+{
+    juce::Array<int> octaves;
+    for (int o = 2; o <= 4; ++o)
+        if ((opts.octaveMask >> (o - 2)) & 1)
+            octaves.add (o);
+    if (octaves.isEmpty())
+        octaves.add (3);
+
+    // Root position in the lowest checked octave is the reference voicing.
+    const auto base = midiNotes (c, octaves.getFirst());
+
+    // Smooth voice-leading: of all inversions, keep the one that moves
+    // least from the previous chord. Every candidate is normalized so its
+    // lowest note falls inside the anchor octave (C->F can land on the
+    // classic F/C, C->G on G/D), which also means a long series can never
+    // drift up or down.
+    auto chosen = base;
+    if (opts.smooth && ! anchor.isEmpty())
+    {
+        const int windowStart = 12 * (octaves.getFirst() + 1);
+        auto movement = [&anchor] (const juce::Array<int>& cand)
+        {
+            int total = 0;
+            for (int n : cand)
+            {
+                int nearest = 128;
+                for (int p : anchor)
+                    nearest = juce::jmin (nearest, std::abs (n - p));
+                total += nearest;
+            }
+            for (int p : anchor)
+            {
+                int nearest = 128;
+                for (int n : cand)
+                    nearest = juce::jmin (nearest, std::abs (n - p));
+                total += nearest;
+            }
+            return total;
+        };
+
+        int best = movement (base);
+        for (int k = 1; k < base.size(); ++k)
+        {
+            juce::Array<int> inv;
+            for (int i = k; i < base.size(); ++i)
+                inv.add (base[i]);
+            for (int i = 0; i < k; ++i)
+                inv.add (base[i] + 12);
+            inv.sort(); // a ninth reaches past the octave, so lifts can interleave
+
+            // Drop the rotation back into the anchor octave: high rotations
+            // become their low equivalents instead of stacking ever upward.
+            while (inv.getFirst() - 12 >= windowStart)
+                for (int i = 0; i < inv.size(); ++i)
+                    inv.set (i, inv[i] - 12);
+
+            if (const int m = movement (inv); m < best)
+            {
+                best = m;
+                chosen = inv;
+            }
+        }
+    }
+    anchor = chosen;
+
+    // Spacing. CLOSE doubles the voicing in every checked octave. OPEN
+    // distributes the tones across the checked octaves instead - fewer
+    // notes, airier; with a single octave checked, every other tone lifts
+    // an octave (open voicings inherently span more than one).
+    juce::Array<int> notes;
+    if (opts.open)
+    {
+        for (int i = 0; i < chosen.size(); ++i)
+        {
+            int lift = 12 * (i % 2);
+            if (octaves.size() > 1)
+            {
+                const int slot = chosen.size() <= 1 ? 0
+                    : (int) std::lround ((double) i * (double) (octaves.size() - 1)
+                                         / (double) (chosen.size() - 1));
+                lift = 12 * (octaves[slot] - octaves.getFirst());
+            }
+            notes.add (chosen[i] + lift);
+        }
+    }
+    else
+    {
+        for (int oct : octaves)
+            for (int n : chosen)
+                notes.add (n + 12 * (oct - octaves.getFirst()));
+    }
+
+    // The bass: the chord's root, placed just below the voicing - a full
+    // octave below when the root already sits at the bottom. Under an
+    // inversion the root has left the bottom; the bass restores its anchor
+    // without undoing the voice-leading above it.
+    if (opts.bass && ! notes.isEmpty())
+    {
+        const int rootPc = base.getFirst() % 12;
+        int lowest = notes.getFirst();
+        for (int n : notes)
+            lowest = juce::jmin (lowest, n);
+        const int down = ((lowest - rootPc) % 12 + 12) % 12;
+        notes.insert (0, lowest - (down == 0 ? 12 : down));
+    }
+
+    return notes;
+}
+
 } // namespace chords

@@ -202,25 +202,24 @@ void ChordsProcessor::trimHistory()
 
 void ChordsProcessor::updateLoop()
 {
-    // Every checked octave sounds together - the voicing doubles across
-    // them. The chords are this app's only dice; octaves are a choice.
-    juce::Array<int> octaves;
-    for (int o = 2; o <= 4; ++o)
-        if ((octaveMask.load() >> (o - 2)) & 1)
-            octaves.add (o);
-    if (octaves.isEmpty())
-        octaves.add (3);
+    // The chords are this app's only dice; voicing - octaves, spacing,
+    // inversions, bass - is a choice, applied at the output stage (spec M5).
+    chords::VoicingOptions vopts;
+    vopts.octaveMask = octaveMask.load();
+    vopts.smooth = smoothVoicing.load();
+    vopts.open = openVoicing.load();
+    vopts.bass = bassNote.load();
 
     std::vector<PlayChord> fresh;
     fresh.reserve (series.size());
+    juce::Array<int> anchor; // threads each chord's voicing to the next for smooth voice-leading
     for (const auto& c : series)
     {
         PlayChord pc;
-        for (auto oct : octaves)
-            for (auto note : chords::midiNotes (c, oct))
-                if (pc.count < 16 && note >= 0 && note <= 127
-                    && std::find (pc.notes, pc.notes + pc.count, note) == pc.notes + pc.count)
-                    pc.notes[pc.count++] = note;
+        for (auto note : chords::voice (c, vopts, anchor))
+            if (pc.count < 16 && note >= 0 && note <= 127
+                && std::find (pc.notes, pc.notes + pc.count, note) == pc.notes + pc.count)
+                pc.notes[pc.count++] = note;
         fresh.push_back (pc);
     }
 
@@ -846,6 +845,9 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("bpm", (double) bpm.load(), nullptr);
     state.setProperty ("barsPerChord", barsPerChord.load(), nullptr);
     state.setProperty ("octaves", octaveMask.load(), nullptr);
+    state.setProperty ("smoothVoicing", smoothVoicing.load(), nullptr);
+    state.setProperty ("openVoicing", openVoicing.load(), nullptr);
+    state.setProperty ("bassNote", bassNote.load(), nullptr);
     state.setProperty ("metronome", metronomeOn.load(), nullptr);
     state.setProperty ("clickVol", (double) clickVolDb.load(), nullptr);
     state.setProperty ("autoRoll", autoRollOn.load(), nullptr);
@@ -897,6 +899,9 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     // "octave" (single) was the pre-multi-select property name.
     const int legacyMask = 1 << (juce::jlimit (2, 4, (int) state.getProperty ("octave", 3)) - 2);
     octaveMask.store (juce::jlimit (1, 7, (int) state.getProperty ("octaves", legacyMask)));
+    smoothVoicing.store (state.getProperty ("smoothVoicing", false));
+    openVoicing.store (state.getProperty ("openVoicing", false));
+    bassNote.store (state.getProperty ("bassNote", false));
     metronomeOn.store (state.getProperty ("metronome", false));
     clickVolDb.store (juce::jlimit (-12.0f, 12.0f, (float) (double) state.getProperty ("clickVol", 0.0)));
     autoRollOn.store (state.getProperty ("autoRoll", false));

@@ -57,4 +57,22 @@ Chord roll (juce::Random&, const RollOptions&);
 // octave or inversion.
 juce::Array<int> midiNotes (const Chord&, int octave = 3);
 
+// M5 voicing options - strictly the output stage: only octave placement
+// ever moves, never pitch classes (the standing rule; the snapshot tool's
+// --vocab audit holds this to account across every combination).
+struct VoicingOptions
+{
+    int octaveMask = 0b010;  // bits for octaves 2/3/4
+    bool smooth = false;     // inversions chosen for minimal movement from the previous chord
+    bool open = false;       // tones spread across the checked octaves instead of doubled
+    bool bass = false;       // the root, an octave below the lowest voiced note
+};
+
+// Voice one chord of a series. `anchor` carries the previous chord's chosen
+// inversion between calls (pass it in empty for the first chord): smooth
+// voice-leading measures movement against it, and the inversion chosen here
+// is written back for the next chord. A series is voiced once, in order, at
+// adoption - every pass of the loop sounds identical and nothing drifts.
+juce::Array<int> voice (const Chord&, const VoicingOptions&, juce::Array<int>& anchor);
+
 } // namespace chords

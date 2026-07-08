@@ -6,10 +6,130 @@
 // runs the loop for a few seconds first so the shot looks mid-playing.)
 // Or:    ChordsUISnapshot --vocab
 // prints every chord the engine can roll (empirically, on root C where
-// applicable) with its intervals - the music-theory QA table.
+// applicable) with its intervals - the music-theory QA table - then audits
+// every voicing option combination (M5) against the standing rule: nothing
+// may ever sound outside the printed chord. Non-zero exit on violation.
 #include "../Source/Chords/ChordsEditor.h"
 #include <iostream>
 #include <map>
+#include <vector>
+
+// M5 voicing audit: for every rollable chord (all modes, real roots), every
+// voicing option combination and every octave mask, no sounded pitch class
+// may leave the printed chord, and the bass must be the root. Smooth
+// voice-leading is exercised by probing single-note anchors across the
+// range, which forces every inversion the movement metric can choose.
+static int auditVoicings()
+{
+    juce::Random rng (7);
+    std::vector<chords::Chord> pool;
+    std::map<std::string, bool> seen;
+    auto collect = [&] (const chords::RollOptions& o, int n)
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            auto c = chords::roll (rng, o);
+            if (! seen[c.text().toStdString()])
+            {
+                seen[c.text().toStdString()] = true;
+                pool.push_back (c);
+            }
+        }
+    };
+    for (const bool simplified : { false, true })
+        for (const bool sevenths : { false, true })
+            for (const bool flavors : { false, true })
+            {
+                chords::RollOptions o;
+                o.simplified = simplified;
+                o.sevenths = sevenths;
+                o.sus = o.ninths = flavors;
+                collect (o, 20000);
+            }
+    for (int t = 0; t < chords::scaleTypeNames().size(); ++t)
+        for (int k = 0; k < chords::keyNamesFor ((chords::ScaleType) t).size(); ++k)
+        {
+            chords::RollOptions o;
+            o.keyLock = true;
+            o.scaleType = t;
+            o.keyIndex = k;
+            o.sevenths = o.sus = o.ninths = true;
+            collect (o, 4000);
+        }
+
+    long checked = 0;
+    int violations = 0;
+    for (const auto& c : pool)
+    {
+        int chordMask = 0;
+        for (int n : chords::midiNotes (c, 3))
+            chordMask |= 1 << (n % 12);
+        const int rootPc = chords::midiNotes (c, 3).getFirst() % 12;
+
+        for (int mask = 1; mask <= 7; ++mask)
+            for (const bool smooth : { false, true })
+                for (const bool open : { false, true })
+                    for (const bool bass : { false, true })
+                        for (int probe = 34; probe <= 70; probe += 3)
+                        {
+                            chords::VoicingOptions v;
+                            v.octaveMask = mask;
+                            v.smooth = smooth;
+                            v.open = open;
+                            v.bass = bass;
+
+                            juce::Array<int> anchor;
+                            if (probe > 34) // 34 itself = the empty anchor (first chord of a series)
+                                anchor.add (probe);
+                            const auto notes = chords::voice (c, v, anchor);
+                            ++checked;
+
+                            if (bass && (notes.isEmpty() || notes.getFirst() % 12 != rootPc))
+                            {
+                                ++violations;
+                                std::cout << "BASS VIOLATION: " << c.text() << " mask " << mask << "\n";
+                            }
+                            for (int n : notes)
+                                if (((chordMask >> (n % 12)) & 1) == 0)
+                                {
+                                    ++violations;
+                                    std::cout << "PITCH VIOLATION: " << c.text() << " sounds MIDI " << n
+                                              << " (mask " << mask << (smooth ? " smooth" : "")
+                                              << (open ? " open" : "") << (bass ? " bass" : "") << ")\n";
+                                }
+                        }
+    }
+
+    // A human-readable sample: the ear-check table for smooth voice-leading.
+    auto demo = [] (const char* title, const std::vector<chords::Chord>& prog, chords::VoicingOptions v)
+    {
+        static const char* names[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
+        std::cout << title << ":\n";
+        juce::Array<int> anchor;
+        for (const auto& c : prog)
+        {
+            std::cout << "  " << c.text().paddedRight (' ', 8).toStdString() << " ->";
+            for (int n : chords::voice (c, v, anchor))
+                std::cout << " " << names[n % 12] << n / 12 - 1;
+            std::cout << "\n";
+        }
+    };
+    const std::vector<chords::Chord> cadence {
+        { "C", chords::Quality::major }, { "F", chords::Quality::major },
+        { "G", chords::Quality::major }, { "C", chords::Quality::major } };
+    chords::VoicingOptions plain;   plain.octaveMask = 0b010;
+    auto smooth = plain;  smooth.smooth = true;
+    auto full = smooth;   full.open = true; full.bass = true;
+    std::cout << "\n== VOICING DEMO (C F G C, octave 3) ==\n";
+    demo ("close, root position", cadence, plain);
+    demo ("smooth voice-leading", cadence, smooth);
+    demo ("smooth + open + bass", cadence, full);
+
+    std::cout << "\n== VOICING AUDIT ==\n"
+              << pool.size() << " chord types, " << checked << " voicings checked, "
+              << violations << " violations\n";
+    return violations == 0 ? 0 : 3;
+}
 
 static int dumpVocabulary()
 {
@@ -76,7 +196,7 @@ static int dumpVocabulary()
             std::cout << "\n";
         }
     }
-    return 0;
+    return auditVoicings();
 }
 
 int main (int argc, char* argv[])
