@@ -1238,6 +1238,8 @@ void ChordsEditor::paint (juce::Graphics& g)
     };
     paintPanel (dicePanel, "DICE");
     paintPanel (loopPanel, "LOOP");
+    if (monitor.isVisible())
+        paintPanel (monitorPanel, "MONITOR");
 
     // Divider between the roll column and the dice configuration - both are
     // dice business, but acting and configuring are different verbs.
@@ -1311,11 +1313,23 @@ void ChordsEditor::resized()
     auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
     ticker.setBounds (hist);
 
+    // MONITOR: the keyboard earns the full window width (QA, July 8 -
+    // C1-C7 was cramped at half width inside LOOP). A dedicated panel
+    // between the control blocks and HISTORY; when height gets tight it
+    // hides first - hiding beats collision.
+    const bool showMonitor = getHeight() >= 580;
+    monitor.setVisible (showMonitor);
+    monitorPanel = {};
+    if (showMonitor)
+    {
+        monitorPanel = b.removeFromBottom (116).reduced (16, 0).withTrimmedBottom (10);
+        monitor.setBounds (monitorPanel.reduced (12).withTrimmedTop (18));
+    }
+
     // The two control blocks. DICE, top to bottom: roll + series length,
     // extensions + wideners, key lock, and auto roll on its own at the
-    // bottom. LOOP: bars, octaves, output chain, the voicing row (M5), and
-    // the monitor keyboard.
-    auto panels = b.removeFromBottom (240).reduced (16, 6);
+    // bottom. LOOP: bars, octaves, output chain, and the voicing row (M5).
+    auto panels = b.removeFromBottom (208).reduced (16, 6);
     dicePanel = panels.removeFromLeft ((int) ((float) panels.getWidth() * 0.46f));
     panels.removeFromLeft (12);
     loopPanel = panels;
@@ -1352,6 +1366,7 @@ void ChordsEditor::resized()
     scaleBox.setBounds (rowE.removeFromLeft (scaleW).withSizeKeepingCentre (scaleW, 24));
 
     auto loop = loopPanel.reduced (12).withTrimmedTop (22);
+    loop.removeFromTop (10); // two rows share DICE's height - let them breathe
     auto loopTop = loop.removeFromTop (44);
     auto controlsRow = loopTop.withTrimmedTop (16).withHeight (28);
     barsRow.setBounds (controlsRow.removeFromLeft (78));
@@ -1368,15 +1383,12 @@ void ChordsEditor::resized()
     // Voicing row (M5): spacing selector, then the two voicing checkboxes.
     // The caption needs the same breathing room as every other row (QA,
     // July 8: it sat too close to the BARS row above).
-    loop.removeFromTop (6);
+    loop.removeFromTop (16);
     auto voiceRow = loop.removeFromTop (42).withTrimmedTop (16).withHeight (26);
     voicingRow.setBounds (voiceRow.removeFromLeft (118));
     voiceRow.removeFromLeft (14);
     smoothToggle.setBounds (voiceRow.removeFromLeft (juce::jmin (158, voiceRow.getWidth() / 2)));
     bassToggle.setBounds (voiceRow);
-
-    // Monitor keyboard: the sounding chord, visible.
-    monitor.setBounds (loop.withTrimmedTop (8));
 
     // Series cards fill the middle, growing with the window.
     auto area = b.reduced (16, 12);

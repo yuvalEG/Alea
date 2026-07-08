@@ -144,7 +144,7 @@ private:
     MonitorStrip monitor;
     juce::OwnedArray<ChordCard> cards;
 
-    juce::Rectangle<int> dicePanel, loopPanel;   // titled control blocks
+    juce::Rectangle<int> dicePanel, loopPanel, monitorPanel;   // titled blocks
     juce::Rectangle<int> meterRect;   // beside the knob when the synth is on
     float meterLevel = 0.0f;          // falling peak
     bool lastSynthOn = true;
