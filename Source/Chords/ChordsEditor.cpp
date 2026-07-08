@@ -905,6 +905,13 @@ void ChordsEditor::timerCallback()
             setSize (getWidth(), 680);
     }
 
+    // Commit a window size once it has survived the debounce window.
+    if (sizeSettle > 0 && --sizeSettle == 0)
+    {
+        chordsProc.lastUIWidth = pendingW;
+        chordsProc.lastUIHeight = pendingH;
+    }
+
     if (seenRevision != chordsProc.revision)
         refresh();
 
@@ -1295,8 +1302,11 @@ void ChordsEditor::paint (juce::Graphics& g)
 
 void ChordsEditor::resized()
 {
-    chordsProc.lastUIWidth = getWidth();
-    chordsProc.lastUIHeight = getHeight();
+    // Not committed directly: teardown transients must never be saved as
+    // the user's window size (see the debounce note in the header).
+    pendingW = getWidth();
+    pendingH = getHeight();
+    sizeSettle = 8; // ~0.25 s at 30 Hz
 
     auto b = getLocalBounds();
 

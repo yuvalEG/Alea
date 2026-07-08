@@ -154,5 +154,12 @@ private:
     juce::uint64 lastSounding = 0;
     int devicePollCountdown = 90;     // ~3s at 30 Hz: MIDI hotplug refresh
 
+    // Window-size persistence is DEBOUNCED: the standalone wrapper
+    // squeezes the editor to its constrained minimum for one frame during
+    // teardown, and recording that in resized() saved the minimum as the
+    // user's size (every launch then "restored" a tucked 880x500 - QA,
+    // July 8). Only a size that survives ~0.25 s gets committed.
+    int pendingW = 0, pendingH = 0, sizeSettle = 0;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChordsEditor)
 };
