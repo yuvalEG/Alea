@@ -830,9 +830,14 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     // Space belongs to the host in a DAW; the plugin never grabs keys.
     setWantsKeyboardFocus (standalone);
 
+    // The height floor fits everything at full size - header, cards at a
+    // useful minimum, both control blocks, the full MONITOR keyboard and
+    // HISTORY (the plugin adds its 20 px footer). Nothing ever condenses
+    // or hides with height; only the cards flex (QA, July 8).
     setResizable (true, true);
-    setResizeLimits (880, 500, 4096, 2400);
-    setSize (juce::jmax (880, chordsProc.lastUIWidth), juce::jmax (480, chordsProc.lastUIHeight));
+    setResizeLimits (880, standalone ? 620 : 640, 4096, 2400);
+    setSize (juce::jmax (880, chordsProc.lastUIWidth),
+             juce::jmax (standalone ? 620 : 640, chordsProc.lastUIHeight));
 
     refresh();
     startTimerHz (30); // fast enough for the bar-progress strip and meter
@@ -1238,16 +1243,7 @@ void ChordsEditor::paint (juce::Graphics& g)
     };
     paintPanel (dicePanel, "DICE");
     paintPanel (loopPanel, "LOOP");
-    if (monitor.isVisible())
-    {
-        if (monitorPanel.getHeight() >= 70) // title zone still has room
-            paintPanel (monitorPanel, "MONITOR");
-        else // squeezed: keys only
-        {
-            g.setColour (colors::panel);
-            g.fillRoundedRectangle (monitorPanel.toFloat(), 8.0f);
-        }
-    }
+    paintPanel (monitorPanel, "MONITOR");
 
     // Divider between the roll column and the dice configuration - both are
     // dice business, but acting and configuring are different verbs.
@@ -1318,31 +1314,17 @@ void ChordsEditor::resized()
     const int playX = juce::jlimit (384, freezeButton.getX() - 86, getWidth() / 2 - 38);
     playButton.setBounds (playX, 14, 76, 28);
 
-    // MONITOR: the keyboard earns the full window width (QA, July 8 -
-    // C1-C7 was cramped at half width inside LOOP). Its height FLEXES:
-    // full when the window allows, compressing smoothly before the cards
-    // (the stars) give up their minimum. The card size stays a CONTINUOUS
-    // function of window height - a hard show/hide threshold popped the
-    // cards (QA), so below the readable floor the remaining pixels go to
-    // HISTORY, never back to the cards. The panel title fades out before
-    // the keys shrink.
-    constexpr int cardsMinimum = 150, monitorMax = 116, monitorFloor = 52;
-    const int monitorBlock = juce::jlimit (0, monitorMax,
-                                           b.getHeight() - 100 - 208 - cardsMinimum);
-    const bool showMonitor = monitorBlock >= monitorFloor;
-
-    auto hist = b.removeFromBottom (100 + (showMonitor ? 0 : monitorBlock))
-                    .reduced (16, 0).withTrimmedBottom (12);
+    auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
     ticker.setBounds (hist);
 
-    monitorPanel = {};
-    monitor.setVisible (showMonitor);
-    if (showMonitor)
-    {
-        monitorPanel = b.removeFromBottom (monitorBlock).reduced (16, 0).withTrimmedBottom (8);
-        const int titleZone = juce::jlimit (0, 16, monitorPanel.getHeight() - 56);
-        monitor.setBounds (monitorPanel.reduced (10).withTrimmedTop (titleZone));
-    }
+    // MONITOR: the keyboard earns the full window width (QA, July 8 -
+    // C1-C7 was cramped at half width inside LOOP). Always present, full
+    // height, titled: two flexing designs fell in QA (a show/hide
+    // threshold popped the cards; smooth compression bred condensed,
+    // title-less states Yuval rejected). The window minimum guarantees
+    // the room instead - only the cards flex with height.
+    monitorPanel = b.removeFromBottom (116).reduced (16, 0).withTrimmedBottom (8);
+    monitor.setBounds (monitorPanel.reduced (10).withTrimmedTop (16));
 
     // The two control blocks. DICE, top to bottom: roll + series length,
     // extensions + wideners, key lock, and auto roll on its own at the
