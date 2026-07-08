@@ -2,6 +2,27 @@
 
 (Scale Shifter's changelog lives in [CHANGELOG.md](CHANGELOG.md).)
 
+## chords-v0.3.0 - 2026-07-08
+
+Voicings. How the printed chord becomes sounding notes, all in the new
+VOICING row of the LOOP panel, all off by default.
+
+- **Smooth voicing**: each chord takes the inversion that moves least
+  from the previous one, so the loop connects like a keyboard player
+  voicing it instead of jumping between root positions.
+- **Close / open spacing**: close stacks the chord as before. Open
+  spreads its notes out for an airier sound, and with several octaves
+  checked it distributes them across the whole range instead of
+  doubling.
+- **Add bass note**: the root lands just below the voicing, like a
+  bass player anchoring the chord.
+- **MONITOR panel**: the keyboard now spans the full window width and
+  covers C1 to C7, the whole range the voicings can reach. Make the
+  window shorter to tuck it away and find the chord's notes yourself,
+  a nice theory workout.
+- The window opens at the same size every time, with the full keyboard
+  visible. The About dialog got shorter.
+
 ## chords-v0.2.1 - 2026-07-08
 
 - The plugin grew Scale Shifter's "No sound? Routing Help" footer link.

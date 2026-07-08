@@ -88,7 +88,7 @@ clap_juce_extensions_plugin(TARGET Alea
 # ---------------------------------------------------------------------------
 # Alea Chord Randomizer: the second Alea product. Versioned independently of
 # Scale Shifter; its release tags use the "chords-v" prefix.
-set(CHORDS_VERSION 0.2.1)
+set(CHORDS_VERSION 0.3.0)
 
 set(CHORDS_ICON_ARGS "")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon-chords.png")
