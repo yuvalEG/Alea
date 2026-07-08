@@ -39,16 +39,10 @@ public:
     // (state can arrive from the wrapper before or after the editor exists).
     int revision = 0;
 
-    // 680 fits everything a fresh install shows, full MONITOR included
-    // (560 hid the keyboard once it became its own panel - QA, July 8).
-    int lastUIWidth = 900, lastUIHeight = 680;
-
-    // One-time migration: window heights saved before the MONITOR panel
-    // existed open with the keyboard tucked. The standalone wrapper
-    // restores its own saved window frame AFTER the editor is built, so
-    // the editor enforces the lift on its first timer tick (message
-    // thread), then clears this.
-    bool liftWindowOnce = false;
+    // Window size is deliberately NOT persisted (family behavior - Scale
+    // Shifter opens at its default too): every launch is 900x680 with the
+    // full MONITOR visible; tucking it is a per-session gesture. Decided
+    // July 8 after persisted sizes kept restoring shutdown transients.
 
     // --- transport and loop (spec M2) ---
     std::atomic<bool>  playing { false };

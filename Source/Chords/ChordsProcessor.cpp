@@ -832,7 +832,6 @@ void ChordsProcessor::renderSynth (juce::AudioBuffer<float>& buffer, const juce:
 void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::ValueTree state ("ChordsState");
-    state.setProperty ("uiV", 3, nullptr); // window-height migration marker (see setStateInformation)
     state.setProperty ("seriesLength", seriesLength, nullptr);
     state.setProperty ("useSevenths", useSevenths, nullptr);
     state.setProperty ("simplify", simplify, nullptr);
@@ -841,8 +840,6 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("keyLock", keyLockOn, nullptr);
     state.setProperty ("keyScale", keyScale, nullptr);
     state.setProperty ("keyIndex", keyIndex, nullptr);
-    state.setProperty ("uiWidth", lastUIWidth, nullptr);
-    state.setProperty ("uiHeight", lastUIHeight, nullptr);
     state.setProperty ("bpm", (double) bpm.load(), nullptr);
     state.setProperty ("barsPerChord", barsPerChord.load(), nullptr);
     state.setProperty ("octaves", octaveMask.load(), nullptr);
@@ -893,19 +890,8 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     keyScale     = juce::jlimit (0, 2, (int) state.getProperty ("keyScale", 0));
     keyIndex     = juce::jlimit (0, chords::keyNamesFor ((chords::ScaleType) keyScale).size() - 1,
                                  (int) state.getProperty ("keyIndex", 0));
-    lastUIWidth  = juce::jlimit (560, 4000, (int) state.getProperty ("uiWidth", 900));
-    lastUIHeight = juce::jlimit (380, 3000, (int) state.getProperty ("uiHeight", 680));
-    // Window heights saved before uiV 3 are untrustworthy: pre-M5 states
-    // predate the MONITOR panel, and uiV 2 states were stomped by the
-    // teardown-transient bug (the editor's frame-long squeeze to its
-    // minimum during shutdown got saved as the user's size). Lift them
-    // once - sizes saved from uiV 3 on are debounced and are the user's
-    // own choice (a tucked window is a practice mode), never touched.
-    if ((int) state.getProperty ("uiV", 1) < 3 && lastUIHeight < 680)
-    {
-        lastUIHeight = 680;
-        liftWindowOnce = true; // the wrapper re-applies its own frame later - see ChordsProcessor.h
-    }
+    // (uiWidth/uiHeight in older states are deliberately ignored - window
+    // size is not persisted; see the note in ChordsProcessor.h.)
     bpm.store (juce::jlimit (30.0f, 300.0f, (float) (double) state.getProperty ("bpm", 90.0)));
     barsPerChord.store (juce::jlimit (1, 4, (int) state.getProperty ("barsPerChord", 1)));
     // "octave" (single) was the pre-multi-select property name.

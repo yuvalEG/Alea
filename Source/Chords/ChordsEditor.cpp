@@ -47,8 +47,8 @@ namespace
             text.setText (juce::String::fromUTF8 (
                 "Alea Chord Randomizer, version " CHORDS_VERSION "\n\n"
                 "THE EXERCISE\n\n"
-                "This app was born from an improvisation exercise by my guitar "
-                "teacher, Yonatan Benaroche: generate a short random chord "
+                "This app was born from an improvisation exercise by guitar "
+                "teacher Yonatan Benaroche: generate a short random chord "
                 "progression, loop it, and improvise over it with your "
                 "instrument. A progression you did not choose forces your ear "
                 "and your hands out of familiar shapes.\n\n"
@@ -830,11 +830,12 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     // Space belongs to the host in a DAW; the plugin never grabs keys.
     setWantsKeyboardFocus (standalone);
 
-    // Short windows are legitimate (the tucked-monitor practice mode);
-    // the default (900x680) shows the full MONITOR with room to spare.
+    // Every open is 900x680 - size is not persisted (family behavior, and
+    // persisted sizes kept restoring shutdown transients). Short windows
+    // are legitimate within a session: the tucked-monitor practice mode.
     setResizable (true, true);
     setResizeLimits (880, 500, 4096, 2400);
-    setSize (juce::jmax (880, chordsProc.lastUIWidth), juce::jmax (500, chordsProc.lastUIHeight));
+    setSize (900, 680);
 
     refresh();
     startTimerHz (30); // fast enough for the bar-progress strip and meter
@@ -894,24 +895,6 @@ ChordsEditor::~ChordsEditor()
 
 void ChordsEditor::timerCallback()
 {
-    // One-time pre-M5 height migration: the standalone wrapper restores
-    // its own saved window frame after this editor is built, undoing the
-    // lift from setStateInformation - so enforce it here, once, after
-    // that restore has already happened.
-    if (chordsProc.liftWindowOnce)
-    {
-        chordsProc.liftWindowOnce = false;
-        if (standalone && getHeight() < 680)
-            setSize (getWidth(), 680);
-    }
-
-    // Commit a window size once it has survived the debounce window.
-    if (sizeSettle > 0 && --sizeSettle == 0)
-    {
-        chordsProc.lastUIWidth = pendingW;
-        chordsProc.lastUIHeight = pendingH;
-    }
-
     if (seenRevision != chordsProc.revision)
         refresh();
 
@@ -1302,11 +1285,6 @@ void ChordsEditor::paint (juce::Graphics& g)
 
 void ChordsEditor::resized()
 {
-    // Not committed directly: teardown transients must never be saved as
-    // the user's window size (see the debounce note in the header).
-    pendingW = getWidth();
-    pendingH = getHeight();
-    sizeSettle = 8; // ~0.25 s at 30 Hz
 
     auto b = getLocalBounds();
 
