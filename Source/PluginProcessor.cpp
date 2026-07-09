@@ -16,7 +16,7 @@ AleaAudioProcessor::AleaAudioProcessor()
     pLengthMode   = raw ("lengthMode");   pLengthSync   = raw ("lengthSync");   pLengthFree   = raw ("lengthFree");
     pMorphPos     = raw ("morphPos");     pAutoSweep    = raw ("autoSweep");
     pMorphDurMode = raw ("morphDurMode"); pMorphDurBars = raw ("morphDurBars");
-    pMorphDurFree = raw ("morphDurFree"); pMorphDurUnit = raw ("morphDurUnit");
+    pMorphDurFree = raw ("morphDurFree");
     pMorphMode    = raw ("morphMode");    pMorphCurve   = raw ("morphCurve");
     pTempoSource  = raw ("tempoSource");  pInternalTempo = raw ("internalTempo");
     pFreeze       = raw ("freeze");
@@ -105,7 +105,7 @@ double AleaAudioProcessor::sweepLegPpq (double bpm) const
     if ((int) pMorphDurMode->load() == 0) // Sync: bars
         return params::morphDurBarValues[(size_t) pMorphDurBars->load()] * 4.0;
 
-    const double seconds = pMorphDurFree->load() * ((int) pMorphDurUnit->load() == 1 ? 60.0 : 1.0);
+    const double seconds = pMorphDurFree->load(); // already in seconds (1 s .. 600 min)
     return seconds * bpm / 60.0;
 }
 

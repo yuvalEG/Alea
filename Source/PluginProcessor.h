@@ -123,7 +123,7 @@ private:
     std::atomic<float> *pIntervalMode {}, *pIntervalSync {}, *pIntervalFree {},
                        *pLengthMode {}, *pLengthSync {}, *pLengthFree {},
                        *pMorphPos {}, *pAutoSweep {}, *pMorphDurMode {}, *pMorphDurBars {},
-                       *pMorphDurFree {}, *pMorphDurUnit {}, *pMorphMode {}, *pMorphCurve {},
+                       *pMorphDurFree {}, *pMorphMode {}, *pMorphCurve {},
                        *pTempoSource {}, *pInternalTempo {}, *pFreeze {},
                        *pTranspose {}, *pSynthVol {};
 

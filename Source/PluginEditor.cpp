@@ -309,6 +309,9 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         return params::morphDurBarNames[i] + (params::morphDurBarNames[i] == "1" ? " bar" : " bars");
     };
     morphDurBars.updateText();
+    // Free mode auto-formats seconds -> minutes in the readout (no unit control).
+    morphDurFree.textFromValueFunction = [] (double v) { return params::morphTimeString ((float) v); };
+    morphDurFree.updateText();
 
     setupSlider (internalTempo, "internalTempo", colors::green);
     internalTempo.setComponentID ("bpm"); // drawn as a glass green BPM LCD
@@ -342,7 +345,6 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         { return divisionDisplay[juce::jlimit (0, divisionDisplay.size() - 1, (int) std::lround (v))]; };
         slider->updateText();
     }
-    setupCombo (morphDurUnit, "morphDurUnit");
 
     // Root pickers: the pitch each scale's octave span starts from (a real
     // parameter - root A + octave 3 plays A3..G#4).
@@ -681,9 +683,10 @@ void AleaAudioProcessorEditor::layoutMain()
         // Seconds/Minutes unit below it in Free mode) on the left, and the
         // DURATION knob on the right.
         autoSweep.setBounds (x, morphPanel.getY() + 78, w, 28);
-        const int knob = 50, durY = morphPanel.getY() + 116;
-        morphDurMode.setBounds (x, durY, w - knob - 70, 26);
-        morphDurUnit.setBounds (x, durY + 32, w - knob - 70, 26); // free mode only
+        // SYNC/FREE on the left, one dual-mode DURATION knob on the right -
+        // the layout is identical in both modes (no unit dropdown).
+        const int knob = 50, durY = morphPanel.getY() + 118;
+        morphDurMode.setBounds (x, durY + 10, w - knob - 70, 26);
         morphDurBars.setBounds (morphPanel.getRight() - 12 - knob, durY, knob, knob);
         morphDurFree.setBounds (morphPanel.getRight() - 12 - knob, durY, knob, knob);
         morphMode.setBounds (x, morphPanel.getY() + 194, w, 26);
@@ -825,7 +828,6 @@ void AleaAudioProcessorEditor::updateModeVisibility()
     const bool durSync = (int) alea.apvts.getRawParameterValue ("morphDurMode")->load() == 0;
     morphDurBars.setVisible (durSync);
     morphDurFree.setVisible (! durSync);
-    morphDurUnit.setVisible (! durSync);
     if (durWasSync != durSync)
         content.repaint (morphPanel); // the painted DURATION value follows the mode
 

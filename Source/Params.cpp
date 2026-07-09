@@ -89,11 +89,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
             return juce::String (v, 2);
         });
 
+    // One dual-mode duration: in Free mode the knob sweeps 1 second to
+    // 600 minutes on a log curve, and the readout auto-formats the unit
+    // (seconds, then minutes) - no separate unit control.
+    const auto durationTime = juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+        params::morphTimeString);
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "morphDurFree", 1 }, "Morph Duration (time)",
-        juce::NormalisableRange<float> (0.0f, 600.0f, 0.0f, 0.35f), 30.0f, // skewed: most of the travel serves short durations
-        tidyNumber));
-    layout.add (choice ("morphDurUnit", "Morph Duration Unit", morphDurUnits, 0));
+        juce::NormalisableRange<float> (1.0f, 36000.0f, 0.0f, 0.13f), 30.0f, // log-ish: 1 s .. 600 min
+        durationTime));
     layout.add (choice ("morphMode", "Morph Mode", morphModes, oneShot));
     layout.add (choice ("morphCurve", "Morph Curve", morphCurves, linear));
 

@@ -25,7 +25,16 @@ namespace params
     inline const juce::StringArray morphDurModes { "Sync", "Free" };
     inline const juce::StringArray morphDurBarNames { "1", "2", "4", "8", "16", "32", "64" };
     constexpr std::array<double, 7> morphDurBarValues { 1, 2, 4, 8, 16, 32, 64 };
-    inline const juce::StringArray morphDurUnits { "Seconds", "Minutes" };
+
+    // Free-mode morph duration readout: seconds up to a minute, then minutes
+    // (the knob's own auto-formatting unit).
+    inline juce::String morphTimeString (float seconds, int = 0)
+    {
+        if (seconds < 60.0f)
+            return juce::String ((int) std::lround (seconds)) + " s";
+        const float m = seconds / 60.0f;
+        return juce::String (m, m < 10.0f ? 1 : 0) + " min";
+    }
     inline const juce::StringArray morphModes  { "One-Shot", "Loop", "Bounce" };
     inline const juce::StringArray morphCurves { "Linear", "Exponential", "S-Curve", "Logarithmic" };
     inline const juce::StringArray tempoSources { "Host", "Free-Run" };

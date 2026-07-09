@@ -61,7 +61,7 @@ const std::vector<Factory>& factory()
               0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 0, 9, 0 },
             { "Sweeps", "Order \xe2\x86\x92 Chaos", // 3-minute journey, 2-bar drones + 2-bar rests, octave 2
               m ({ 0, 2, 4, 5, 7 }), chromatic, m ({ 0 }), m ({ 0 }),  2, 2, 2, 2,  75, 105, 60, 120,
-              0, 1,  0, 1,  1, 1, 5, 3.0f, 1, 0, 0 },
+              0, 1,  0, 1,  1, 1, 5, 180.0f, 0, 0, 0 }, // durFree now in seconds (3 min)
         };
     }();
     return list;
@@ -105,7 +105,7 @@ void apply (juce::AudioProcessorValueTreeState& apvts, const Factory& f)
     set ("morphDurMode", (float) f.durMode);
     set ("morphDurBars", (float) f.durBarsIdx);
     set ("morphDurFree", f.durFree);
-    set ("morphDurUnit", (float) f.durUnit);
+    // (morphDurUnit removed: the free duration is now a single seconds value)
     set ("morphMode",    (float) f.morphMode);
     set ("morphCurve",   (float) f.morphCurve);
     set ("morphPos",     0.0f);
