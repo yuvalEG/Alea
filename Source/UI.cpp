@@ -19,6 +19,32 @@ namespace hw
     // sheen 1.9 = strong specular; glow 1.4 = brighter LED bloom.
     constexpr float kSheen = 1.9f, kGlow = 1.4f;
 
+    // Soft glow the JUCE way (no box-shadow / blur): stroke the shape a few
+    // times growing outward at falling alpha (JUCE_DRAWING_GUIDE technique 1).
+    void glowRoundedRect (juce::Graphics& g, juce::Rectangle<float> r, float radius,
+                          juce::Colour colour, float strength)
+    {
+        for (int i = 3; i >= 1; --i)
+        {
+            g.setColour (colour.withAlpha (0.14f * (float) i * kGlow * strength));
+            g.drawRoundedRectangle (r.expanded ((float) i * 1.6f), radius, (float) i * 1.4f);
+        }
+    }
+
+    // Glowing text (LCD phosphor / lit note): draw the glyphs a few times at
+    // low alpha, then crisp on top.
+    void glowText (juce::Graphics& g, const juce::String& text, juce::Rectangle<int> area,
+                   juce::Justification just, juce::Colour colour)
+    {
+        g.setColour (colour.withAlpha (0.28f * kGlow));
+        for (int dx = -1; dx <= 1; ++dx)
+            for (int dy = -1; dy <= 1; ++dy)
+                if (dx || dy)
+                    g.drawText (text, area.translated (dx, dy), just);
+        g.setColour (colour);
+        g.drawText (text, area, just);
+    }
+
     void brushedMetal (juce::Graphics& g, juce::Rectangle<float> r, float radius, bool isPlate)
     {
         if (isPlate)
@@ -359,6 +385,18 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
     const int root = rootRaw != nullptr ? (int) rootRaw->load() : 0;
 
+    // Recessed keybed the keys sit in.
+    hw::insetWell (g, getLocalBounds().toFloat(), 8.0f);
+
+    // Bottom-rounded key shape (top edge sits square against the bed).
+    auto keyPath = [] (juce::Rectangle<float> k, float r)
+    {
+        juce::Path p;
+        p.addRoundedRectangle (k.getX(), k.getY(), k.getWidth(), k.getHeight(), r, r,
+                               false, false, true, true);
+        return p;
+    };
+
     // Slot i holds interval i from the root: the shape stays put when the
     // root changes; the letters (and black/white identity) move instead.
     int whiteSlotCounter = 0;
@@ -369,22 +407,37 @@ void PianoKeyboard::paint (juce::Graphics& g)
             continue;
         const auto key = whiteKeyBounds (whiteSlotCounter++).reduced (1.0f);
         const bool isPlayingKey = mine && i == activePc;
-        const auto fill = selected[i] ? accent : accent.withAlpha (0.10f);
-        if (selected[i]) // top-lit gradient on lit keys
-            g.setGradientFill (juce::ColourGradient (fill.brighter (0.12f), key.getX(), key.getY(),
-                                                     fill.darker (0.18f), key.getX(), key.getBottom(), false));
-        else
-            g.setColour (fill);
-        g.fillRoundedRectangle (key, 3.0f);
+        const auto path = keyPath (key, 3.0f);
+
+        if (selected[i])
+        {
+            hw::glowRoundedRect (g, key, 3.0f, accent);
+            g.setGradientFill (juce::ColourGradient (accent.brighter (0.22f), key.getX(), key.getY(),
+                                                     accent.darker (0.20f), key.getX(), key.getBottom(), false));
+            g.fillPath (path);
+            g.setColour (juce::Colours::white.withAlpha (0.25f)); // top highlight
+            g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.2f);
+        }
+        else // real ivory-grey piano key
+        {
+            juce::ColourGradient wk (juce::Colour (0xffcfd2dc), key.getX(), key.getY(),
+                                     juce::Colour (0xff8b8f9e), key.getX(), key.getBottom(), false);
+            wk.addColour (0.68, juce::Colour (0xffa9adbb));
+            g.setGradientFill (wk);
+            g.fillPath (path);
+            g.setColour (juce::Colours::white.withAlpha (0.6f));
+            g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.0f);
+            g.setColour (juce::Colours::black.withAlpha (0.2f));
+            g.drawLine (key.getX() + 2.0f, key.getBottom() - 1.0f, key.getRight() - 2.0f, key.getBottom() - 1.0f, 1.0f);
+        }
         if (isPlayingKey)
             velocityFill (key);
-        g.setColour (colors::border);
-        g.drawRoundedRectangle (key, 3.0f, 1.0f);
 
-        g.setColour (selected[i] || isPlayingKey ? juce::Colours::black.withAlpha (0.75f) : colors::secondary);
+        g.setColour (selected[i] || isPlayingKey ? juce::Colours::black.withAlpha (0.8f)
+                                                 : juce::Colour (0xff3a3d47));
         g.setFont (juce::FontOptions (14.0f));
         g.drawText (params::pitchClassNames[pc],
-                    key.withTop (key.getBottom() - 18.0f), juce::Justification::centred);
+                    key.withTop (key.getBottom() - 18.0f).toNearestInt(), juce::Justification::centred);
     }
 
     int whitesBefore = 0;
@@ -398,17 +451,27 @@ void PianoKeyboard::paint (juce::Graphics& g)
         }
         const auto key = blackKeyBounds (whitesBefore);
         const bool isPlayingKey = mine && i == activePc;
-        const auto fill = selected[i] ? accent : juce::Colour (0xff08080c);
+        const auto path = keyPath (key, 2.5f);
+
         if (selected[i])
-            g.setGradientFill (juce::ColourGradient (fill.brighter (0.12f), key.getX(), key.getY(),
-                                                     fill.darker (0.18f), key.getX(), key.getBottom(), false));
+        {
+            hw::glowRoundedRect (g, key, 2.5f, accent);
+            g.setGradientFill (juce::ColourGradient (accent.brighter (0.22f), key.getX(), key.getY(),
+                                                     accent.darker (0.25f), key.getX(), key.getBottom(), false));
+            g.fillPath (path);
+            g.setColour (juce::Colours::white.withAlpha (0.28f));
+            g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.0f);
+        }
         else
-            g.setColour (fill);
-        g.fillRoundedRectangle (key, 3.0f);
+        {
+            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff26282d), key.getX(), key.getY(),
+                                                     juce::Colour (0xff0c0d10), key.getX(), key.getBottom(), false));
+            g.fillPath (path);
+            g.setColour (juce::Colours::white.withAlpha (0.12f));
+            g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.0f);
+        }
         if (isPlayingKey)
             velocityFill (key);
-        g.setColour (colors::border);
-        g.drawRoundedRectangle (key, 3.0f, 1.0f);
     }
 }
 
@@ -804,9 +867,9 @@ void OutputPanel::paint (juce::Graphics& g)
     const float bigNote = outputBox != nullptr ? 26.0f : 36.0f;
     if (active >= 0)
     {
-        g.setColour (srcColour.brighter (0.35f)); // lit phosphor
         g.setFont (juce::Font (juce::FontOptions (bigNote)).boldened());
-        g.drawText (noteName (active), noteRow, juce::Justification::centredLeft);
+        hw::glowText (g, noteName (active), noteRow, juce::Justification::centredLeft,
+                      srcColour.brighter (0.35f)); // lit phosphor with glow
     }
     else if (rest >= 0)
     {

@@ -53,6 +53,13 @@ namespace hw
     // returns the colour the caller should draw the legend in.
     juce::Colour button (juce::Graphics&, juce::Rectangle<float> r, bool lit,
                          juce::Colour ledColour, bool over, bool down);
+
+    // Soft outward glow around a rounded rect (no box-shadow in JUCE).
+    void glowRoundedRect (juce::Graphics&, juce::Rectangle<float> r, float radius,
+                          juce::Colour colour, float strength = 1.0f);
+    // Phosphor-glow text (drawn several times at low alpha, then crisp).
+    void glowText (juce::Graphics&, const juce::String& text, juce::Rectangle<int> area,
+                   juce::Justification, juce::Colour colour);
 }
 
 // Standalone transport: drawn play triangle / pause bars plus a label -

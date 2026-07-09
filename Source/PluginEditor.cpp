@@ -264,12 +264,33 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
             {
                 const auto r = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height);
                 ui::hw::lcd (g, r, colors::green);
-                g.setColour (colors::green.brighter (0.35f).withAlpha (s.isEnabled() ? 1.0f : 0.55f));
                 g.setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
-                g.drawText (s.getTextFromValue (s.getValue()), r, juce::Justification::centred);
+                ui::hw::glowText (g, s.getTextFromValue (s.getValue()), r.toNearestInt(),
+                                  juce::Justification::centred,
+                                  colors::green.brighter (0.35f).withAlpha (s.isEnabled() ? 1.0f : 0.55f));
                 return;
             }
-            juce::LookAndFeel_V4::drawLinearSlider (g, x, y, width, height, pos, minPos, maxPos, style, s);
+            // MiniSlider: recessed track, accent fill with a soft glow, round
+            // cap (JUCE_DRAWING_GUIDE section 5).
+            const float cy = (float) y + (float) height * 0.5f;
+            auto track = juce::Rectangle<float> ((float) x, cy - 3.0f, (float) width, 6.0f);
+            ui::hw::insetWell (g, track, 3.0f);
+            auto acc = s.findColour (juce::Slider::trackColourId);
+            if (acc.getAlpha() < 40) acc = colors::green;
+            const float fillEnd = juce::jlimit ((float) x, (float) x + (float) width, pos);
+            g.setColour (acc.withAlpha (0.35f));
+            g.fillRoundedRectangle (track.withRight (fillEnd).expanded (0.0f, 1.0f), 3.5f);
+            g.setColour (acc);
+            g.fillRoundedRectangle (track.withRight (fillEnd), 3.0f);
+            // Round cap.
+            juce::Rectangle<float> cap (15.0f, 15.0f);
+            cap.setCentre (fillEnd, cy);
+            juce::ColourGradient cg (juce::Colour (0xff4a4d55), cap.getX(), cap.getY(),
+                                     juce::Colour (0xff131418), cap.getX(), cap.getBottom(), false);
+            g.setGradientFill (cg);
+            g.fillEllipse (cap);
+            g.setColour (juce::Colours::white.withAlpha (0.35f));
+            g.drawEllipse (cap.reduced (0.5f), 1.0f);
         }
     };
     static AleaLookAndFeel aleaLnf; // process lifetime: dialogs may outlive the editor
