@@ -6,7 +6,7 @@ using namespace ui;
 
 namespace
 {
-    constexpr int kWidth = 940, kHeight = 720;
+    constexpr int kWidth = 940, kHeight = 772; // taller: the OUTPUT knob row + LCD + monitor + history all show
 
     // About dialog: wordmark over a subtle vertical gradient, text below.
     struct AboutComponent : juce::Component
@@ -153,7 +153,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
                                float, float, juce::Slider& slider) override
         {
-            const bool bipolar = slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0;
+            // Bipolar (arc grows from 12 o'clock) only when the range is
+            // symmetric around 0 - e.g. Transpose (-24..+24). The volume knob
+            // (-24..+6) is a normal knob: its centre is not the default.
+            const bool bipolar = std::abs (slider.getMinimum() + slider.getMaximum()) < 0.001;
             ui::hw::knob (g, juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height),
                           pos, slider.findColour (juce::Slider::rotarySliderFillColourId), bipolar);
         }
@@ -270,6 +273,15 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     makeKnob (bVelMin, "bVelMin", colors::cyan);   makeKnob (bVelMax, "bVelMax", colors::cyan);
     setupSlider (intervalFree, "intervalFree", colors::text.withAlpha (0.6f));
     setupSlider (lengthFree, "lengthFree", colors::text.withAlpha (0.6f));
+    // Free-mode timing is a knob as well, matching the synced knobs.
+    for (auto* s : { &intervalFree, &lengthFree })
+    {
+        s->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        s->setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
+                                juce::MathConstants<float>::pi * 2.75f, true);
+        s->setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+        s->setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
+    }
     setupSlider (morphDurFree, "morphDurFree", colors::amber);
     setupSlider (internalTempo, "internalTempo", colors::green);
     internalTempo.setComponentID ("bpm"); // drawn as a glass green BPM LCD
@@ -283,16 +295,16 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     static const juce::StringArray divisionDisplay {
         "4 bars", "2 bars", "1 bar", "1/2 note", "1/4 note", "1/8 note",
         "1/16 note", "1/32 note", "1/64 note", "1/128 note" };
+    // The synced divisions are now hardware knobs too (Yuval): dial through
+    // "2 bars" ... "1/64 note"; the value is painted beside the knob.
     for (auto& [slider, id] : { std::pair<juce::Slider*, const char*> { &intervalSync, "intervalSync" },
                                 { &lengthSync, "lengthSync" } })
     {
-        slider->setSliderStyle (juce::Slider::LinearHorizontal);
-        slider->setTextBoxStyle (juce::Slider::TextBoxLeft, false, 92, 22);
-        slider->setColour (juce::Slider::thumbColourId, colors::text.withAlpha (0.85f));
-        slider->setColour (juce::Slider::trackColourId, colors::control);
-        slider->setColour (juce::Slider::backgroundColourId, colors::control);
-        slider->setColour (juce::Slider::textBoxTextColourId, colors::text);
-        slider->setColour (juce::Slider::textBoxOutlineColourId, colors::border);
+        slider->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        slider->setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
+                                     juce::MathConstants<float>::pi * 2.75f, true);
+        slider->setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+        slider->setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
         content.addAndMakeVisible (*slider);
         sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             alea.apvts, id, *slider));
@@ -622,15 +634,17 @@ void AleaAudioProcessorEditor::layoutMain()
     scaleControls (scaleAPanel, keyboardA, restsA, aOctMin, aOctMax, aVelMin, aVelMax);
     scaleControls (scaleBPanel, keyboardB, restsB, bOctMin, bOctMax, bVelMin, bVelMax);
 
-    // Timing
+    // Timing: each row is a Sync/Free/Random selector, then a knob (synced
+    // divisions or free seconds) with its value painted beside it.
     {
         const int x = timingPanel.getX() + 12, w = timingPanel.getWidth() - 24;
+        constexpr int knob = 50;
         intervalMode.setBounds (x, timingPanel.getY() + 48, w, 26);
-        intervalSync.setBounds (x, timingPanel.getY() + 80, w, 26);
-        intervalFree.setBounds (x, timingPanel.getY() + 80, w, 26);
-        lengthMode.setBounds (x, timingPanel.getY() + 146, w, 26);
-        lengthSync.setBounds (x, timingPanel.getY() + 178, w, 26);
-        lengthFree.setBounds (x, timingPanel.getY() + 178, w, 26);
+        intervalSync.setBounds (x, timingPanel.getY() + 82, knob, knob);
+        intervalFree.setBounds (x, timingPanel.getY() + 82, knob, knob);
+        lengthMode.setBounds (x, timingPanel.getY() + 156, w, 26);
+        lengthSync.setBounds (x, timingPanel.getY() + 190, knob, knob);
+        lengthFree.setBounds (x, timingPanel.getY() + 190, knob, knob);
     }
 
     // Morph
@@ -894,23 +908,39 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     g.setColour (colors::secondary);
 
     g.drawText ("NOTE RATE",   timingPanel.getX() + 12, timingPanel.getY() + 30, 120, 16, juce::Justification::centredLeft);
-    g.drawText ("NOTE LENGTH", timingPanel.getX() + 12, timingPanel.getY() + 128, 120, 16, juce::Justification::centredLeft);
+    g.drawText ("NOTE LENGTH", timingPanel.getX() + 12, timingPanel.getY() + 138, 120, 16, juce::Justification::centredLeft);
 
-    // Random-mode monitoring: show what the dice just rolled.
+    // The value of each timing knob, painted to its right ("1/4 note", "0.5 s").
+    auto timingValue = [&] (juce::Slider& sync, juce::Slider& freeS, int mode)
+    {
+        if (mode == params::random)
+            return;
+        auto& k = (mode == params::sync) ? sync : freeS;
+        g.setColour (colors::text);
+        g.setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
+        g.drawText (k.getTextFromValue (k.getValue()),
+                    k.getRight() + 10, k.getY(), timingPanel.getRight() - k.getRight() - 18, k.getHeight(),
+                    juce::Justification::centredLeft);
+    };
+    const int iMode = (int) alea.apvts.getRawParameterValue ("intervalMode")->load();
+    const int lMode = (int) alea.apvts.getRawParameterValue ("lengthMode")->load();
+    timingValue (intervalSync, intervalFree, iMode);
+    timingValue (lengthSync, lengthFree, lMode);
+
+    // Random-mode monitoring: show what the dice just rolled, beside the row.
     auto drawRandomPick = [&] (int y, int poolIndex)
     {
         g.setColour (colors::text.withAlpha (0.85f));
         g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
         g.drawText (poolIndex >= 0 ? "now: " + params::randomPoolNames[poolIndex] : "now: -",
-                    timingPanel.getX() + 12, y, timingPanel.getWidth() - 24, 26, juce::Justification::centred);
-        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
+                    timingPanel.getX() + 12, y, timingPanel.getWidth() - 24, 26, juce::Justification::centredLeft);
         g.setColour (colors::secondary);
     };
 
-    if ((int) alea.apvts.getRawParameterValue ("intervalMode")->load() == params::random)
-        drawRandomPick (timingPanel.getY() + 80, alea.lastRandomInterval.load());
-    if ((int) alea.apvts.getRawParameterValue ("lengthMode")->load() == params::random)
-        drawRandomPick (timingPanel.getY() + 178, alea.lastRandomLength.load());
+    if (iMode == params::random)
+        drawRandomPick (timingPanel.getY() + 92, alea.lastRandomInterval.load());
+    if (lMode == params::random)
+        drawRandomPick (timingPanel.getY() + 200, alea.lastRandomLength.load());
     g.drawText ("MORPH DURATION", morphPanel.getX() + 12, morphPanel.getY() + 108, 130, 12, juce::Justification::centredLeft);
     if (morphMode.isVisible())
         g.drawText ("MORPH MODE",  morphPanel.getX() + 12, morphPanel.getY() + 154, 130, 12, juce::Justification::centredLeft);

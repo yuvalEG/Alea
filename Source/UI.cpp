@@ -149,15 +149,11 @@ namespace hw
         // Faint inner phosphor wash (kept low so an idle screen reads dark, not lit).
         g.setColour (phosphor.withAlpha (0.05f));
         g.fillRoundedRectangle (r.reduced (2.0f), 6.0f);
-        // Scanlines.
+        // Corner gloss (under the readout).
         juce::Path clip;
         clip.addRoundedRectangle (r, 8.0f);
         g.saveState();
         g.reduceClipRegion (clip);
-        g.setColour (juce::Colours::black.withAlpha (0.28f));
-        for (float y = r.getY(); y < r.getBottom(); y += 3.0f)
-            g.fillRect (r.getX(), y, r.getWidth(), 1.0f);
-        // Corner gloss.
         juce::ColourGradient gloss (juce::Colours::white.withAlpha (0.10f), r.getX(), r.getY(),
                                     juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.5f, r.getY() + r.getHeight() * 0.5f, false);
         g.setGradientFill (gloss);
@@ -165,6 +161,20 @@ namespace hw
         g.restoreState();
         g.setColour (juce::Colours::black.withAlpha (0.7f));
         g.drawRoundedRectangle (r.reduced (0.5f), 8.0f, 1.0f);
+    }
+
+    // The CRT scanlines - the TOP layer, drawn after the readout so the note
+    // and LED read as sitting behind the glass (old-monitor look).
+    void lcdScanlines (juce::Graphics& g, juce::Rectangle<float> r)
+    {
+        juce::Path clip;
+        clip.addRoundedRectangle (r, 8.0f);
+        g.saveState();
+        g.reduceClipRegion (clip);
+        g.setColour (juce::Colours::black.withAlpha (0.30f));
+        for (float y = r.getY(); y < r.getBottom(); y += 3.0f)
+            g.fillRect (r.getX(), y, r.getWidth(), 1.0f);
+        g.restoreState();
     }
 
     void meter (juce::Graphics& g, juce::Rectangle<float> r, float level01)
@@ -904,12 +914,12 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
     volAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         alea.apvts, "synthVol", volSlider);
 
-    // Global transpose: an output transform, so it lives in OUTPUT.
-    transposeSlider.setSliderStyle (juce::Slider::LinearBar);
-    transposeSlider.setColour (juce::Slider::trackColourId, colors::text.withAlpha (0.35f));
-    transposeSlider.setColour (juce::Slider::backgroundColourId, colors::control);
-    transposeSlider.setColour (juce::Slider::textBoxTextColourId, colors::text);
-    transposeSlider.setColour (juce::Slider::textBoxOutlineColourId, colors::border);
+    // Global transpose: an output transform, so it lives in OUTPUT. A bipolar
+    // knob (its 12 o'clock is 0 semitones, the default).
+    transposeSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    transposeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    transposeSlider.setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
+    transposeSlider.setDoubleClickReturnValue (true, 0.0);
     addAndMakeVisible (transposeSlider);
     transposeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         alea.apvts, "transpose", transposeSlider);
@@ -917,17 +927,19 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
 
 void OutputPanel::resized()
 {
-    // The output chooser is the panel's top row - it decides whether Alea
-    // makes sound at all, so it hides nowhere. With the synth active it
-    // shares the top-right corner with a volume knob (left) and a vertical
-    // meter (right). TRANSPOSE gets the second row.
+    // The OUT chooser is the panel's top row - it never hides. Below it a
+    // knob row: TRANSPOSE (bipolar) on the left, and - only with the synth
+    // active - the OUT meter + LEVEL knob on the right.
     if (outputBox == nullptr)
         return;
     const bool synth = alea.synthOn.load();
-    outputBox->setBounds (0, 0, synth ? getWidth() - 92 : getWidth(), 26);
-    volSlider.setBounds (getWidth() - 82, 2, 44, 44);
+    outputBox->setBounds (0, 0, getWidth(), 26);
+
+    const int ky = 32, ks = 46;
+    transposeSlider.setBounds (2, ky, ks, ks);
+    volSlider.setBounds (getWidth() - ks - 2, ky, ks, ks);
     volSlider.setVisible (synth);
-    transposeSlider.setBounds (0, 54, getWidth(), 20);
+    meterRect = juce::Rectangle<int> (getWidth() - ks - 2 - 24, ky + 2, 14, ks - 4);
 }
 
 void OutputPanel::paint (juce::Graphics& g)
@@ -945,86 +957,89 @@ void OutputPanel::paint (juce::Graphics& g)
         resized();
     }
 
-    // Output meter (internal synth): vertical falling peak with green /
-    // amber / red zones - amber warns, red means the limiter is working.
+    // Knob-row captions + values (TRANSPOSE always; OUT meter + LEVEL with
+    // the synth). Knob bounds come from resized().
+    auto knobCaption = [&] (juce::Rectangle<int> kb, const juce::String& cap, const juce::String& val)
+    {
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+        g.drawText (cap, kb.getX() - 12, kb.getBottom() - 2, kb.getWidth() + 24, 13, juce::Justification::centred);
+        g.setColour (colors::text);
+        g.setFont (juce::Font (juce::FontOptions (12.0f)).boldened());
+        g.drawText (val, kb.getX() - 12, kb.getBottom() + 10, kb.getWidth() + 24, 14, juce::Justification::centred);
+    };
+    if (outputBox != nullptr)
+    {
+        const int st = (int) std::lround (alea.apvts.getRawParameterValue ("transpose")->load());
+        knobCaption (transposeSlider.getBounds(), "TRANSPOSE", juce::String (st) + " st");
+    }
+
+    // Output meter (internal synth): a 12-segment strip beside the LEVEL knob.
     if (lastSynthOn && outputBox != nullptr)
     {
         meterLevel = juce::jmax (alea.synthPeak.load(), meterLevel * 0.82f);
-        const auto meter = juce::Rectangle<float> ((float) getWidth() - 30.0f, 2.0f, 8.0f, 44.0f);
-        g.setColour (colors::control);
-        g.fillRoundedRectangle (meter, 3.0f);
-
         const float db = juce::Decibels::gainToDecibels (meterLevel, -48.0f);
-        const float frac = juce::jlimit (0.0f, 1.0f, (db + 48.0f) / 48.0f);
-        struct Zone { float from, to; juce::Colour colour; };
-        for (const auto& z : { Zone { 0.00f, 0.70f, colors::green },
-                               Zone { 0.70f, 0.90f, colors::amber },
-                               Zone { 0.90f, 1.00f, colors::red } })
-        {
-            const float lit = juce::jmin (frac, z.to) - z.from;
-            if (lit <= 0.0f)
-                continue;
-            g.setColour (z.colour);
-            g.fillRect (juce::Rectangle<float> (meter.getX(),
-                                                meter.getBottom() - (z.from + lit) * meter.getHeight(),
-                                                meter.getWidth(), lit * meter.getHeight()));
-        }
+        hw::meter (g, meterRect.toFloat(), juce::jlimit (0.0f, 1.0f, (db + 48.0f) / 48.0f));
+
+        const float lvl = alea.apvts.getRawParameterValue ("synthVol")->load();
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
+        g.drawText ("OUT", meterRect.getX() - 4, meterRect.getBottom() + 2, meterRect.getWidth() + 8, 11, juce::Justification::centred);
+        knobCaption (volSlider.getBounds(), "LEVEL", juce::String (lvl, 1) + " dB");
     }
 
     auto area = getLocalBounds();
-    if (outputBox != nullptr)
-    {
-        area.removeFromTop (78); // chooser row + transpose line
-        g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-        g.drawText ("TRANSPOSE", 0, 36, 100, 14, juce::Justification::centredLeft);
-    }
+    area.removeFromTop (108); // OUT chooser + knob row + captions
 
     // Note displays are colored by the scale the note came from, matching
     // the history ticker.
     const auto srcColour = alea.activeSource.load() == 1 ? colors::cyan : colors::purple;
 
     // The monitor is a physical GREEN glass screen - a constant dark green
-    // tint that is NOT lit when idle. Only the sounding note lights up, in
-    // its scale's colour (purple A / cyan B).
-    hw::lcd (g, juce::Rectangle<float> ((float) area.getX(), (float) area.getY(),
-                                        (float) area.getWidth(), 52.0f), colors::green);
+    // tint that is NOT lit when idle. The note lights in its scale colour
+    // (purple A / cyan B) big on the left; BAR/BEAT sits to the RIGHT so the
+    // note has room; the scanlines are the TOP layer, so the readout reads as
+    // behind the glass (old-monitor look).
+    const auto lcdRect = juce::Rectangle<float> ((float) area.getX(), (float) area.getY(),
+                                                 (float) area.getWidth(), 54.0f);
+    hw::lcd (g, lcdRect, colors::green);
+    auto screen = lcdRect.toNearestInt().reduced (10, 4);
 
-    // Activity LED + big note display (shows the sounding rest, too)
-    auto noteRow = area.removeFromTop (outputBox != nullptr ? 30 : 56).reduced (8, 0);
+    // BAR/BEAT on the right.
+    const int bar  = juce::jmax (1, (int) std::floor (ppq / 4.0) + 1);
+    const int beat = juce::jmax (1, ((int) std::floor (ppq) % 4 + 4) % 4 + 1);
+    auto barBeat = screen.removeFromRight (86);
+    g.setFont (juce::Font (juce::FontOptions (12.0f)).boldened());
+    g.setColour (colors::green.withAlpha (playing ? 0.7f : 0.35f));
+    g.drawText ("BAR " + juce::String (playing ? bar : 1), barBeat.removeFromTop (barBeat.getHeight() / 2),
+                juce::Justification::centredRight);
+    g.drawText ("BEAT " + juce::String (playing ? beat : 1), barBeat, juce::Justification::centredRight);
+
+    // Activity LED + the big sounding note on the left.
     g.setColour (active >= 0 ? colors::playing : colors::playing.withAlpha (0.22f));
-    g.fillEllipse (noteRow.removeFromLeft (24).withSizeKeepingCentre (11, 11).toFloat());
-
-    const float bigNote = outputBox != nullptr ? 26.0f : 36.0f;
+    g.fillEllipse (screen.removeFromLeft (22).withSizeKeepingCentre (11, 11).toFloat());
+    const float bigNote = 30.0f;
     if (active >= 0)
     {
         g.setFont (juce::Font (juce::FontOptions (bigNote)).boldened());
-        hw::glowText (g, noteName (active), noteRow, juce::Justification::centredLeft,
-                      srcColour.brighter (0.35f)); // the note lights in its scale colour
+        hw::glowText (g, noteName (active), screen, juce::Justification::centredLeft,
+                      srcColour.brighter (0.35f));
     }
     else if (rest >= 0)
     {
         g.setColour (colors::green.withAlpha (0.4f));
         g.setFont (juce::FontOptions (20.0f, juce::Font::italic));
-        g.drawText ("rest " + params::restNames[rest], noteRow, juce::Justification::centredLeft);
+        g.drawText ("rest " + params::restNames[rest], screen, juce::Justification::centredLeft);
     }
-    else // idle: last note shown dim on the dark green screen (not lit)
+    else // idle: last note dim on the dark green screen (not lit)
     {
         g.setColour (colors::green.withAlpha (0.22f));
         g.setFont (juce::Font (juce::FontOptions (bigNote)).boldened());
-        g.drawText (noteName (last), noteRow, juce::Justification::centredLeft);
+        g.drawText (noteName (last), screen, juce::Justification::centredLeft);
     }
 
-    // Bar / beat, with a persistent velocity readout (white, no blink) at
-    // the row's right.
-    const int bar  = juce::jmax (1, (int) std::floor (ppq / 4.0) + 1);
-    const int beat = juce::jmax (1, ((int) std::floor (ppq) % 4 + 4) % 4 + 1);
-
-    auto row = area.removeFromTop (20).reduced (8, 0);
-    g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
-    g.setColour (colors::green.withAlpha (playing ? 0.6f : 0.3f));
-    g.drawText ("BAR " + juce::String (playing ? bar : 1)
-                + "  BEAT " + juce::String (playing ? beat : 1), row, juce::Justification::centredLeft);
+    hw::lcdScanlines (g, lcdRect); // CRT lines on top of the readout
+    area.removeFromTop (54);
 
 
     // At small window sizes the bottom-anchored monitors would collide with

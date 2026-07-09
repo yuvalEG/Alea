@@ -42,9 +42,11 @@ namespace hw
     // A recessed inset well (segmented tracks, fader/slider grooves, keybeds).
     void insetWell (juce::Graphics&, juce::Rectangle<float> r, float radius);
 
-    // Glass LCD: dark phosphor screen with scanlines + gloss. Fills the
-    // background; the caller draws glowing text in `phosphor`.
+    // Glass LCD screen base: dark phosphor glass + inner wash + gloss + bezel.
+    // Draw the glowing content on top, THEN call lcdScanlines so the horizontal
+    // CRT lines sit above the readout (the readout reads as behind the glass).
     void lcd (juce::Graphics&, juce::Rectangle<float> r, juce::Colour phosphor);
+    void lcdScanlines (juce::Graphics&, juce::Rectangle<float> r);
 
     // Segmented vertical output meter (12 cells bottom-up; amber near top, red at clip).
     void meter (juce::Graphics&, juce::Rectangle<float> r, float level01);
@@ -217,6 +219,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> volAttachment, transposeAttachment;
     bool lastSynthOn = false;
     float meterLevel = 0.0f;                   // falling peak for the output meter
+    juce::Rectangle<int> meterRect;            // OUT meter, beside the level knob
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputPanel)
 };
