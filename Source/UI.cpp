@@ -927,20 +927,25 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
 
 void OutputPanel::resized()
 {
-    // The OUT chooser is the panel's top row - it never hides. Below it a
-    // knob row: TRANSPOSE (bipolar) on the left, and - only with the synth
-    // active - the OUT meter + LEVEL knob on the right.
+    // One compact top row (saves vertical space): the sound chooser fills the
+    // left, then TRANSPOSE knob, LEVEL knob, OUT meter to the right.
     if (outputBox == nullptr)
         return;
     const bool synth = alea.synthOn.load();
-    outputBox->setBounds (0, 0, getWidth(), 26);
+    const int ky = 4, ks = 44;
 
-    const int ky = 32, ks = 46;
-    transposeSlider.setBounds (2, ky, ks, ks);
-    // Meter on the far right, LEVEL knob to its left (swapped per QA).
-    meterRect = juce::Rectangle<int> (getWidth() - 16, ky + 2, 14, ks - 4);
-    volSlider.setBounds (getWidth() - 16 - 10 - ks, ky, ks, ks);
+    int rx = getWidth();
+    if (synth)
+    {
+        meterRect = juce::Rectangle<int> (rx - 14, ky + 2, 12, ks - 4);
+        rx -= 14 + 8;
+        volSlider.setBounds (rx - ks, ky, ks, ks);
+        rx -= ks + 10;
+    }
+    transposeSlider.setBounds (rx - ks, ky, ks, ks);
+    rx -= ks + 12;
     volSlider.setVisible (synth);
+    outputBox->setBounds (0, ky + (ks - 26) / 2, rx, 26);
 }
 
 void OutputPanel::paint (juce::Graphics& g)
@@ -990,7 +995,7 @@ void OutputPanel::paint (juce::Graphics& g)
     }
 
     auto area = getLocalBounds();
-    area.removeFromTop (108); // OUT chooser + knob row + captions
+    area.removeFromTop (74); // the compact sound/transpose/level/meter row + captions
 
     // Note displays are colored by the scale the note came from, matching
     // the history ticker.
@@ -1042,19 +1047,19 @@ void OutputPanel::paint (juce::Graphics& g)
     g.drawText ("BAR " + juce::String (playing ? bar : 1), barBeat.removeFromTop (barBeat.getHeight() / 2),
                 juce::Justification::centredRight);
     g.drawText ("BEAT " + juce::String (playing ? beat : 1), barBeat, juce::Justification::centredRight);
-    area.removeFromTop (54);
+    area.removeFromTop (54); // past the LCD
+    area.removeFromTop (6);
 
-
-    // At small window sizes the bottom-anchored monitors would collide with
-    // the rows above - drop them; the essentials stay.
-    if (getHeight() < 250)
+    // The 88-key monitor and history flow below the LCD; if the panel is too
+    // short they are dropped rather than overlapping the screen above.
+    if (area.getHeight() < 78)
         return;
 
     // 88-key monitor (A0-C8): the sounding note lights in its source
     // scale's color. Rests deliberately don't show here - silence has no
     // key; the LED going dark and the history ticker cover it.
     {
-        const auto strip = juce::Rectangle<float> (0.0f, (float) getHeight() - 124.0f, (float) getWidth(), 40.0f);
+        const auto strip = area.removeFromTop (38).toFloat();
         const float ww = strip.getWidth() / 52.0f;
         auto isBlack = [] (int note) { const int pc = note % 12; return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
 
@@ -1108,12 +1113,13 @@ void OutputPanel::paint (juce::Graphics& g)
     // History: a single readable ticker, newest event entering on the right,
     // sequence reading left-to-right, colored by source scale. Rests appear
     // as their duration in parentheses - they're events too.
-    auto historyLabelRow = juce::Rectangle<int> (0, getHeight() - 76, getWidth(), 18);
+    area.removeFromTop (6);
+    auto historyLabelRow = area.removeFromTop (16);
     g.setColour (colors::secondary);
-    g.setFont (juce::FontOptions (11.0f));
+    g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
     g.drawText ("HISTORY", historyLabelRow, juce::Justification::centredLeft);
 
-    const auto ticker = juce::Rectangle<int> (0, getHeight() - 54, getWidth(), 26).toFloat();
+    const auto ticker = area.removeFromTop (28).toFloat();
 
     const int total = alea.historyCount.load();
     float xRight = ticker.getRight();

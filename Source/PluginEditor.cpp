@@ -6,7 +6,7 @@ using namespace ui;
 
 namespace
 {
-    constexpr int kWidth = 940, kHeight = 772; // taller: the OUTPUT knob row + LCD + monitor + history all show
+    constexpr int kWidth = 940, kHeight = 742; // fits the OUTPUT row + LCD + monitor + history (compact output row)
 
     // About dialog: wordmark over a subtle vertical gradient, text below.
     struct AboutComponent : juce::Component
@@ -263,6 +263,9 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         s.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
         s.setColour (juce::Slider::rotarySliderFillColourId, accent);
         s.setVelocityBasedMode (false);
+        // The value under each knob is painted in the content layer, so it
+        // must repaint when the knob turns.
+        s.onValueChange = [this] { content.repaint (scaleAPanel); content.repaint (scaleBPanel); };
         content.addAndMakeVisible (s);
         sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             alea.apvts, paramID, s));
@@ -779,6 +782,8 @@ void AleaAudioProcessorEditor::timerCallback()
 
 void AleaAudioProcessorEditor::updateModeVisibility()
 {
+    const bool was[] = { intervalSync.isVisible(), intervalFree.isVisible(),
+                         lengthSync.isVisible(), lengthFree.isVisible() };
     const int iMode = (int) alea.apvts.getRawParameterValue ("intervalMode")->load();
     intervalSync.setVisible (iMode == params::sync);
     intervalFree.setVisible (iMode == params::free);
@@ -786,6 +791,12 @@ void AleaAudioProcessorEditor::updateModeVisibility()
     const int lMode = (int) alea.apvts.getRawParameterValue ("lengthMode")->load();
     lengthSync.setVisible (lMode == params::sync);
     lengthFree.setVisible (lMode == params::free);
+
+    // Repaint the painted timing value only when a mode actually switched a
+    // knob's visibility (not every timer tick).
+    if (was[0] != intervalSync.isVisible() || was[1] != intervalFree.isVisible()
+        || was[2] != lengthSync.isVisible() || was[3] != lengthFree.isVisible())
+        content.repaint (timingPanel);
 
     const bool durSync = (int) alea.apvts.getRawParameterValue ("morphDurMode")->load() == 0;
     morphDurBars.setVisible (durSync);
