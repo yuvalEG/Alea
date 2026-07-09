@@ -54,6 +54,11 @@ namespace hw
     juce::Colour button (juce::Graphics&, juce::Rectangle<float> r, bool lit,
                          juce::Colour ledColour, bool over, bool down);
 
+    // Real soft glow behind a filled shape (juce::DropShadow of the shape's
+    // alpha, in the accent colour). The one true glow - use it everywhere a
+    // CSS box-shadow/bloom was faked. blur is the Gaussian radius in px.
+    void dropGlow (juce::Graphics&, const juce::Path& filledShape, juce::Colour colour, int blur);
+
     // Soft outward glow around a rounded rect (no box-shadow in JUCE).
     void glowRoundedRect (juce::Graphics&, juce::Rectangle<float> r, float radius,
                           juce::Colour colour, float strength = 1.0f);

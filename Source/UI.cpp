@@ -19,6 +19,28 @@ namespace hw
     // sheen 1.9 = strong specular; glow 1.4 = brighter LED bloom.
     constexpr float kSheen = 1.9f, kGlow = 1.4f;
 
+    // A real Gaussian glow behind a filled shape (JUCE_DRAWING_GUIDE
+    // technique 2): rasterise the shape into an image, then juce::DropShadow
+    // it in the accent colour. Not clipped to any control's bounds because
+    // the caller draws it; soft, not a stroked outline.
+    void dropGlow (juce::Graphics& g, const juce::Path& filledShape, juce::Colour colour, int blur)
+    {
+        const auto bounds = filledShape.getBounds().getSmallestIntegerContainer().expanded (blur + 2);
+        if (bounds.isEmpty() || bounds.getWidth() > 4096 || bounds.getHeight() > 4096)
+            return;
+        juce::Image img (juce::Image::ARGB, bounds.getWidth(), bounds.getHeight(), true);
+        {
+            juce::Graphics ig (img);
+            ig.setColour (juce::Colours::white);
+            auto s = filledShape;
+            s.applyTransform (juce::AffineTransform::translation ((float) -bounds.getX(), (float) -bounds.getY()));
+            ig.fillPath (s);
+        }
+        juce::Graphics::ScopedSaveState ss (g);
+        g.addTransform (juce::AffineTransform::translation ((float) bounds.getX(), (float) bounds.getY()));
+        juce::DropShadow (colour, blur, {}).drawForImage (g, img);
+    }
+
     // Soft glow the JUCE way (no box-shadow / blur): stroke the shape a few
     // times growing outward at falling alpha (JUCE_DRAWING_GUIDE technique 1).
     void glowRoundedRect (juce::Graphics& g, juce::Rectangle<float> r, float radius,
@@ -182,18 +204,22 @@ namespace hw
     {
         if (lit)
         {
-            // Backlit key: bloom halo first, then the top-lit coloured face.
-            g.setColour (ledColour.withAlpha (0.30f * kGlow));
-            g.fillRoundedRectangle (r.expanded (3.0f), 6.0f);
+            // Backlit key: a clean top-lit coloured face (bright top -> mid ->
+            // darker bottom) with a bright inner top highlight and a soft inner
+            // core. No expanded outline (that read as a square stroke); the
+            // outer bloom is added by the container via dropGlow where it fits.
             juce::ColourGradient grad (ledColour.brighter (0.55f), r.getX(), r.getY(),
-                                       ledColour.darker (0.4f), r.getX(), r.getBottom(), false);
+                                       ledColour.darker (0.42f), r.getX(), r.getBottom(), false);
             grad.addColour (0.5, ledColour);
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, 4.0f);
-            g.setColour (ledColour.darker (0.5f));
+            // Soft bright core (an inner glow, faded - not an outline).
+            g.setColour (ledColour.brighter (0.7f).withAlpha (0.35f));
+            g.fillRoundedRectangle (r.reduced (r.getWidth() * 0.16f, r.getHeight() * 0.22f), 3.0f);
+            g.setColour (juce::Colours::white.withAlpha (0.55f));
+            g.drawLine (r.getX() + 4.0f, r.getY() + 1.5f, r.getRight() - 4.0f, r.getY() + 1.5f, 1.4f);
+            g.setColour (ledColour.darker (0.55f));
             g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
-            g.setColour (juce::Colours::white.withAlpha (0.5f));
-            g.drawLine (r.getX() + 3.0f, r.getY() + 1.0f, r.getRight() - 3.0f, r.getY() + 1.0f, 1.0f);
             return juce::Colour (0xff07120d); // black legend
         }
         auto top = juce::Colour (0xff30323a), mid = juce::Colour (0xff23252b), bot = juce::Colour (0xff191a1e);
@@ -244,6 +270,12 @@ void SegmentedSelector::paint (juce::Graphics& g)
     {
         auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight())
                        .reduced (3.0f, 3.0f);
+        if (i == value) // soft emerald bloom behind the lit segment
+        {
+            juce::Path p;
+            p.addRoundedRectangle (seg, 4.0f);
+            hw::dropGlow (g, p, hw::led, 6);
+        }
         const auto legend = hw::button (g, seg, i == value, hw::led, false, false);
         g.setColour (legend);
         g.setFont (juce::FontOptions (12.0f));
@@ -291,6 +323,12 @@ void CurveSelector::paint (juce::Graphics& g)
     {
         auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight())
                        .reduced (3.0f, 2.0f);
+        if (i == value)
+        {
+            juce::Path p;
+            p.addRoundedRectangle (seg, 4.0f);
+            hw::dropGlow (g, p, hw::led, 6);
+        }
         const auto glyph = hw::button (g, seg, i == value, hw::led, false, false);
 
         const auto plot = seg.withSizeKeepingCentre (juce::jmin (34.0f, seg.getWidth() - 16.0f), seg.getHeight() - 14.0f);
