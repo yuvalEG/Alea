@@ -288,7 +288,28 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         // repaint when the knob turns.
         s->onValueChange = [this] { content.repaint (timingPanel); };
     }
-    setupSlider (morphDurFree, "morphDurFree", colors::amber);
+    // The morph DURATION knob: bars in Sync mode, seconds in Free mode. Both
+    // are knobs; the value ("2 bars" / "0.5 s") is painted beside them.
+    for (auto& [slider, id] : { std::pair<juce::Slider*, const char*> { &morphDurBars, "morphDurBars" },
+                                { &morphDurFree, "morphDurFree" } })
+    {
+        slider->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        slider->setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
+                                     juce::MathConstants<float>::pi * 2.75f, true);
+        slider->setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+        slider->setColour (juce::Slider::rotarySliderFillColourId, colors::amber);
+        slider->onValueChange = [this] { content.repaint (morphPanel); };
+        content.addAndMakeVisible (*slider);
+        sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            alea.apvts, id, *slider));
+    }
+    morphDurBars.textFromValueFunction = [] (double v)
+    {
+        const int i = juce::jlimit (0, params::morphDurBarNames.size() - 1, (int) std::lround (v));
+        return params::morphDurBarNames[i] + (params::morphDurBarNames[i] == "1" ? " bar" : " bars");
+    };
+    morphDurBars.updateText();
+
     setupSlider (internalTempo, "internalTempo", colors::green);
     internalTempo.setComponentID ("bpm"); // drawn as a glass green BPM LCD
     internalTempo.textFromValueFunction = [] (double v)
@@ -321,8 +342,6 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         { return divisionDisplay[juce::jlimit (0, divisionDisplay.size() - 1, (int) std::lround (v))]; };
         slider->updateText();
     }
-    setupCombo (morphDurBars, "morphDurBars", juce::StringArray {
-        "1 bar", "2 bars", "4 bars", "8 bars", "16 bars", "32 bars", "64 bars" });
     setupCombo (morphDurUnit, "morphDurUnit");
 
     // Root pickers: the pitch each scale's octave span starts from (a real
@@ -603,8 +622,8 @@ void AleaAudioProcessorEditor::layoutMain()
     outputPanel = { 30 + tw + mw, by, avail - tw - mw, bh };
 
     // Short windows drop the morph panel's lower rows instead of clipping.
-    morphMode.setVisible (bh >= 206);
-    morphCurve.setVisible (bh >= 252);
+    morphMode.setVisible (bh >= 232);
+    morphCurve.setVisible (bh >= 278);
 
     // Header
     // Header: left cluster fixed, right cluster anchored to the window edge
@@ -658,13 +677,17 @@ void AleaAudioProcessorEditor::layoutMain()
     {
         const int x = morphPanel.getX() + 12, w = morphPanel.getWidth() - 24;
         morphBar.setBounds (x, morphPanel.getY() + 34, w, 34);
-        autoSweep.setBounds (x, morphPanel.getY() + 79, 150, 24);
-        morphDurMode.setBounds (x + 160, morphPanel.getY() + 79, w - 160, 24);
-        morphDurBars.setBounds (x, morphPanel.getY() + 122, w, 26);
-        morphDurFree.setBounds (x, morphPanel.getY() + 122, w - 110, 26);
-        morphDurUnit.setBounds (x + w - 102, morphPanel.getY() + 122, 102, 26);
-        morphMode.setBounds (x, morphPanel.getY() + 168, w, 26);
-        morphCurve.setBounds (x, morphPanel.getY() + 214, w, 26);
+        // AUTO-SWEEP full width, then a duration row: SYNC/FREE (with the
+        // Seconds/Minutes unit below it in Free mode) on the left, and the
+        // DURATION knob on the right.
+        autoSweep.setBounds (x, morphPanel.getY() + 78, w, 28);
+        const int knob = 50, durY = morphPanel.getY() + 116;
+        morphDurMode.setBounds (x, durY, w - knob - 70, 26);
+        morphDurUnit.setBounds (x, durY + 32, w - knob - 70, 26); // free mode only
+        morphDurBars.setBounds (morphPanel.getRight() - 12 - knob, durY, knob, knob);
+        morphDurFree.setBounds (morphPanel.getRight() - 12 - knob, durY, knob, knob);
+        morphMode.setBounds (x, morphPanel.getY() + 194, w, 26);
+        morphCurve.setBounds (x, morphPanel.getY() + 238, w, 26);
     }
 
     output.setBounds (outputPanel.getX() + 12, outputPanel.getY() + 34,
@@ -798,10 +821,13 @@ void AleaAudioProcessorEditor::updateModeVisibility()
         || was[2] != lengthSync.isVisible() || was[3] != lengthFree.isVisible())
         content.repaint (timingPanel);
 
+    const bool durWasSync = morphDurBars.isVisible();
     const bool durSync = (int) alea.apvts.getRawParameterValue ("morphDurMode")->load() == 0;
     morphDurBars.setVisible (durSync);
     morphDurFree.setVisible (! durSync);
     morphDurUnit.setVisible (! durSync);
+    if (durWasSync != durSync)
+        content.repaint (morphPanel); // the painted DURATION value follows the mode
 
     const bool freeRun = standalone
                          || (int) alea.apvts.getRawParameterValue ("tempoSource")->load() == 1;
@@ -957,11 +983,24 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
         drawRandomPick (timingPanel.getY() + 92, alea.lastRandomInterval.load());
     if (lMode == params::random)
         drawRandomPick (timingPanel.getY() + 200, alea.lastRandomLength.load());
+    // DURATION knob caption + value (the visible knob: bars in Sync, seconds
+    // in Free), painted below it.
+    {
+        auto& durK = morphDurBars.isVisible() ? morphDurBars : morphDurFree;
+        const auto kb = durK.getBounds();
+        g.setColour (colors::secondary);
+        g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+        g.drawText ("DURATION", kb.getX() - 24, kb.getBottom() - 2, kb.getWidth() + 48, 13, juce::Justification::centred);
+        g.setColour (colors::text);
+        g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
+        g.drawText (durK.getTextFromValue (durK.getValue()),
+                    kb.getX() - 24, kb.getBottom() + 10, kb.getWidth() + 48, 14, juce::Justification::centred);
+    }
+
     g.setColour (colors::secondary);
     g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
-    g.drawText ("MORPH DURATION", morphPanel.getX() + 12, morphPanel.getY() + 108, 130, 12, juce::Justification::centredLeft);
     if (morphMode.isVisible())
-        g.drawText ("MORPH MODE",  morphPanel.getX() + 12, morphPanel.getY() + 154, 130, 12, juce::Justification::centredLeft);
+        g.drawText ("MORPH MODE",  morphPanel.getX() + 12, morphPanel.getY() + 178, 130, 12, juce::Justification::centredLeft);
     if (morphCurve.isVisible())
-        g.drawText ("MORPH CURVE", morphPanel.getX() + 12, morphPanel.getY() + 200, 130, 12, juce::Justification::centredLeft);
+        g.drawText ("MORPH CURVE", morphPanel.getX() + 12, morphPanel.getY() + 222, 130, 12, juce::Justification::centredLeft);
 }

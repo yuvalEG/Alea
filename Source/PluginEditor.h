@@ -60,8 +60,8 @@ private:
     juce::TextButton autoSweep { "AUTO-SWEEP" };
     ui::SegmentedSelector morphDurMode, morphMode;
     ui::CurveSelector morphCurve;
-    juce::ComboBox morphDurBars, morphDurUnit;
-    juce::Slider morphDurFree;
+    juce::Slider morphDurBars, morphDurFree; // DURATION knob (sync bars / free seconds)
+    juce::ComboBox morphDurUnit;             // free-mode unit (Seconds / Minutes)
 
     // Header
     ui::SegmentedSelector tempoSource;
