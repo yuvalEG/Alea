@@ -54,6 +54,12 @@ namespace hw
     juce::Colour button (juce::Graphics&, juce::Rectangle<float> r, bool lit,
                          juce::Colour ledColour, bool over, bool down);
 
+    // The physical knob (value-arc ring + ticks + metal cap + pointer),
+    // translated 1:1 from the CSS .hw-knob layers. pos is 0..1; bipolar grows
+    // the lit arc from 12 o'clock. Shared by the LookAndFeel and the gallery.
+    void knob (juce::Graphics&, juce::Rectangle<float> bounds, float pos,
+               juce::Colour accent, bool bipolar);
+
     // Real soft glow behind a filled shape (juce::DropShadow of the shape's
     // alpha, in the accent colour). The one true glow - use it everywhere a
     // CSS box-shadow/bloom was faked. blur is the Gaussian radius in px.

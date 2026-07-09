@@ -151,71 +151,11 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         // value-arc ring (from 225deg over 270deg of travel), a fine tick
         // ring, a domed metal cap, and an accent pointer at the top.
         void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
-                               float startAngle, float endAngle, juce::Slider& slider) override
+                               float, float, juce::Slider& slider) override
         {
-            const auto c = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).getCentre();
-            const float R = juce::jmin ((float) width, (float) height) * 0.5f - 1.0f;
-            const auto accent = slider.findColour (juce::Slider::rotarySliderFillColourId);
-            const float angle = startAngle + pos * (endAngle - startAngle);
-            const float midAngle = startAngle + 0.5f * (endAngle - startAngle);
             const bool bipolar = slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0;
-            auto ring = [&] (float rad) { return juce::Rectangle<float> (rad * 2.0f, rad * 2.0f).withCentre (c); };
-
-            // Proportions from the design: a large metal cap (~80% of the
-            // radius) with a thin bright value-arc ring just outside it.
-            const float capR = R * 0.80f;
-            const float arcR = R * 0.90f;
-
-            // Full-travel groove.
-            juce::Path groove;
-            groove.addCentredArc (c.x, c.y, arcR, arcR, 0.0f, startAngle, endAngle, true);
-            g.setColour (juce::Colours::black.withAlpha (0.55f));
-            g.strokePath (groove, juce::PathStrokeType (3.6f));
-
-            // Lit value arc (bipolar grows from 12 o'clock) with a soft bloom:
-            // three passes, wide+faint to thin+bright.
-            juce::Path arc;
-            arc.addCentredArc (c.x, c.y, arcR, arcR, 0.0f, bipolar ? midAngle : startAngle, angle, true);
-            g.setColour (accent.withAlpha (0.10f));
-            g.strokePath (arc, juce::PathStrokeType (8.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-            g.setColour (accent.withAlpha (0.28f));
-            g.strokePath (arc, juce::PathStrokeType (5.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-            g.setColour (accent.brighter (0.25f));
-            g.strokePath (arc, juce::PathStrokeType (2.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-            // Fine tick ring, just outside the arc.
-            g.setColour (juce::Colours::white.withAlpha (0.18f));
-            for (int i = 0; i <= 10; ++i)
-            {
-                const float a = startAngle + (float) i / 10.0f * (endAngle - startAngle);
-                g.drawLine (c.x + std::sin (a) * R * 0.95f, c.y - std::cos (a) * R * 0.95f,
-                            c.x + std::sin (a) * R * 1.0f,  c.y - std::cos (a) * R * 1.0f, 1.0f);
-            }
-
-            // Recessed lip just outside the cap.
-            g.setColour (juce::Colours::black.withAlpha (0.6f));
-            g.fillEllipse (ring (capR + 1.5f));
-
-            // Metal cap: radial highlight biased top-left.
-            juce::ColourGradient body (juce::Colour (0xff3d4048), c.x - capR * 0.3f, c.y - capR * 0.4f,
-                                       juce::Colour (0xff101114), c.x + capR * 0.4f, c.y + capR, true);
-            body.addColour (0.45, juce::Colour (0xff272a30));
-            body.addColour (0.78, juce::Colour (0xff17181c));
-            g.setGradientFill (body);
-            g.fillEllipse (ring (capR));
-            g.setColour (juce::Colours::white.withAlpha (0.16f)); // inner top highlight
-            g.drawEllipse (ring (capR).reduced (1.0f).translated (0.0f, 0.4f), 1.0f);
-
-            // Pointer: a short accent bar near the cap edge, with a lit tip.
-            const float p0 = capR * 0.50f, p1 = capR * 0.90f;
-            juce::Path ptr;
-            ptr.addRoundedRectangle (c.x - 1.6f, c.y - p1, 3.2f, p1 - p0, 1.6f);
-            ptr.applyTransform (juce::AffineTransform::rotation (angle, c.x, c.y));
-            g.setColour (accent.brighter (0.3f));
-            g.fillPath (ptr);
-            const float tx = c.x + std::sin (angle) * p1, ty = c.y - std::cos (angle) * p1;
-            g.setColour (accent.brighter (0.5f));
-            g.fillEllipse (juce::Rectangle<float> (4.0f, 4.0f).withCentre ({ tx, ty }));
+            ui::hw::knob (g, juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height),
+                          pos, slider.findColour (juce::Slider::rotarySliderFillColourId), bipolar);
         }
 
         // Hardware push-button: metal face, or a backlit LED key when lit.

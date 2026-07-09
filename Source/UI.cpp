@@ -53,16 +53,16 @@ namespace hw
         }
     }
 
-    // Glowing text (LCD phosphor / lit note): draw the glyphs a few times at
-    // low alpha, then crisp on top.
+    // Glowing text (LCD phosphor / lit note): a gentle halo, then crisp text
+    // on top so it stays readable (a heavy multi-pass halo drowned the glyphs).
     void glowText (juce::Graphics& g, const juce::String& text, juce::Rectangle<int> area,
                    juce::Justification just, juce::Colour colour)
     {
-        g.setColour (colour.withAlpha (0.28f * kGlow));
-        for (int dx = -1; dx <= 1; ++dx)
-            for (int dy = -1; dy <= 1; ++dy)
-                if (dx || dy)
-                    g.drawText (text, area.translated (dx, dy), just);
+        g.setColour (colour.withAlpha (0.16f));
+        g.drawText (text, area.translated (1, 0), just);
+        g.drawText (text, area.translated (-1, 0), just);
+        g.drawText (text, area.translated (0, 1), just);
+        g.drawText (text, area.translated (0, -1), just);
         g.setColour (colour);
         g.drawText (text, area, just);
     }
@@ -146,8 +146,8 @@ namespace hw
                                  juce::Colour (0xff06120d), r.getCentreX(), r.getBottom(), false);
         g.setGradientFill (bg);
         g.fillRoundedRectangle (r, 8.0f);
-        // Inner glow.
-        g.setColour (phosphor.withAlpha (0.10f));
+        // Faint inner phosphor wash (kept low so an idle screen reads dark, not lit).
+        g.setColour (phosphor.withAlpha (0.05f));
         g.fillRoundedRectangle (r.reduced (2.0f), 6.0f);
         // Scanlines.
         juce::Path clip;
@@ -236,6 +236,73 @@ namespace hw
             g.drawLine (r.getX() + 3.0f, r.getY() + 1.0f, r.getRight() - 3.0f, r.getY() + 1.0f, 1.0f);
         }
         return over ? juce::Colour (0xffe8eaf1) : juce::Colour (0xffc0c4d0);
+    }
+
+    void knob (juce::Graphics& g, juce::Rectangle<float> bounds, float pos, juce::Colour accent, bool bipolar)
+    {
+        const auto c = bounds.getCentre();
+        const float R = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
+        // Ratios measured from the CSS .hw-knob layers (relative to the full
+        // visual extent = the tick ring): cap 0.72, arc ring 0.69-0.88 thick,
+        // ticks 0.88-0.94.
+        const float capR  = R * 0.72f;
+        const float arcMid = R * 0.785f;
+        const float arcT   = R * 0.19f;
+        auto ring = [&] (float rad) { return juce::Rectangle<float> (rad * 2.0f, rad * 2.0f).withCentre (c); };
+        const float a0 = juce::MathConstants<float>::pi * 1.25f;
+        const float a1 = juce::MathConstants<float>::pi * 2.75f;
+        const float av = a0 + juce::jlimit (0.0f, 1.0f, pos) * (a1 - a0);
+        const float amid = (a0 + a1) * 0.5f;
+
+        // Recessed well behind everything.
+        juce::ColourGradient well (juce::Colour (0xff17181c), c.x, c.y,
+                                   juce::Colour (0xff26282e), c.x, c.y + R, true);
+        g.setGradientFill (well);
+        g.fillEllipse (ring (R * 0.99f));
+
+        // Value arc: a thick ring, dark unlit track + accent lit span.
+        juce::Path track; track.addCentredArc (c.x, c.y, arcMid, arcMid, 0.0f, a0, a1, true);
+        g.setColour (juce::Colours::black.withAlpha (0.55f));
+        g.strokePath (track, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+        juce::Path lit; lit.addCentredArc (c.x, c.y, arcMid, arcMid, 0.0f, bipolar ? amid : a0, av, true);
+        g.setColour (accent.withAlpha (0.9f));
+        g.strokePath (lit, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+        g.setColour (accent.brighter (0.45f));
+        g.strokePath (lit, juce::PathStrokeType (arcT * 0.42f, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+
+        // Tick ring, just outside the arc.
+        g.setColour (juce::Colours::white.withAlpha (0.20f));
+        for (int i = 0; i <= 10; ++i)
+        {
+            const float a = a0 + (float) i / 10.0f * (a1 - a0);
+            g.drawLine (c.x + std::sin (a) * R * 0.90f, c.y - std::cos (a) * R * 0.90f,
+                        c.x + std::sin (a) * R * 0.955f, c.y - std::cos (a) * R * 0.955f, 1.0f);
+        }
+
+        // Metal cap: radial highlight biased to top (CSS 50%,30%).
+        g.setColour (juce::Colours::black.withAlpha (0.6f));
+        g.fillEllipse (ring (capR + 1.0f));
+        juce::ColourGradient body (juce::Colour (0xff3a3d44), c.x, c.y - capR * 0.4f,
+                                   juce::Colour (0xff101114), c.x, c.y + capR, true);
+        body.addColour (0.42, juce::Colour (0xff26282d));
+        body.addColour (0.72, juce::Colour (0xff191a1e));
+        g.setGradientFill (body);
+        g.fillEllipse (ring (capR));
+        g.setColour (juce::Colours::white.withAlpha (0.16f));
+        g.drawEllipse (ring (capR).reduced (1.0f), 1.0f);
+        // Domed centre.
+        const float domR = capR * 0.5f;
+        juce::ColourGradient dome (juce::Colour (0xff33363d), c.x, c.y - domR * 0.5f,
+                                   juce::Colour (0xff16171b), c.x, c.y + domR, true);
+        g.setGradientFill (dome);
+        g.fillEllipse (ring (domR));
+
+        // Pointer: an accent bar in the upper cap (CSS 9%..35% from top).
+        juce::Path ptr;
+        ptr.addRoundedRectangle (c.x - 1.5f, c.y - capR * 0.86f, 3.0f, capR * 0.5f, 1.5f);
+        ptr.applyTransform (juce::AffineTransform::rotation (av, c.x, c.y));
+        g.setColour (accent.brighter (0.2f));
+        g.fillPath (ptr);
     }
 } // namespace hw
 
@@ -917,15 +984,15 @@ void OutputPanel::paint (juce::Graphics& g)
     // the history ticker.
     const auto srcColour = alea.activeSource.load() == 1 ? colors::cyan : colors::purple;
 
-    // Glass LCD behind the sounding note + bar/beat: phosphor glows in the
-    // active scale's colour (green when idle).
-    const auto phosphor = active >= 0 ? srcColour : colors::green;
+    // The monitor is a physical GREEN glass screen - a constant dark green
+    // tint that is NOT lit when idle. Only the sounding note lights up, in
+    // its scale's colour (purple A / cyan B).
     hw::lcd (g, juce::Rectangle<float> ((float) area.getX(), (float) area.getY(),
-                                        (float) area.getWidth(), 52.0f), phosphor);
+                                        (float) area.getWidth(), 52.0f), colors::green);
 
     // Activity LED + big note display (shows the sounding rest, too)
     auto noteRow = area.removeFromTop (outputBox != nullptr ? 30 : 56).reduced (8, 0);
-    g.setColour (active >= 0 ? colors::playing : colors::playing.withAlpha (0.3f));
+    g.setColour (active >= 0 ? colors::playing : colors::playing.withAlpha (0.22f));
     g.fillEllipse (noteRow.removeFromLeft (24).withSizeKeepingCentre (11, 11).toFloat());
 
     const float bigNote = outputBox != nullptr ? 26.0f : 36.0f;
@@ -933,17 +1000,17 @@ void OutputPanel::paint (juce::Graphics& g)
     {
         g.setFont (juce::Font (juce::FontOptions (bigNote)).boldened());
         hw::glowText (g, noteName (active), noteRow, juce::Justification::centredLeft,
-                      srcColour.brighter (0.35f)); // lit phosphor with glow
+                      srcColour.brighter (0.35f)); // the note lights in its scale colour
     }
     else if (rest >= 0)
     {
-        g.setColour (phosphor.withAlpha (0.65f));
+        g.setColour (colors::green.withAlpha (0.4f));
         g.setFont (juce::FontOptions (20.0f, juce::Font::italic));
         g.drawText ("rest " + params::restNames[rest], noteRow, juce::Justification::centredLeft);
     }
-    else
+    else // idle: last note shown dim on the dark green screen (not lit)
     {
-        g.setColour (phosphor.withAlpha (0.5f));
+        g.setColour (colors::green.withAlpha (0.22f));
         g.setFont (juce::Font (juce::FontOptions (bigNote)).boldened());
         g.drawText (noteName (last), noteRow, juce::Justification::centredLeft);
     }
@@ -955,7 +1022,7 @@ void OutputPanel::paint (juce::Graphics& g)
 
     auto row = area.removeFromTop (20).reduced (8, 0);
     g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
-    g.setColour (phosphor.withAlpha (0.7f));
+    g.setColour (colors::green.withAlpha (playing ? 0.6f : 0.3f));
     g.drawText ("BAR " + juce::String (playing ? bar : 1)
                 + "  BEAT " + juce::String (playing ? beat : 1), row, juce::Justification::centredLeft);
 
