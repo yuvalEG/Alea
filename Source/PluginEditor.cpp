@@ -281,6 +281,9 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                                 juce::MathConstants<float>::pi * 2.75f, true);
         s->setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
         s->setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
+        // The value text ("0.5 s") is painted in the content layer, so it must
+        // repaint when the knob turns.
+        s->onValueChange = [this] { content.repaint (timingPanel); };
     }
     setupSlider (morphDurFree, "morphDurFree", colors::amber);
     setupSlider (internalTempo, "internalTempo", colors::green);
@@ -305,6 +308,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                                      juce::MathConstants<float>::pi * 2.75f, true);
         slider->setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
         slider->setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
+        slider->onValueChange = [this] { content.repaint (timingPanel); }; // painted value follows the knob
         content.addAndMakeVisible (*slider);
         sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             alea.apvts, id, *slider));
@@ -859,12 +863,12 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
             g.fillRoundedRectangle (tx, rf.getY() + 13.0f, 20.0f, 4.0f, 2.0f);
             tx += 28.0f;
         }
-        // Engraved label: light legend with a dark drop shadow.
-        g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
+        // Engraved panel title - larger than the sub-labels inside the plate.
+        g.setFont (juce::Font (juce::FontOptions (15.5f)).boldened());
         g.setColour (juce::Colours::black.withAlpha (0.8f));
-        g.drawText (title, (int) tx + 1, r.getY() + 9, r.getWidth(), 16, juce::Justification::centredLeft);
+        g.drawText (title, (int) tx + 1, r.getY() + 8, r.getWidth(), 18, juce::Justification::centredLeft);
         g.setColour (juce::Colour (0xffc2c5d0));
-        g.drawText (title, (int) tx, r.getY() + 8, r.getWidth(), 16, juce::Justification::centredLeft);
+        g.drawText (title, (int) tx, r.getY() + 7, r.getWidth(), 18, juce::Justification::centredLeft);
     };
 
     drawPlate (scaleAPanel, "SCALE A", colors::purple, alphaA);
@@ -907,8 +911,9 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     }
     g.setColour (colors::secondary);
 
-    g.drawText ("NOTE RATE",   timingPanel.getX() + 12, timingPanel.getY() + 30, 120, 16, juce::Justification::centredLeft);
-    g.drawText ("NOTE LENGTH", timingPanel.getX() + 12, timingPanel.getY() + 138, 120, 16, juce::Justification::centredLeft);
+    g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened()); // sub-labels: smaller than the panel title
+    g.drawText ("NOTE RATE",   timingPanel.getX() + 12, timingPanel.getY() + 32, 120, 14, juce::Justification::centredLeft);
+    g.drawText ("NOTE LENGTH", timingPanel.getX() + 12, timingPanel.getY() + 140, 120, 14, juce::Justification::centredLeft);
 
     // The value of each timing knob, painted to its right ("1/4 note", "0.5 s").
     auto timingValue = [&] (juce::Slider& sync, juce::Slider& freeS, int mode)
@@ -941,6 +946,8 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
         drawRandomPick (timingPanel.getY() + 92, alea.lastRandomInterval.load());
     if (lMode == params::random)
         drawRandomPick (timingPanel.getY() + 200, alea.lastRandomLength.load());
+    g.setColour (colors::secondary);
+    g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
     g.drawText ("MORPH DURATION", morphPanel.getX() + 12, morphPanel.getY() + 108, 130, 12, juce::Justification::centredLeft);
     if (morphMode.isVisible())
         g.drawText ("MORPH MODE",  morphPanel.getX() + 12, morphPanel.getY() + 154, 130, 12, juce::Justification::centredLeft);

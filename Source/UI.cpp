@@ -171,7 +171,7 @@ namespace hw
         clip.addRoundedRectangle (r, 8.0f);
         g.saveState();
         g.reduceClipRegion (clip);
-        g.setColour (juce::Colours::black.withAlpha (0.30f));
+        g.setColour (juce::Colours::black.withAlpha (0.18f));
         for (float y = r.getY(); y < r.getBottom(); y += 3.0f)
             g.fillRect (r.getX(), y, r.getWidth(), 1.0f);
         g.restoreState();
@@ -937,9 +937,10 @@ void OutputPanel::resized()
 
     const int ky = 32, ks = 46;
     transposeSlider.setBounds (2, ky, ks, ks);
-    volSlider.setBounds (getWidth() - ks - 2, ky, ks, ks);
+    // Meter on the far right, LEVEL knob to its left (swapped per QA).
+    meterRect = juce::Rectangle<int> (getWidth() - 16, ky + 2, 14, ks - 4);
+    volSlider.setBounds (getWidth() - 16 - 10 - ks, ky, ks, ks);
     volSlider.setVisible (synth);
-    meterRect = juce::Rectangle<int> (getWidth() - ks - 2 - 24, ky + 2, 14, ks - 4);
 }
 
 void OutputPanel::paint (juce::Graphics& g)
@@ -1004,18 +1005,10 @@ void OutputPanel::paint (juce::Graphics& g)
                                                  (float) area.getWidth(), 54.0f);
     hw::lcd (g, lcdRect, colors::green);
     auto screen = lcdRect.toNearestInt().reduced (10, 4);
-
-    // BAR/BEAT on the right.
-    const int bar  = juce::jmax (1, (int) std::floor (ppq / 4.0) + 1);
-    const int beat = juce::jmax (1, ((int) std::floor (ppq) % 4 + 4) % 4 + 1);
     auto barBeat = screen.removeFromRight (86);
-    g.setFont (juce::Font (juce::FontOptions (12.0f)).boldened());
-    g.setColour (colors::green.withAlpha (playing ? 0.7f : 0.35f));
-    g.drawText ("BAR " + juce::String (playing ? bar : 1), barBeat.removeFromTop (barBeat.getHeight() / 2),
-                juce::Justification::centredRight);
-    g.drawText ("BEAT " + juce::String (playing ? beat : 1), barBeat, juce::Justification::centredRight);
 
-    // Activity LED + the big sounding note on the left.
+    // Behind the glass: the activity LED + the big sounding note (the
+    // scanlines cross over these).
     g.setColour (active >= 0 ? colors::playing : colors::playing.withAlpha (0.22f));
     g.fillEllipse (screen.removeFromLeft (22).withSizeKeepingCentre (11, 11).toFloat());
     const float bigNote = 30.0f;
@@ -1038,7 +1031,17 @@ void OutputPanel::paint (juce::Graphics& g)
         g.drawText (noteName (last), screen, juce::Justification::centredLeft);
     }
 
-    hw::lcdScanlines (g, lcdRect); // CRT lines on top of the readout
+    hw::lcdScanlines (g, lcdRect); // CRT lines over the note
+
+    // BAR/BEAT sits in the CLOSEST layer, over the scanlines, so it stays
+    // crisply readable.
+    const int bar  = juce::jmax (1, (int) std::floor (ppq / 4.0) + 1);
+    const int beat = juce::jmax (1, ((int) std::floor (ppq) % 4 + 4) % 4 + 1);
+    g.setFont (juce::Font (juce::FontOptions (12.0f)).boldened());
+    g.setColour (colors::green.withAlpha (playing ? 0.85f : 0.4f));
+    g.drawText ("BAR " + juce::String (playing ? bar : 1), barBeat.removeFromTop (barBeat.getHeight() / 2),
+                juce::Justification::centredRight);
+    g.drawText ("BEAT " + juce::String (playing ? beat : 1), barBeat, juce::Justification::centredRight);
     area.removeFromTop (54);
 
 
