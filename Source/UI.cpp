@@ -397,49 +397,76 @@ void PianoKeyboard::paint (juce::Graphics& g)
         return p;
     };
 
-    // Slot i holds interval i from the root: the shape stays put when the
-    // root changes; the letters (and black/white identity) move instead.
+    // Which slots are selected white / black keys (for geometry + the glow pass).
+    auto whiteKeyRect = [&] (int slot) { return whiteKeyBounds (slot).reduced (1.0f); };
+
+    // Soft accent bloom behind the lit keys - a real Gaussian glow (JUCE has
+    // no box-shadow): render the lit key shapes into an image and drop-shadow
+    // it in the accent colour. Subtle, not a hard outline.
+    if (getWidth() > 0 && getHeight() > 0)
+    {
+        juce::Image mask (juce::Image::ARGB, getWidth(), getHeight(), true);
+        {
+            juce::Graphics mg (mask);
+            mg.setColour (juce::Colours::white);
+            int whiteSlot = 0, whitesSeen = 0;
+            for (int i = 0; i < 12; ++i)
+            {
+                const int pc = (root + i) % 12;
+                if (blackPc[pc])
+                {
+                    if (selected[i]) mg.fillPath (keyPath (blackKeyBounds (whitesSeen), 2.5f));
+                }
+                else
+                {
+                    if (selected[i]) mg.fillPath (keyPath (whiteKeyRect (whiteSlot), 3.0f));
+                    ++whiteSlot;
+                    ++whitesSeen;
+                }
+            }
+        }
+        juce::DropShadow (accent.withAlpha (0.85f), (int) (9.0f * hw::kGlow), {}).drawForImage (g, mask);
+    }
+
+    // White keys: dark grey when unselected (never white - scale keys), bright
+    // accent + top-lit gradient when selected.
     int whiteSlotCounter = 0;
     for (int i = 0; i < 12; ++i)
     {
         const int pc = (root + i) % 12;
         if (blackPc[pc])
             continue;
-        const auto key = whiteKeyBounds (whiteSlotCounter++).reduced (1.0f);
+        const auto key = whiteKeyRect (whiteSlotCounter++);
         const bool isPlayingKey = mine && i == activePc;
         const auto path = keyPath (key, 3.0f);
 
         if (selected[i])
         {
-            hw::glowRoundedRect (g, key, 3.0f, accent);
             g.setGradientFill (juce::ColourGradient (accent.brighter (0.22f), key.getX(), key.getY(),
                                                      accent.darker (0.20f), key.getX(), key.getBottom(), false));
             g.fillPath (path);
-            g.setColour (juce::Colours::white.withAlpha (0.25f)); // top highlight
+            g.setColour (juce::Colours::white.withAlpha (0.22f)); // top highlight
             g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.2f);
         }
-        else // real ivory-grey piano key
+        else
         {
-            juce::ColourGradient wk (juce::Colour (0xffcfd2dc), key.getX(), key.getY(),
-                                     juce::Colour (0xff8b8f9e), key.getX(), key.getBottom(), false);
-            wk.addColour (0.68, juce::Colour (0xffa9adbb));
-            g.setGradientFill (wk);
+            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff272730), key.getX(), key.getY(),
+                                                     juce::Colour (0xff1a1a20), key.getX(), key.getBottom(), false));
             g.fillPath (path);
-            g.setColour (juce::Colours::white.withAlpha (0.6f));
+            g.setColour (juce::Colours::white.withAlpha (0.05f));
             g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.0f);
-            g.setColour (juce::Colours::black.withAlpha (0.2f));
-            g.drawLine (key.getX() + 2.0f, key.getBottom() - 1.0f, key.getRight() - 2.0f, key.getBottom() - 1.0f, 1.0f);
         }
         if (isPlayingKey)
             velocityFill (key);
 
         g.setColour (selected[i] || isPlayingKey ? juce::Colours::black.withAlpha (0.8f)
-                                                 : juce::Colour (0xff3a3d47));
+                                                 : colors::secondary.withAlpha (0.75f));
         g.setFont (juce::FontOptions (14.0f));
         g.drawText (params::pitchClassNames[pc],
                     key.withTop (key.getBottom() - 18.0f).toNearestInt(), juce::Justification::centred);
     }
 
+    // Black keys: near-black when unselected, accent + top-lit when selected.
     int whitesBefore = 0;
     for (int i = 0; i < 12; ++i)
     {
@@ -455,19 +482,18 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
         if (selected[i])
         {
-            hw::glowRoundedRect (g, key, 2.5f, accent);
             g.setGradientFill (juce::ColourGradient (accent.brighter (0.22f), key.getX(), key.getY(),
                                                      accent.darker (0.25f), key.getX(), key.getBottom(), false));
             g.fillPath (path);
-            g.setColour (juce::Colours::white.withAlpha (0.28f));
+            g.setColour (juce::Colours::white.withAlpha (0.24f));
             g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.0f);
         }
         else
         {
-            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff26282d), key.getX(), key.getY(),
-                                                     juce::Colour (0xff0c0d10), key.getX(), key.getBottom(), false));
+            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff1a1b20), key.getX(), key.getY(),
+                                                     juce::Colour (0xff0a0b0e), key.getX(), key.getBottom(), false));
             g.fillPath (path);
-            g.setColour (juce::Colours::white.withAlpha (0.12f));
+            g.setColour (juce::Colours::white.withAlpha (0.10f));
             g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.0f);
         }
         if (isPlayingKey)
