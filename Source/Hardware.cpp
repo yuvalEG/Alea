@@ -164,9 +164,11 @@ namespace hw
 
         if (isPlate)
         {
-            // Plate: vertical hsl(220 13% 18 -> 12% 11) x0.65.
-            juce::ColourGradient grad (juce::Colour (0xff252830), r.getX(), r.getY(),
-                                       juce::Colour (0xff17191d), r.getX(), r.getBottom(), false);
+            // Plate: vertical shading widened a touch per Yuval (hsl 220
+            // lightness 21 -> 14 -> 9.5, premultiplied) - a visible slight
+            // gradient instead of the near-flat satin.
+            juce::ColourGradient grad (juce::Colour (0xff2b2f38), r.getX(), r.getY(),
+                                       juce::Colour (0xff141519), r.getX(), r.getBottom(), false);
             grad.addColour (0.46, juce::Colour (0xff1d2025));
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, radius);
@@ -176,7 +178,7 @@ namespace hw
             juce::Graphics::ScopedSaveState ss (g);
             g.reduceClipRegion (clip);
             // Soft top-lit reflection (178deg, reflect 0.2).
-            juce::ColourGradient refl (juce::Colours::white.withAlpha (0.010f), r.getX(), r.getY(),
+            juce::ColourGradient refl (juce::Colours::white.withAlpha (0.022f), r.getX(), r.getY(),
                                        juce::Colours::transparentWhite, r.getX(), r.getY() + r.getHeight() * 0.30f, false);
             g.setGradientFill (refl);
             g.fillRect (r.withHeight (r.getHeight() * 0.30f));
