@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 
 ./build/AleaUISnapshot_artefacts/Release/AleaUISnapshot docs/ui.png
 # 3 pre-rolls (history filled), sevenths+simplify on, posed mid-playing,
-# 900x676 = Scale Shifter's aspect.
-./build/ChordsUISnapshot_artefacts/Release/ChordsUISnapshot docs/chords-ui.png 3 1 1 1 900 676
+# 1040x781 = the hardware faceplate width at Scale Shifter's ~1.33 aspect.
+./build/ChordsUISnapshot_artefacts/Release/ChordsUISnapshot docs/chords-ui.png 3 1 1 1 1040 781
 
 echo "Updated docs/ui.png and docs/chords-ui.png - review and commit them."
