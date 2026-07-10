@@ -544,12 +544,18 @@ void MorphBar::paint (juce::Graphics& g)
         g.fillRect (fill);
     }
 
-    // Amber backlit position cap, glowing.
+    // Amber backlit position cap, glowing - clipped to the rounded track
+    // (the design's overflow:hidden), so at the extremes it merges into the
+    // track's end instead of floating over the corner.
     {
-        const float capX = juce::jlimit (bounds.getX() + 3.0f, bounds.getRight() - 3.0f,
+        const float capX = juce::jlimit (bounds.getX() + 2.0f, bounds.getRight() - 2.0f,
                                          bounds.getX() + fillW);
         const auto cap = juce::Rectangle<float> (capX - 1.5f, bounds.getY() + 1.0f,
                                                  3.0f, bounds.getHeight() - 2.0f);
+        juce::Path trackClip;
+        trackClip.addRoundedRectangle (bounds, 8.0f);
+        juce::Graphics::ScopedSaveState ss (g);
+        g.reduceClipRegion (trackClip);
         juce::Path p;
         p.addRoundedRectangle (cap, 2.0f);
         hw::dropGlow (g, p, colors::amber.withAlpha (0.7f), 8);
@@ -558,8 +564,13 @@ void MorphBar::paint (juce::Graphics& g)
         cg.addColour (0.55, colors::amber);
         g.setGradientFill (cg);
         g.fillPath (p);
-        g.setColour (juce::Colours::black.withAlpha (0.45f));
-        g.drawRoundedRectangle (cap.expanded (0.5f), 2.0f, 1.0f);
+        // The seating ring only where fill/track meet the cap - never on the
+        // outer side at the extremes.
+        if (fillW > 4.0f && fillW < bounds.getWidth() - 4.0f)
+        {
+            g.setColour (juce::Colours::black.withAlpha (0.45f));
+            g.drawRoundedRectangle (cap.expanded (0.5f), 2.0f, 1.0f);
+        }
     }
 
     // White readouts with the design's drop shadow, floating over the fill.
@@ -575,7 +586,7 @@ void MorphBar::paint (juce::Graphics& g)
     };
     g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
     shadowed (juce::String (pct, 1) + "%", bounds, juce::Justification::centred);
-    g.setFont (juce::FontOptions (17.0f, juce::Font::bold));
+    g.setFont (juce::FontOptions (20.0f, juce::Font::bold));
     shadowed ("A", bounds.reduced (10.0f, 0.0f), juce::Justification::centredLeft);
     shadowed ("B", bounds.reduced (10.0f, 0.0f), juce::Justification::centredRight);
 }
