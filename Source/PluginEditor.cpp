@@ -6,7 +6,7 @@ using namespace ui;
 
 namespace
 {
-    constexpr int kWidth = 940, kHeight = 742; // fits the OUTPUT row + LCD + monitor + history (compact output row)
+    constexpr int kWidth = 920, kHeight = 738; // trimmed defaults (Yuval, July 10); 738 is the floor that still shows the MORPH CURVE row
 
     // The product's About text; the dialog shell is the shared family one.
     const juce::String aboutText = juce::String::fromUTF8 (
@@ -539,7 +539,7 @@ void AleaAudioProcessorEditor::layoutMain()
 
     // Header
     // Header: left cluster fixed, right cluster anchored to the window edge
-    freezeButton.setBounds (vw - 560, 16, 80, 26);
+    freezeButton.setBounds (vw - 552, 16, 80, 26);
     menuButton.setBounds (vw - 38, 16, 28, 26);
     panicButton.setBounds (vw - 120, 16, 72, 26);
     internalTempo.setBounds (vw - 240, 14, 108, 30);
@@ -854,15 +854,16 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     {
         g.setColour (colors::secondary);
         g.setFont (juce::FontOptions (14.0f));
-        g.drawText ("Aleatoric Scale Shifter", 118, 16, 168, 28, juce::Justification::centredLeft);
+        g.drawText ("Aleatoric Scale Shifter", 118, 16, 150, 28, juce::Justification::centredLeft);
     }
-    const float ledX = subtitleShown ? 302.0f : 124.0f;
+    const float ledX = subtitleShown ? 288.0f : 124.0f;
     ui::hw::ledDot (g, { ledX, 30.0f }, playing ? 1.0f : 0.0f, colors::playing, 10.0f);
-    if (fx >= 378)
+    if (fx >= 360)
     {
         g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
         ui::hw::engraved (g, playing ? "PLAYING" : "STOPPED",
-                          { (int) ledX + 11, 16, 90, 28 }, juce::Justification::centredLeft,
+                          { (int) ledX + 11, 16, juce::jmin (90, fx - (int) ledX - 17), 28 },
+                          juce::Justification::centredLeft,
                           playing ? juce::Colour (0xff9fe6b6) : juce::Colour (0xff7f8496));
     }
 

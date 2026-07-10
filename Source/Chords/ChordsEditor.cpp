@@ -702,13 +702,13 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     // Space belongs to the host in a DAW; the plugin never grabs keys.
     setWantsKeyboardFocus (standalone);
 
-    // Every open is 1040x760 (the handoff faceplate width) - size is not
-    // persisted (family behavior, and persisted sizes kept restoring shutdown
-    // transients). Short windows are legitimate within a session: the
-    // tucked-monitor practice mode.
+    // Every open is 960x720 (trimmed from the handoff's 1040x760 - Yuval,
+    // July 10) - size is not persisted (family behavior, and persisted sizes
+    // kept restoring shutdown transients). Short windows are legitimate
+    // within a session: the tucked-monitor practice mode.
     setResizable (true, true);
-    setResizeLimits (900, 520, 4096, 2400);
-    setSize (1040, 760);
+    setResizeLimits (880, 520, 4096, 2400);
+    setSize (960, 720);
 
     // The blooms behind the backlit keys are drawn by this editor (paint), so
     // each key's crossfade must repaint the metal around it too.
