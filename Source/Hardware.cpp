@@ -61,16 +61,11 @@ void drawWordmark (juce::Graphics& g, const juce::Image& logo, juce::Rectangle<i
 namespace hw
 {
     // Baked finish (design handoff): brush 0 = clean satin, no grain;
-    // sheen 1.9 = strong specular; glow 1.4 = brighter LED bloom.
-    constexpr float kSheen = 2.4f, kGlow = 1.4f; // stronger specular = more polished metal
-
-    // Global faceplate darkening: the whole brushed-metal background (slab +
-    // plates) is dimmed 15% for a moodier finish. Accent colours and text are
-    // untouched.
-    inline juce::Colour dk (juce::Colour c) { return c.withMultipliedBrightness (0.80f); }
-    // The bright anisotropic sheen band is darkened far less than the base, so
-    // the metal's reflective banding stays crisp against the darker plate.
-    inline juce::Colour sheen (juce::Colour c) { return c.withMultipliedBrightness (0.94f); }
+    // sheen 1.9 = strong specular; glow 1.4 = brighter LED bloom. The metal
+    // uses the handoff's EXACT stop colours (hue 220, brightness 1) - an
+    // earlier 15% "moodier" dim drifted from the design and was rolled back
+    // when Yuval asked for 1:1 (July 10 QA).
+    constexpr float kSheen = 1.9f, kGlow = 1.4f;
 
     // A real Gaussian glow behind a filled shape (JUCE_DRAWING_GUIDE
     // technique 2): rasterise the shape into an image, then juce::DropShadow
@@ -106,18 +101,50 @@ namespace hw
         }
     }
 
-    // Glowing text (LCD phosphor / lit note): a gentle halo, then crisp text
-    // on top so it stays readable (a heavy multi-pass halo drowned the glyphs).
+    // Glowing text (LCD phosphor / lit chord name): a REAL Gaussian halo of
+    // the glyph shapes (the design's text-shadow: 0 0 Npx currentColor), then
+    // crisp text on top so it stays readable. Uses the Graphics' current font.
     void glowText (juce::Graphics& g, const juce::String& text, juce::Rectangle<int> area,
                    juce::Justification just, juce::Colour colour)
     {
-        g.setColour (colour.withAlpha (0.16f));
-        g.drawText (text, area.translated (1, 0), just);
-        g.drawText (text, area.translated (-1, 0), just);
-        g.drawText (text, area.translated (0, 1), just);
-        g.drawText (text, area.translated (0, -1), just);
+        const auto font = g.getCurrentFont();
+        juce::GlyphArrangement ga;
+        ga.addLineOfText (font, text, 0.0f, 0.0f);
+        const auto bb = ga.getBoundingBox (0, -1, true);
+        if (! bb.isEmpty())
+        {
+            // Place the glyph path exactly where drawText will draw.
+            float x = (float) area.getX();
+            if (just.testFlags (juce::Justification::horizontallyCentred))
+                x = (float) area.getCentreX() - bb.getWidth() * 0.5f - bb.getX();
+            else if (just.testFlags (juce::Justification::right))
+                x = (float) area.getRight() - bb.getWidth() - bb.getX();
+            const float baseline = (float) area.getY()
+                                 + ((float) area.getHeight() - font.getHeight()) * 0.5f
+                                 + font.getAscent();
+            juce::Path p;
+            ga.createPath (p);
+            p.applyTransform (juce::AffineTransform::translation (x, baseline));
+            dropGlow (g, p, colour.withAlpha (0.60f), 7);
+        }
         g.setColour (colour);
         g.drawText (text, area, just);
+    }
+
+    void keyBloom (juce::Graphics& g, const juce::Component& key, juce::Colour colour,
+                   float amount, float radius)
+    {
+        amount = juce::jlimit (0.0f, 1.0f, amount);
+        if (amount <= 0.01f)
+            return;
+        juce::Path p;
+        p.addRoundedRectangle (key.getBounds().toFloat(), radius);
+        dropGlow (g, p, colour.withAlpha (0.75f * amount), (int) (8.0f * kGlow));
+    }
+
+    float litAmount (const juce::Button& b)
+    {
+        return (float) b.getProperties().getWithDefault ("litAmt", b.getToggleState() ? 1.0f : 0.0f);
     }
 
     void brushedMetal (juce::Graphics& g, juce::Rectangle<float> r, float radius, bool isPlate)
@@ -126,9 +153,8 @@ namespace hw
         {
             // Flat satin vertical base (hsl(220 12% 17->12%)), hairline seam,
             // top inner highlight - no grain.
-            juce::ColourGradient grad (dk (juce::Colour (0xff262a30)), r.getX(), r.getY(),
-                                       dk (juce::Colour (0xff191b1f)), r.getX(), r.getBottom(), false);
-            grad.addColour (0.46, dk (juce::Colour (0xff21242a)));
+            juce::ColourGradient grad (juce::Colour (0xff262a31), r.getX(), r.getY(),
+                                       juce::Colour (0xff1b1e22), r.getX(), r.getBottom(), false);
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, radius);
             // A whisper of top-lit shading (~2%) - just enough to read as a
@@ -145,20 +171,22 @@ namespace hw
         }
         else
         {
-            // Raised slab: a broad anisotropic sheen sweep across the width
-            // (the 97deg gradient), plus a pronounced top-left specular.
-            juce::ColourGradient grad (dk (juce::Colour (0xff191b20)), r.getX(), r.getY(),
-                                       dk (juce::Colour (0xff191a1e)), r.getRight(), r.getBottom(), false);
-            grad.addColour (0.18, sheen (juce::Colour (0xff262a32)));
-            grad.addColour (0.34, sheen (juce::Colour (0xff333844))); // sheen peak - kept bright
-            grad.addColour (0.50, dk    (juce::Colour (0xff1a1c22)));
-            grad.addColour (0.68, sheen (juce::Colour (0xff2c313b)));
-            grad.addColour (0.84, dk    (juce::Colour (0xff1c1e24)));
+            // Raised slab: the 97deg anisotropic sheen sweep, stops copied
+            // 1:1 from the handoff (hsl 220-hue bands 11%..27% lightness).
+            juce::ColourGradient grad (juce::Colour (0xff1a1b1e), r.getX(), r.getY(),
+                                       juce::Colour (0xff1a1b1d), r.getRight(), r.getY() + r.getHeight() * 0.12f, false);
+            grad.addColour (0.18, juce::Colour (0xff2d2f34));
+            grad.addColour (0.34, juce::Colour (0xff3d424c)); // sheen peak
+            grad.addColour (0.50, juce::Colour (0xff25272c));
+            grad.addColour (0.68, juce::Colour (0xff383c44));
+            grad.addColour (0.84, juce::Colour (0xff212327));
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, radius);
-            // Pronounced travelling specular (top-left origin) - the polished sheen.
-            juce::ColourGradient spec (juce::Colours::white.withAlpha (0.16f * kSheen), r.getX() + r.getWidth() * 0.30f, r.getY() - r.getHeight() * 0.15f,
-                                       juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.30f, r.getY() + r.getHeight() * 0.55f, true);
+            // Specular: radial-gradient(120% 75% at 30% -15%, white .16*sheen, transparent 42%).
+            juce::ColourGradient spec (juce::Colours::white.withAlpha (0.16f * kSheen),
+                                       r.getX() + r.getWidth() * 0.30f, r.getY() - r.getHeight() * 0.15f,
+                                       juce::Colours::transparentWhite,
+                                       r.getX() + r.getWidth() * 0.30f + r.getWidth() * 0.50f, r.getY() - r.getHeight() * 0.15f, true);
             g.setGradientFill (spec);
             g.fillRoundedRectangle (r, radius);
             // Raised edge: bright top seam, dark seam all round.
@@ -505,12 +533,8 @@ void TransportButton::paintButton (juce::Graphics& g, bool over, bool down)
     const bool on = getToggleState();
     const auto grn = colors::playing;
 
-    if (on)
-    {
-        juce::Path key;
-        key.addRoundedRectangle (b, 4.0f);
-        hw::dropGlow (g, key, grn.withAlpha (0.55f), 8);
-    }
+    // The lit bloom is the parent's job (hw::keyBloom) - drawn here it would
+    // clip to the button's bounds.
     const auto legend = hw::button (g, b, on ? 1.0f : 0.0f, grn, over, down);
     if (! on)
     {
@@ -750,30 +774,19 @@ namespace
 
         // Hardware push-button: metal face crossfading to a backlit LED key.
         // AnimatedButton drives "litAmt" (0..1); others fall back to toggle.
-        static float litAmount (juce::Button& b)
-        {
-            return (float) b.getProperties().getWithDefault ("litAmt", b.getToggleState() ? 1.0f : 0.0f);
-        }
-
+        // NOTE: the LED bloom is NOT drawn here - it would clip to the button's
+        // bounds and read as a hard square. Editors draw hw::keyBloom behind
+        // their lit keys instead.
         void drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&,
                                    bool over, bool down) override
         {
             const auto led = b.findColour (juce::TextButton::buttonOnColourId);
-            const float lit = litAmount (b);
-            // Hero keys (ROLL, AUTO) ask for the LED bloom via the "bloom"
-            // property; ordinary keys stay bloom-free (family precedent).
-            if (lit > 0.01f && b.getProperties().getWithDefault ("bloom", false))
-            {
-                juce::Path p;
-                p.addRoundedRectangle (b.getLocalBounds().toFloat(), 4.0f);
-                hw::dropGlow (g, p, led.withAlpha (0.7f * lit), 9);
-            }
-            hw::button (g, b.getLocalBounds().toFloat(), lit, led, over, down);
+            hw::button (g, b.getLocalBounds().toFloat(), hw::litAmount (b), led, over, down);
         }
 
         void drawButtonText (juce::Graphics& g, juce::TextButton& b, bool over, bool) override
         {
-            const float lit = litAmount (b);
+            const float lit = hw::litAmount (b);
             auto colour = b.findColour (juce::TextButton::textColourOffId)
                              .interpolatedWith (b.findColour (juce::TextButton::textColourOnId), lit);
             if (over && lit < 0.5f)
@@ -786,11 +799,14 @@ namespace
 
         // Hardware toggle switch (.hw-toggle): recessed track + sliding metal
         // knob, lit in the button's tick colour; sentence-case engraved label.
+        // The track sits INSET from the component edges so its glow has dark
+        // metal to spread into - flush against the bounds it was clipped to a
+        // hard square (July 10 QA).
         void drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool over, bool) override
         {
             const auto area = b.getLocalBounds();
-            const float trackH = 20.0f, trackW = 38.0f;
-            const auto track = juce::Rectangle<float> (0.0f, (float) area.getHeight() * 0.5f - trackH * 0.5f,
+            const float trackH = 18.0f, trackW = 38.0f, inset = 5.0f;
+            const auto track = juce::Rectangle<float> (inset, (float) area.getHeight() * 0.5f - trackH * 0.5f,
                                                        trackW, trackH);
             hw::toggleSwitch (g, track, b.getToggleState() ? 1.0f : 0.0f,
                               b.findColour (juce::ToggleButton::tickColourId));
@@ -799,7 +815,7 @@ namespace
                 ink = ink.brighter (0.3f);
             g.setFont (juce::Font (juce::FontOptions (14.0f)).boldened());
             hw::engraved (g, b.getButtonText(),
-                          area.withTrimmedLeft ((int) trackW + 9),
+                          area.withTrimmedLeft ((int) (inset + trackW) + 9),
                           juce::Justification::centredLeft, ink);
         }
 

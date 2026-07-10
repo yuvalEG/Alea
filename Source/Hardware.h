@@ -96,9 +96,20 @@ namespace hw
     // Soft outward glow around a rounded rect (no box-shadow in JUCE).
     void glowRoundedRect (juce::Graphics&, juce::Rectangle<float> r, float radius,
                           juce::Colour colour, float strength = 1.0f);
-    // Phosphor-glow text (drawn several times at low alpha, then crisp).
+    // Phosphor-glow text: a real Gaussian halo of the glyphs, then crisp text.
+    // Set the font on the Graphics BEFORE calling (the halo uses it).
     void glowText (juce::Graphics&, const juce::String& text, juce::Rectangle<int> area,
                    juce::Justification, juce::Colour colour);
+
+    // The LED bloom behind a lit key, drawn by the key's PARENT (a component's
+    // own paint is clipped to its bounds, so an outer glow drawn inside reads
+    // as a hard square - the one recurring glow bug). Call from the editor's
+    // paint for every lit button; `key` supplies the bounds in parent coords.
+    void keyBloom (juce::Graphics&, const juce::Component& key, juce::Colour colour,
+                   float amount, float radius = 4.0f);
+    // A button's current 0..1 backlight (AnimatedButton's crossfade, or the
+    // plain toggle state) - what keyBloom wants as `amount`.
+    float litAmount (const juce::Button&);
 }
 
 // Draw the ALEA wordmark, width-fit and vertically centred in `box`, with a
@@ -132,6 +143,11 @@ class AnimatedButton : public juce::TextButton, private juce::Timer
 {
 public:
     using juce::TextButton::TextButton;
+
+    // Fires on every backlight step. The editor hooks this to repaint the
+    // area around the key, so the parent-drawn hw::keyBloom fades with it.
+    std::function<void()> onLitChange;
+
 protected:
     void buttonStateChanged() override
     {
@@ -141,6 +157,7 @@ protected:
         {
             settled = true; litAmt = target;
             getProperties().set ("litAmt", litAmt);
+            if (onLitChange) onLitChange();
         }
         else if (std::abs (target - litAmt) > 0.001f && ! isTimerRunning())
             startTimerHz (60);
@@ -153,6 +170,7 @@ private:
         if (std::abs (target - litAmt) < 0.01f) { litAmt = target; stopTimer(); }
         getProperties().set ("litAmt", litAmt);
         repaint();
+        if (onLitChange) onLitChange();
     }
     float litAmt = 0.0f;
     bool settled = false;

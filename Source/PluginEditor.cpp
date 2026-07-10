@@ -279,6 +279,8 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     // The icon tells the truth: pausing holds the internal clock.
     playButton.onClick = [this]
     {
+        content.repaint (playButton.getBounds().expanded (18)); // its bloom
+
         alea.standaloneTransport.store (playButton.getToggleState());
     };
     playButton.setToggleState (alea.standaloneTransport.load(), juce::dontSendNotification);
@@ -326,6 +328,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     // grey when OFF. They stay fully interactive either way (never disabled,
     // values never cleared) - only the backlight colour changes.
     autoSweep.onStateChange = [this] { updateSweepGating(); };
+    // The blooms behind FREEZE / AUTO-SWEEP live in paintMain - repaint the
+    // metal around each key as its backlight crossfades.
+    freezeButton.onLitChange = [this] { content.repaint (freezeButton.getBounds().expanded (18)); };
+    autoSweep.onLitChange    = [this] { content.repaint (autoSweep.getBounds().expanded (18)); };
     updateSweepGating();
 
     // Every preset is a one-click bubble; the active one stays lit.
@@ -821,13 +827,19 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
         static const juce::Image logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
         ui::drawWordmark (g, logo, { 20, 12, 87, 34 });
     }
+
+    // LED blooms behind the lit keys, drawn by the container so they spread
+    // onto the metal (a key's own paint clips to its rectangle).
+    ui::hw::keyBloom (g, freezeButton, colors::ice, ui::hw::litAmount (freezeButton));
+    ui::hw::keyBloom (g, autoSweep, colors::amber, ui::hw::litAmount (autoSweep));
+    if (playButton.isVisible())
+        ui::hw::keyBloom (g, playButton, colors::playing, playButton.getToggleState() ? 1.0f : 0.0f);
     // Header disclosure is purely additive as the window widens - nothing ever
     // appears, disappears, then reappears. The status LED sits right after the
     // logo and is ALWAYS shown; the subtitle adds next, then the status word.
     const bool playing = alea.hostIsPlaying.load();
     const int fx = freezeButton.getX();
-    g.setColour (playing ? colors::green : colors::control);
-    g.fillEllipse (118.0f, 22.0f, 12.0f, 12.0f); // 1) LED - always
+    ui::hw::ledDot (g, { 124.0f, 28.0f }, playing ? 1.0f : 0.0f, colors::playing, 12.0f); // 1) LED - always
     if (fx >= 300)                               // 2) + subtitle
     {
         g.setColour (colors::secondary);

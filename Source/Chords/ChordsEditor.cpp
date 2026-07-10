@@ -75,15 +75,13 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
         g.fillRoundedRectangle (b, 10.0f);
     }
 
-    // Scanlines + a diagonal gloss, clipped to the pane.
+    // A diagonal gloss, clipped to the pane (no scanlines here - the CRT
+    // lines are the Scale Shifter monitor's idiom, per Yuval July 10).
     {
         juce::Path clip;
         clip.addRoundedRectangle (b, 10.0f);
         juce::Graphics::ScopedSaveState ss (g);
         g.reduceClipRegion (clip);
-        g.setColour (juce::Colours::black.withAlpha (0.22f));
-        for (float y = b.getY(); y < b.getBottom(); y += 3.0f)
-            g.fillRect (b.getX(), y, b.getWidth(), 1.0f);
         juce::ColourGradient gloss (juce::Colours::white.withAlpha (0.08f), b.getX(), b.getY(),
                                     juce::Colours::transparentWhite,
                                     b.getX() + b.getWidth() * 0.45f, b.getY() + b.getHeight() * 0.75f, false);
@@ -91,10 +89,9 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
         g.fillRect (b);
     }
 
-    // Frame: dark bezel always; the sounding/incoming card adds an accent ring
-    // and a soft bloom outside it.
-    if (lit)
-        hw::glowRoundedRect (g, b.reduced (1.0f), 10.0f, accent.withAlpha (0.28f), 0.7f);
+    // Frame: dark bezel always; the sounding/incoming card adds an accent
+    // ring. Its outer bloom is drawn by the editor (a component's own paint
+    // clips to its bounds - drawn here the glow became a hard square).
     g.setColour (juce::Colours::black.withAlpha (0.7f));
     g.drawRoundedRectangle (b.reduced (0.5f), 10.0f, 1.0f);
     if (lit)
@@ -209,7 +206,12 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
             }
         }
         if (any)
-            juce::DropShadow (colors::purple.withAlpha (0.85f), 11, {}).drawForImage (g, mask);
+        {
+            // A wide soft aura plus a tight full-strength core - the same
+            // two-layer bloom the Scale Shifter keyboards wear.
+            juce::DropShadow (colors::purple.withAlpha (0.40f), 22, {}).drawForImage (g, mask);
+            juce::DropShadow (colors::purple,                  12, {}).drawForImage (g, mask);
+        }
     }
 
     // White keys: pale worn metal, purple when sounding.
@@ -275,8 +277,8 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
     if (below) arrow (true);
     if (above) arrow (false);
 
-    // The CRT scanlines cross over the keys - they sit behind the glass.
-    hw::lcdScanlines (g, b);
+    // (No CRT scanlines here - that texture belongs to the Scale Shifter
+    // monitor for now, per Yuval July 10.)
 }
 
 //==============================================================================
@@ -513,7 +515,6 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     rollButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan);
     rollButton.setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
     rollButton.getProperties().set ("litAmt", 1.0f);
-    rollButton.getProperties().set ("bloom", true);
     rollButton.getProperties().set ("fontSize", 19.0f);
     rollButton.onClick = [this] { doRoll(); };
     addAndMakeVisible (rollButton);
@@ -522,7 +523,6 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     // and the series re-rolls on its own. Lit cyan when armed.
     autoButton.setClickingTogglesState (true);
     autoButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan);
-    autoButton.getProperties().set ("bloom", true);
     autoButton.onClick = [this]
     {
         const bool on = autoButton.getToggleState();
@@ -772,6 +772,11 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     setResizeLimits (900, 520, 4096, 2400);
     setSize (1040, 760);
 
+    // The blooms behind the backlit keys are drawn by this editor (paint), so
+    // each key's crossfade must repaint the metal around it too.
+    for (auto* b : { &autoButton, &freezeButton, &clickButton })
+        b->onLitChange = [this, b] { repaint (b->getBounds().expanded (18)); };
+
     refresh();
     applyAutoGate();
     startTimerHz (30); // fast enough for the bar-progress strip and meter
@@ -878,9 +883,12 @@ void ChordsEditor::timerCallback()
         }
         if (card->active != nowActive || (nowActive && std::abs (card->progress - progress) > 0.005f))
         {
+            const bool blinked = card->active != nowActive;
             card->active = nowActive;
             card->progress = nowActive ? progress : 0.0f;
             card->repaint();
+            if (blinked)
+                repaint (card->getBounds().expanded (24)); // the bloom behind it
         }
     }
 
@@ -1017,6 +1025,7 @@ void ChordsEditor::refresh()
 
     ticker.repaint();
     resized(); // card widths depend on how many are visible
+    repaint(); // card blooms + gated captions live in the editor's layer
 }
 
 void ChordsEditor::updateCardFonts()
@@ -1184,6 +1193,19 @@ void ChordsEditor::paint (juce::Graphics& g)
         hw::plate (g, monitorPanel, "MONITOR");
     hw::plate (g, historyPanel, "HISTORY");
 
+    // The LED blooms, drawn HERE (the parent) so they spread onto the metal
+    // instead of clipping to each key's rectangle: the always-lit ROLL, the
+    // crossfading header keys, and the lit chord cards.
+    hw::keyBloom (g, rollButton, colors::cyan, 1.0f);
+    hw::keyBloom (g, autoButton, colors::cyan, hw::litAmount (autoButton));
+    hw::keyBloom (g, freezeButton, colors::ice, hw::litAmount (freezeButton));
+    hw::keyBloom (g, clickButton, juce::Colour (0xffc8ccd8), hw::litAmount (clickButton));
+    if (playButton.isVisible())
+        hw::keyBloom (g, playButton, colors::playing, playButton.getToggleState() ? 1.0f : 0.0f);
+    for (auto* card : cards)
+        if (card->isVisible() && (card->active || card->incoming))
+            hw::keyBloom (g, *card, card->incoming ? colors::cyan : colors::purple, 0.8f, 10.0f);
+
     // Engraved control captions, above their rows.
     auto caption = [&g] (const juce::Component& c, const juce::String& text, float alpha = 1.0f)
     {
@@ -1293,15 +1315,15 @@ void ChordsEditor::resized()
     typeRow.setBounds (dice.removeFromTop (43).withTrimmedTop (17).withHeight (26));
     dice.removeFromTop (8);
 
-    auto checks = dice.removeFromTop (22);
-    simplifyToggle.setBounds (checks.removeFromLeft (juce::jmin (128, checks.getWidth() / 2)));
+    auto checks = dice.removeFromTop (28);
+    simplifyToggle.setBounds (checks.removeFromLeft (juce::jmin (132, checks.getWidth() / 2)));
     checks.removeFromLeft (8);
     susToggle.setBounds (checks);
-    dice.removeFromTop (8);
+    dice.removeFromTop (4);
 
-    auto rowE = dice.removeFromTop (26);
-    keyLockToggle.setBounds (rowE.removeFromLeft (106));
-    rowE.removeFromLeft (4);
+    auto rowE = dice.removeFromTop (28);
+    keyLockToggle.setBounds (rowE.removeFromLeft (110));
+    rowE.removeFromLeft (2);
     keyBox.setBounds (rowE.removeFromLeft (60).withSizeKeepingCentre (60, 26));
     rowE.removeFromLeft (6);
     const int scaleW = juce::jmin (118, rowE.getWidth());
@@ -1322,10 +1344,10 @@ void ChordsEditor::resized()
     auto voiceCol = row2.removeFromLeft (128);
     voicingRow.setBounds (voiceCol.withTrimmedTop (17).withHeight (26));
     row2.removeFromLeft (16);
-    auto togglesCol = row2.removeFromLeft (juce::jmin (150, row2.getWidth() - 96)).withTrimmedTop (14);
-    smoothToggle.setBounds (togglesCol.removeFromTop (22));
-    togglesCol.removeFromTop (8);
-    bassToggle.setBounds (togglesCol.removeFromTop (22));
+    auto togglesCol = row2.removeFromLeft (juce::jmin (158, row2.getWidth() - 96)).withTrimmedTop (10);
+    smoothToggle.setBounds (togglesCol.removeFromTop (28));
+    togglesCol.removeFromTop (4);
+    bassToggle.setBounds (togglesCol.removeFromTop (28));
 
     meterRect = juce::Rectangle<int> (row2.getRight() - 14, row2.getY() + 6, 14, 58);
     volKnob.setBounds (row2.getRight() - 14 - 8 - 58, row2.getY() + 6, 58, 58);
