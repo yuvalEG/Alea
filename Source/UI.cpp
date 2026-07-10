@@ -520,39 +520,64 @@ void MorphBar::paint (juce::Graphics& g)
     const bool sweep = sweepActive();
     const float pct = juce::jlimit (0.0f, 100.0f, sweep ? (float) alea.morphPercent.load() : value);
 
-    g.setColour (colors::control);
-    g.fillRoundedRectangle (bounds, 6.0f);
+    // The design fader: a recessed track; the fill carries the WHOLE
+    // purple-to-cyan blend compressed into its width (you always see the full
+    // A-to-B story), under a glossy vertical sheen; an amber backlit cap.
+    hw::insetWell (g, bounds, 8.0f);
 
-    // Fill is a purple-to-cyan gradient across the whole travel, clipped to
-    // the current position, so the color literally shows where between the
-    // two scales you are.
     const float fillW = bounds.getWidth() * pct / 100.0f;
-    if (fillW > 0.5f)
+    if (fillW > 1.5f)
     {
-        g.saveState();
-        g.reduceClipRegion (juce::Rectangle<float> (bounds.getX(), bounds.getY(), fillW, bounds.getHeight()).toNearestInt());
-        g.setGradientFill (juce::ColourGradient::horizontal (colors::purple, bounds.getX(),
-                                                             colors::cyan, bounds.getRight()));
-        g.fillRoundedRectangle (bounds, 6.0f);
-        g.restoreState();
+        const auto fill = bounds.withWidth (fillW);
+        juce::Path clip;
+        clip.addRoundedRectangle (bounds, 8.0f);
+        juce::Graphics::ScopedSaveState ss (g);
+        g.reduceClipRegion (clip);
+        g.setGradientFill (juce::ColourGradient::horizontal (colors::purple, fill.getX(),
+                                                             colors::cyan, fill.getRight()));
+        g.fillRect (fill);
+        // The sheen: lit top, shadowed bottom - the fill reads as a lit bar.
+        juce::ColourGradient sheen (juce::Colours::white.withAlpha (0.35f), fill.getX(), fill.getY(),
+                                    juce::Colours::black.withAlpha (0.25f), fill.getX(), fill.getBottom(), false);
+        sheen.addColour (0.45, juce::Colours::transparentWhite);
+        g.setGradientFill (sheen);
+        g.fillRect (fill);
     }
 
-    // Position marker
-    g.setColour (colors::amber);
-    g.fillRect (juce::Rectangle<float> (bounds.getX() + fillW - 1.5f, bounds.getY(), 3.0f, bounds.getHeight()));
+    // Amber backlit position cap, glowing.
+    {
+        const float capX = juce::jlimit (bounds.getX() + 3.0f, bounds.getRight() - 3.0f,
+                                         bounds.getX() + fillW);
+        const auto cap = juce::Rectangle<float> (capX - 1.5f, bounds.getY() + 1.0f,
+                                                 3.0f, bounds.getHeight() - 2.0f);
+        juce::Path p;
+        p.addRoundedRectangle (cap, 2.0f);
+        hw::dropGlow (g, p, colors::amber.withAlpha (0.7f), 8);
+        juce::ColourGradient cg (colors::amber.interpolatedWith (juce::Colours::white, 0.12f), cap.getX(), cap.getY(),
+                                 colors::amber.interpolatedWith (juce::Colours::black, 0.34f), cap.getX(), cap.getBottom(), false);
+        cg.addColour (0.55, colors::amber);
+        g.setGradientFill (cg);
+        g.fillPath (p);
+        g.setColour (juce::Colours::black.withAlpha (0.45f));
+        g.drawRoundedRectangle (cap.expanded (0.5f), 2.0f, 1.0f);
+    }
 
-    g.setColour (colors::border);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 6.0f, 1.0f);
-
-    g.setColour (colors::text);
-    g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-    g.drawText (juce::String (pct, 1) + "%", bounds, juce::Justification::centred);
-
+    // White readouts with the design's drop shadow, floating over the fill.
+    auto shadowed = [&g] (const juce::String& t, juce::Rectangle<float> area, juce::Justification just)
+    {
+        const auto a = area.toNearestInt();
+        g.setColour (juce::Colours::black.withAlpha (0.55f));
+        g.drawText (t, a.translated (0, 2), just);
+        g.setColour (juce::Colours::black.withAlpha (0.85f));
+        g.drawText (t, a.translated (0, 1), just);
+        g.setColour (juce::Colours::white);
+        g.drawText (t, a, just);
+    };
+    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+    shadowed (juce::String (pct, 1) + "%", bounds, juce::Justification::centred);
     g.setFont (juce::FontOptions (17.0f, juce::Font::bold));
-    g.setColour (pct < 1.0f ? colors::purple : colors::text);
-    g.drawText ("A", bounds.reduced (10.0f, 0.0f), juce::Justification::centredLeft);
-    g.setColour (pct > 99.0f ? colors::text : colors::cyan);
-    g.drawText ("B", bounds.reduced (10.0f, 0.0f), juce::Justification::centredRight);
+    shadowed ("A", bounds.reduced (10.0f, 0.0f), juce::Justification::centredLeft);
+    shadowed ("B", bounds.reduced (10.0f, 0.0f), juce::Justification::centredRight);
 }
 
 float MorphBar::pctFromX (const juce::MouseEvent& e) const

@@ -592,7 +592,7 @@ void AleaAudioProcessorEditor::layoutMain()
     // Morph
     {
         const int x = morphPanel.getX() + 12, w = morphPanel.getWidth() - 24;
-        morphBar.setBounds (x, morphPanel.getY() + 34, w, 34);
+        morphBar.setBounds (x, morphPanel.getY() + 30, w, 44); // design fader height
         // AUTO-SWEEP full width, then a duration row: SYNC/FREE (with the
         // Seconds/Minutes unit below it in Free mode) on the left, and the
         // DURATION knob on the right.
