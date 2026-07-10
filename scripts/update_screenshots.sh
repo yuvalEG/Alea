@@ -12,6 +12,6 @@ cd "$(dirname "$0")/.."
 ./build/AleaUISnapshot_artefacts/Release/AleaUISnapshot docs/ui.png
 # 3 pre-rolls (history filled), sevenths+simplify on, posed mid-playing,
 # at the default window size.
-./build/ChordsUISnapshot_artefacts/Release/ChordsUISnapshot docs/chords-ui.png 3 1 1 1 960 720
+./build/ChordsUISnapshot_artefacts/Release/ChordsUISnapshot docs/chords-ui.png 3 1 1 1 920 726
 
 echo "Updated docs/ui.png and docs/chords-ui.png - review and commit them."
