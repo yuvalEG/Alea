@@ -166,11 +166,12 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
     auto whiteKeyRect = [&] (int slot) { return whiteKeyBounds (slot).reduced (1.0f); };
 
-    // The sounding key physically DEPRESSES (design: translateY(3px) +
-    // dimmed face + a dark press shadow at the top). Geometry helper so the
-    // face, the glow mask and the velocity fill all agree.
+    // The sounding key physically DEPRESSES: its front (bottom) edge tilts
+    // away, so the face FORESHORTENS from the bottom and the key's dark front
+    // side becomes visible beneath it. (Translating the key down + a top
+    // shadow looked like it was pressed from the other side - QA round 8.)
     auto pressedRect = [] (juce::Rectangle<float> k, bool pressed)
-    { return pressed ? k.translated (0.0f, 3.0f).withTrimmedTop (0.0f) : k; };
+    { return pressed ? k.withTrimmedBottom (3.5f) : k; };
 
     auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key, float radius)
     {
@@ -197,13 +198,17 @@ void PianoKeyboard::paint (juce::Graphics& g)
     {
         const auto k = pressedRect (key, pressed);
         const auto path = keyPath (k, radius);
-        const float dim = pressed ? 0.88f : 1.0f;
+        const float dim = pressed ? 0.90f : 1.0f;
         if (pressed)
         {
-            // The strip the key vacated is deep shadow - the key sits IN the
-            // bed, it doesn't float in front of it.
-            g.setColour (juce::Colours::black.withAlpha (0.55f));
-            g.fillRect (juce::Rectangle<float> (key.getX(), key.getY(), key.getWidth(), 3.5f));
+            // The key's front side, caught in shadow under the tilted face.
+            juce::Path front;
+            front.addRoundedRectangle (key.getX(), k.getBottom() - radius, key.getWidth(),
+                                       (key.getBottom() - k.getBottom()) + radius,
+                                       radius, radius, false, false, true, true);
+            g.setColour ((isSel ? accent.interpolatedWith (juce::Colours::black, 0.65f)
+                                : juce::Colour (0xff0a0b0e)).withAlpha (0.95f));
+            g.fillPath (front);
         }
 
         if (isSel)
@@ -234,15 +239,6 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
         juce::Graphics::ScopedSaveState ss (g);
         g.reduceClipRegion (path);
-        if (pressed)
-        {
-            // The press shadow: dark pooling under the top edge.
-            juce::ColourGradient press (juce::Colours::black.withAlpha (0.55f), k.getX(), k.getY(),
-                                        juce::Colours::transparentBlack, k.getX(), k.getY() + 11.0f, false);
-            g.setGradientFill (press);
-            g.fillRect (k.withHeight (11.0f));
-        }
-        else
         {
             g.setColour (juce::Colours::white.withAlpha (isSel ? 0.7f : (isWhite ? 0.08f : 0.10f)));
             g.drawLine (k.getX() + 2.0f, k.getY() + 1.0f, k.getRight() - 2.0f, k.getY() + 1.0f,
@@ -800,6 +796,8 @@ void OutputPanel::paint (juce::Graphics& g)
     hw::lcd (g, lcdRect, active >= 0 ? colors::green.interpolatedWith (srcColour,
                                            srcColour == colors::purple ? 0.38f : 0.22f)
                                      : colors::green);
+    if (active >= 0) // the sounding side's light washes the glass edges
+        hw::lcdAmbience (g, lcdRect, srcColour, 0.9f);
     auto screen = lcdRect.toNearestInt().reduced (10, 4);
     auto barBeat = screen.removeFromRight (86);
 

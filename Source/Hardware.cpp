@@ -1159,8 +1159,8 @@ namespace
                 const auto ink = colors::green.brighter (0.35f).withAlpha (s.isEnabled() ? 1.0f : 0.55f);
                 const auto full = s.getTextFromValue (s.getValue());
                 const auto value = full.upToFirstOccurrenceOf (" ", false, false);
-                const juce::Font valueFont { juce::Font (juce::FontOptions (16.0f)).boldened() };
-                const juce::Font unitFont  { juce::Font (juce::FontOptions (9.5f)).boldened() };
+                const juce::Font valueFont { juce::Font (juce::FontOptions (18.0f)).boldened() };
+                const juce::Font unitFont  { juce::Font (juce::FontOptions (10.0f)).boldened() };
                 const float vw = juce::GlyphArrangement::getStringWidth (valueFont, value);
                 const float uw = juce::GlyphArrangement::getStringWidth (unitFont, "BPM");
                 const int x0 = (int) (r.getCentreX() - (vw + 4.0f + uw) * 0.5f);

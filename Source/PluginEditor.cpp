@@ -542,7 +542,7 @@ void AleaAudioProcessorEditor::layoutMain()
     freezeButton.setBounds (vw - 560, 16, 80, 26);
     menuButton.setBounds (vw - 38, 16, 28, 26);
     panicButton.setBounds (vw - 120, 16, 72, 26);
-    internalTempo.setBounds (vw - 232, 16, 100, 26);
+    internalTempo.setBounds (vw - 240, 14, 108, 30);
     tempoSource.setBounds (vw - 410, 16, 140, 26);
     playButton.setBounds (vw - 412, 16, 76, 26);
 

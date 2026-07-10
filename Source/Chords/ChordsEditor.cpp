@@ -1194,7 +1194,7 @@ void ChordsEditor::resized()
     auto header = b.removeFromTop (54);
     menuButton.setBounds (header.getRight() - M - 36, 13, 36, 28);
     panicButton.setBounds (menuButton.getX() - 10 - 62, 13, 62, 28);
-    tempoBox.setBounds (panicButton.getX() - 10 - 96, 12, 96, 30);
+    tempoBox.setBounds (panicButton.getX() - 10 - 102, 11, 102, 32);
     int leftEdge = tempoBox.getX();
     if (standalone) // the plugin has no click - DAWs bring their own
     {
