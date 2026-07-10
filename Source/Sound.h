@@ -86,7 +86,11 @@ private:
     void releaseVoice (Voice&, bool allNotesOff);
     float renderVoiceSample (Voice&);   // one mono sample, advances the voice
 
-    std::array<Voice, 16> voices;
+    // 32 voices: the Chord Randomizer can voice one chord as up to ~16 notes
+    // (a 9th doubled across three octaves + bass), so 16 left no headroom for
+    // the previous chord's release tail to ring under the next. 32 lets two
+    // full chords overlap. Trivial CPU (sine/saw sums + one shared delay/verb).
+    std::array<Voice, 32> voices;
     int nextVoice = 0;
     double sr = 44100.0;
 

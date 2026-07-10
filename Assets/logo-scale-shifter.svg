@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Alea Scale Shifter">
+  <defs>
+    <radialGradient id="ss-tile" cx="38%" cy="30%" r="90%">
+      <stop offset="0%" stop-color="#1b1930"></stop>
+      <stop offset="55%" stop-color="#0f0e18"></stop>
+      <stop offset="100%" stop-color="#08080d"></stop>
+    </radialGradient>
+    <linearGradient id="ss-edge" x1="90" y1="120" x2="400" y2="440" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#b06bff"></stop>
+      <stop offset="50%" stop-color="#7c3aed"></stop>
+      <stop offset="100%" stop-color="#22d3ee"></stop>
+    </linearGradient>
+    <linearGradient id="ss-top" x1="120" y1="120" x2="392" y2="278" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#211a3a"></stop>
+      <stop offset="100%" stop-color="#0f1a2b"></stop>
+    </linearGradient>
+    <linearGradient id="ss-left" x1="120" y1="199" x2="256" y2="436" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a1330"></stop>
+      <stop offset="100%" stop-color="#0c0a16"></stop>
+    </linearGradient>
+    <linearGradient id="ss-right" x1="256" y1="278" x2="392" y2="357" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0c1a26"></stop>
+      <stop offset="100%" stop-color="#0a1016"></stop>
+    </linearGradient>
+    <linearGradient id="ss-keys" x1="0" y1="190" x2="0" y2="450" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8ff0ff"></stop>
+      <stop offset="55%" stop-color="#22d3ee"></stop>
+      <stop offset="100%" stop-color="#06b6d4"></stop>
+    </linearGradient>
+    <clipPath id="ss-leftclip"><path d="M120,199 L256,278 L256,436 L120,357 Z"></path></clipPath>
+    <clipPath id="ss-blackclip"><path d="M120,199 L256,278 L256,351 L120,272 Z"></path></clipPath>
+    <linearGradient id="ss-black" x1="0" y1="185" x2="0" y2="330" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2b2f3a"></stop>
+      <stop offset="35%" stop-color="#121620"></stop>
+      <stop offset="100%" stop-color="#080a10"></stop>
+    </linearGradient>
+    <filter id="ss-glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" result="b"></feGaussianBlur>
+      <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+    </filter>
+    <filter id="ss-soft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="34"></feGaussianBlur>
+    </filter>
+  </defs>
+
+  <rect x="6" y="6" width="500" height="500" rx="112" fill="url(#ss-tile)"></rect>
+  
+  <ellipse cx="150" cy="380" rx="150" ry="130" fill="#7c3aed" opacity="0.20" filter="url(#ss-soft)"></ellipse>
+  <ellipse cx="380" cy="200" rx="150" ry="130" fill="#06b6d4" opacity="0.18" filter="url(#ss-soft)"></ellipse>
+
+  
+  <g filter="url(#ss-glow)" transform="translate(256,278) scale(1.25) translate(-256,-278)">
+    
+    <path d="M256,120 L392,199 L256,278 L120,199 Z" fill="url(#ss-top)"></path>
+    <path d="M120,199 L256,278 L256,436 L120,357 Z" fill="url(#ss-left)"></path>
+    <path d="M256,278 L392,199 L392,357 L256,436 Z" fill="url(#ss-right)"></path>
+
+    
+    <g clip-path="url(#ss-leftclip)">
+      <g opacity="0.92">
+        <rect x="124" y="185" width="16.5" height="285" fill="url(#ss-keys)"></rect>
+        <rect x="142.5" y="185" width="16.5" height="285" fill="url(#ss-keys)"></rect>
+        <rect x="161" y="185" width="16.5" height="285" fill="url(#ss-keys)"></rect>
+        <rect x="179.5" y="185" width="16.5" height="285" fill="url(#ss-keys)"></rect>
+        <rect x="198" y="185" width="16.5" height="285" fill="url(#ss-keys)"></rect>
+        <rect x="216.5" y="185" width="16.5" height="285" fill="url(#ss-keys)"></rect>
+        <rect x="235" y="185" width="16.5" height="285" fill="url(#ss-keys)"></rect>
+      </g>
+      <g clip-path="url(#ss-blackclip)">
+        <rect x="136" y="185" width="11" height="180" rx="2" fill="url(#ss-black)"></rect>
+        <rect x="154.5" y="185" width="11" height="180" rx="2" fill="url(#ss-black)"></rect>
+        <rect x="191.5" y="185" width="11" height="180" rx="2" fill="url(#ss-black)"></rect>
+        <rect x="210" y="185" width="11" height="180" rx="2" fill="url(#ss-black)"></rect>
+        <rect x="228.5" y="185" width="11" height="180" rx="2" fill="url(#ss-black)"></rect>
+      </g>
+    </g>
+
+    
+    <circle cx="196" cy="199" r="13" fill="#b06bff"></circle>
+    <circle cx="256" cy="199" r="13" fill="#8f7bf0"></circle>
+    <circle cx="316" cy="199" r="13" fill="#22d3ee"></circle>
+
+    <circle cx="294" cy="300" r="12" fill="#22d3ee"></circle>
+    <circle cx="354" cy="335" r="12" fill="#22d3ee"></circle>
+
+    
+    <g fill="none" stroke="url(#ss-edge)" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M256,120 L392,199 L392,357 L256,436 L120,357 L120,199 Z"></path>
+      <path d="M120,199 L256,278 L392,199"></path>
+      <path d="M256,278 L256,436"></path>
+    </g>
+  </g>
+</svg>

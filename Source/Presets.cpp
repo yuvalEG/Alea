@@ -69,17 +69,24 @@ const std::vector<Factory>& factory()
 
 void apply (juce::AudioProcessorValueTreeState& apvts, const Factory& f)
 {
-    auto set = [&apvts] (const juce::String& id, float denormalized)
+    // Each parameter is written exactly ONCE, to its final value. We used to
+    // reset everything to default first and then set the preset values, but
+    // that bounced every parameter through its default (current -> default ->
+    // preset). Controls that animate their lit/selected state caught the
+    // intermediate default and flickered - a visible deselect/reselect when
+    // switching between two presets that share a value. Recording which ids the
+    // preset touches and defaulting only the rest avoids the bounce entirely,
+    // while keeping presets fully deterministic (spec 13.2 stores the whole
+    // patch).
+    juce::StringArray touched;
+    auto set = [&apvts, &touched] (const juce::String& id, float denormalized)
     {
         if (auto* p = apvts.getParameter (id))
+        {
             p->setValueNotifyingHost (p->convertTo0to1 (denormalized));
+            touched.add (id);
+        }
     };
-
-    // Start from a clean slate so presets are fully deterministic (spec 13.2
-    // stores the whole patch).
-    for (auto* p : apvts.processor.getParameters())
-        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p))
-            ranged->setValueNotifyingHost (ranged->getDefaultValue());
 
     auto setScale = [&set] (char scale, int notes, int rests, int octMin, int octMax, int velMin, int velMax)
     {
@@ -112,6 +119,13 @@ void apply (juce::AudioProcessorValueTreeState& apvts, const Factory& f)
     set ("autoSweep",    (float) f.autoSweep);
     set ("aRoot",        (float) f.aRoot);
     set ("bRoot",        (float) f.bRoot);
+
+    // Everything the preset didn't touch returns to its default (once).
+    for (auto* p : apvts.processor.getParameters())
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
+            if (! touched.contains (withId->paramID))
+                if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p))
+                    ranged->setValueNotifyingHost (ranged->getDefaultValue());
 }
 
 } // namespace presets

@@ -41,7 +41,7 @@ pkgbuild --root "$OUT/claproot" --identifier com.alea-audio.alea.clap \
 pkgbuild --root "$OUT/approot" --identifier com.alea-audio.alea.app \
          --version "$VERSION" --install-location / "$OUT/Alea-App.pkg" > /dev/null
 
-cp Assets/installer-bg.png "$OUT/background.png"
+cp Assets/installer-bg-scale-shifter.png "$OUT/background.png"
 
 cat > "$OUT/distribution.xml" <<EOF
 <?xml version="1.0" encoding="utf-8"?>

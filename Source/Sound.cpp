@@ -238,13 +238,18 @@ void SoundEngine::releaseVoice (Voice& v, bool)
         case bells:  params.release = 0.35f; break;  // choked
         default:
         {
-            // Release scales with how long the note was held: staccato
-            // notes get a snappy tail, pads ring long. The clean tones
-            // keep a higher floor - without it their tails vanish and
-            // the polyphony is inaudible.
-            const bool clean = v.flavour == pureSine || v.flavour == triangle;
-            const float releaseFloor = v.flavour == pureSine ? 0.65f : clean ? 0.50f : 0.12f;
-            params.release = juce::jlimit (releaseFloor, 2.2f,
+            // Release scales with how long the note was held, but each voice
+            // keeps a FLOOR so its tail rings into the following notes and the
+            // 16-voice polyphony is audible. Without it, short notes cut dead
+            // and sustained voices sound monophonic. Pads ring longest.
+            const float releaseFloor =
+                v.flavour == warmPad  ? 0.90f :   // a pad blooms and overlaps
+                v.flavour == strings  ? 0.80f :   // bowed, sustained
+                v.flavour == pureSine ? 0.65f :
+                v.flavour == triangle ? 0.50f :
+                v.flavour == softSaw  ? 0.45f :
+                                        0.35f;    // e-piano and the rest
+            params.release = juce::jlimit (releaseFloor, 2.6f,
                                            1.1f * (float) v.heldSamples / (float) sr);
             break;
         }
