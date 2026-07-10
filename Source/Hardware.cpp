@@ -670,69 +670,130 @@ namespace hw
 
     void knob (juce::Graphics& g, juce::Rectangle<float> bounds, float pos, juce::Colour accent, bool bipolar)
     {
+        // Geometry measured 1:1 from the CSS .hw-knob layers, normalised to
+        // the full visual extent R = the tick ring's outer edge (a 62px knob
+        // box + 8px tick inset = 78px extent in the design):
+        //   well 0.95R - arc ring 0.66..0.846R (flat, hard-edged) -
+        //   ticks 0.879..0.941R (11 marks) - cap 0.641R (4-stop radial,
+        //   knurled grip 0.42..0.615R, drop shadow below) - dome 0.308R -
+        //   pointer an accent-to-dark indent spanning 0.24..0.65R.
         const auto c = bounds.getCentre();
         const float R = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
-        // Ratios measured from the CSS .hw-knob layers (relative to the full
-        // visual extent = the tick ring): cap 0.72, arc ring 0.69-0.88 thick,
-        // ticks 0.88-0.94.
-        const float capR  = R * 0.72f;
-        const float arcMid = R * 0.785f;
-        const float arcT   = R * 0.19f;
         auto ring = [&] (float rad) { return juce::Rectangle<float> (rad * 2.0f, rad * 2.0f).withCentre (c); };
         const float a0 = juce::MathConstants<float>::pi * 1.25f;
         const float a1 = juce::MathConstants<float>::pi * 2.75f;
         const float av = a0 + juce::jlimit (0.0f, 1.0f, pos) * (a1 - a0);
         const float amid = (a0 + a1) * 0.5f;
 
-        // Recessed well behind everything.
-        juce::ColourGradient well (juce::Colour (0xff17181c), c.x, c.y,
-                                   juce::Colour (0xff26282e), c.x, c.y + R, true);
-        g.setGradientFill (well);
-        g.fillEllipse (ring (R * 0.99f));
+        // Recessed well (.hw-knob::before): dark centre opening to a lighter
+        // rim, darker toward the top (its inset top shadow).
+        {
+            const float wellR = R * 0.95f;
+            juce::ColourGradient well (juce::Colour (0xff0c0d10), c.x, c.y - wellR * 0.24f,
+                                       juce::Colour (0xff26282e), c.x, c.y + wellR * 0.9f, true);
+            well.addColour (0.70, juce::Colour (0xff17181c));
+            g.setGradientFill (well);
+            g.fillEllipse (ring (wellR));
+        }
 
-        // Value arc: a thick ring, dark unlit track + accent lit span.
-        juce::Path track; track.addCentredArc (c.x, c.y, arcMid, arcMid, 0.0f, a0, a1, true);
-        g.setColour (juce::Colours::black.withAlpha (0.55f));
-        g.strokePath (track, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
-        juce::Path lit; lit.addCentredArc (c.x, c.y, arcMid, arcMid, 0.0f, bipolar ? amid : a0, av, true);
-        g.setColour (accent.withAlpha (0.9f));
-        g.strokePath (lit, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
-        g.setColour (accent.brighter (0.45f));
-        g.strokePath (lit, juce::PathStrokeType (arcT * 0.42f, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+        // Value arc: a FLAT ring - dark track + solid accent span (the design
+        // has no gloss core on the arc).
+        const float arcMid = R * 0.753f, arcT = R * 0.186f;
+        {
+            juce::Path track;
+            track.addCentredArc (c.x, c.y, arcMid, arcMid, 0.0f, a0, a1, true);
+            g.setColour (juce::Colours::black.withAlpha (0.5f));
+            g.strokePath (track, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+            juce::Path lit;
+            lit.addCentredArc (c.x, c.y, arcMid, arcMid, 0.0f, bipolar ? amid : a0, av, true);
+            g.setColour (accent);
+            g.strokePath (lit, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+        }
 
-        // Tick ring, just outside the arc.
-        g.setColour (juce::Colours::white.withAlpha (0.20f));
+        // Tick ring, outside the arc: 11 marks over the 270deg travel.
+        g.setColour (juce::Colours::white.withAlpha (0.22f));
         for (int i = 0; i <= 10; ++i)
         {
             const float a = a0 + (float) i / 10.0f * (a1 - a0);
-            g.drawLine (c.x + std::sin (a) * R * 0.90f, c.y - std::cos (a) * R * 0.90f,
-                        c.x + std::sin (a) * R * 0.955f, c.y - std::cos (a) * R * 0.955f, 1.0f);
+            g.drawLine (c.x + std::sin (a) * R * 0.879f, c.y - std::cos (a) * R * 0.879f,
+                        c.x + std::sin (a) * R * 0.941f, c.y - std::cos (a) * R * 0.941f,
+                        juce::jmax (1.0f, R * 0.028f));
         }
 
-        // Metal cap: radial highlight biased to top (CSS 50%,30%).
-        g.setColour (juce::Colours::black.withAlpha (0.6f));
-        g.fillEllipse (ring (capR + 1.0f));
-        juce::ColourGradient body (juce::Colour (0xff3a3d44), c.x, c.y - capR * 0.4f,
-                                   juce::Colour (0xff101114), c.x, c.y + capR, true);
-        body.addColour (0.42, juce::Colour (0xff26282d));
-        body.addColour (0.72, juce::Colour (0xff191a1e));
-        g.setGradientFill (body);
-        g.fillEllipse (ring (capR));
-        g.setColour (juce::Colours::white.withAlpha (0.16f));
-        g.drawEllipse (ring (capR).reduced (1.0f), 1.0f);
-        // Domed centre.
-        const float domR = capR * 0.5f;
-        juce::ColourGradient dome (juce::Colour (0xff33363d), c.x, c.y - domR * 0.5f,
-                                   juce::Colour (0xff16171b), c.x, c.y + domR, true);
-        g.setGradientFill (dome);
-        g.fillEllipse (ring (domR));
+        // Cap drop shadow (0 4px 8px black .6): the cap floats over the well.
+        const float capR = R * 0.641f;
+        g.setColour (juce::Colours::black.withAlpha (0.30f));
+        g.fillEllipse (ring (capR + R * 0.10f).translated (0.0f, R * 0.10f));
+        g.setColour (juce::Colours::black.withAlpha (0.35f));
+        g.fillEllipse (ring (capR + R * 0.04f).translated (0.0f, R * 0.06f));
 
-        // Pointer: an accent bar in the upper cap (CSS 9%..35% from top).
-        juce::Path ptr;
-        ptr.addRoundedRectangle (c.x - 1.5f, c.y - capR * 0.86f, 3.0f, capR * 0.5f, 1.5f);
-        ptr.applyTransform (juce::AffineTransform::rotation (av, c.x, c.y));
-        g.setColour (accent.brighter (0.2f));
-        g.fillPath (ptr);
+        // Cap (.hw-knob__body): 4-stop radial biased to the top (50% 30%).
+        {
+            juce::ColourGradient body (juce::Colour (0xff3a3d44), c.x, c.y - capR * 0.40f,
+                                       juce::Colour (0xff101114), c.x, c.y + capR * 0.96f, true);
+            body.addColour (0.42, juce::Colour (0xff26282d));
+            body.addColour (0.72, juce::Colour (0xff191a1e));
+            g.setGradientFill (body);
+            g.fillEllipse (ring (capR));
+        }
+        // Inset top highlight + bottom inner shadow (the machined edge).
+        {
+            juce::Path topArc;
+            topArc.addCentredArc (c.x, c.y, capR - 1.0f, capR - 1.0f, 0.0f, -1.1f, 1.1f, true);
+            g.setColour (juce::Colours::white.withAlpha (0.22f));
+            g.strokePath (topArc, juce::PathStrokeType (juce::jmax (1.0f, R * 0.035f),
+                                                        juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+            juce::Path botArc;
+            botArc.addCentredArc (c.x, c.y, capR - 2.0f, capR - 2.0f, 0.0f,
+                                  juce::MathConstants<float>::pi - 1.2f,
+                                  juce::MathConstants<float>::pi + 1.2f, true);
+            g.setColour (juce::Colours::black.withAlpha (0.35f));
+            g.strokePath (botArc, juce::PathStrokeType (juce::jmax (1.5f, R * 0.08f),
+                                                        juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+        }
+        // Knurled grip ring: 30 faint spokes between the dome and the rim.
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.10f));
+            const float r1 = R * 0.42f, r2 = R * 0.615f;
+            for (int k = 0; k < 30; ++k)
+            {
+                const float a = (float) k * (juce::MathConstants<float>::twoPi / 30.0f);
+                g.drawLine (c.x + std::sin (a) * r1, c.y - std::cos (a) * r1,
+                            c.x + std::sin (a) * r2, c.y - std::cos (a) * r2,
+                            juce::jmax (0.8f, R * 0.022f)); // 2deg fins (design duty 2/12)
+            }
+        }
+        // Domed top cap (inset 26% of the body): its own shadow, then the dome.
+        const float domR = R * 0.308f;
+        g.setColour (juce::Colours::black.withAlpha (0.40f));
+        g.fillEllipse (ring (domR + R * 0.025f).translated (0.0f, R * 0.03f));
+        {
+            juce::ColourGradient dome (juce::Colour (0xff33363d), c.x, c.y - domR * 0.36f,
+                                       juce::Colour (0xff16171b), c.x, c.y + domR, true);
+            dome.addColour (0.70, juce::Colour (0xff202226));
+            g.setGradientFill (dome);
+            g.fillEllipse (ring (domR));
+            juce::Path domeTop;
+            domeTop.addCentredArc (c.x, c.y, domR - 0.8f, domR - 0.8f, 0.0f, -1.2f, 1.2f, true);
+            g.setColour (juce::Colours::white.withAlpha (0.18f));
+            g.strokePath (domeTop, juce::PathStrokeType (1.0f, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
+        }
+
+        // Pointer: an indent on the cap, accent at the tip fading dark toward
+        // the centre (design: linear accent -> 30% accent mixed with black).
+        {
+            const float pw = juce::jmax (2.2f, R * 0.077f);
+            const float rOut = R * 0.65f, rIn = R * 0.24f;
+            juce::Path ptr;
+            ptr.addRoundedRectangle (c.x - pw * 0.5f, c.y - rOut, pw, rOut - rIn, pw * 0.5f);
+            ptr.applyTransform (juce::AffineTransform::rotation (av, c.x, c.y));
+            const auto tip = juce::Point<float> (c.x + std::sin (av) * rOut, c.y - std::cos (av) * rOut);
+            const auto tail = juce::Point<float> (c.x + std::sin (av) * rIn, c.y - std::cos (av) * rIn);
+            juce::ColourGradient pg (accent, tip.x, tip.y,
+                                     accent.interpolatedWith (juce::Colours::black, 0.7f), tail.x, tail.y, false);
+            g.setGradientFill (pg);
+            g.fillPath (ptr);
+        }
     }
 } // namespace hw
 
