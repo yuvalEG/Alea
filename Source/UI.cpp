@@ -166,11 +166,12 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
     auto whiteKeyRect = [&] (int slot) { return whiteKeyBounds (slot).reduced (1.0f); };
 
-    // The sounding key physically DEPRESSES: the whole key slides 3px down
-    // into the bed - white and black alike. (Two attempts at a front-edge
-    // tilt both read as pressed toward the player - QA rounds 8-10.)
-    auto pressedRect = [] (juce::Rectangle<float> k, bool pressed, bool)
-    { return pressed ? k.translated (0.0f, 3.0f) : k; };
+    // The sounding key physically DEPRESSES by PIVOTING at its hinge (the
+    // top edge): seen straight on, its geometry barely changes - what changes
+    // is the LIGHT. The tilted face darkens progressively toward its far end
+    // and the seams around it deepen. (Sliding or foreshortening the key both
+    // read as impossible motion - QA rounds 8-11.)
+    auto pressedRect = [] (juce::Rectangle<float> k, bool, bool) { return k; };
 
     auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key, float radius)
     {
@@ -195,9 +196,9 @@ void PianoKeyboard::paint (juce::Graphics& g)
     // with an inset top highlight and a shaded bottom lip (the 3D light).
     auto face = [&] (juce::Rectangle<float> key, float radius, bool isSel, bool pressed, bool isWhite)
     {
-        const auto k = pressedRect (key, pressed, isWhite);
+        const auto k = key;
         const auto path = keyPath (k, radius);
-        const float dim = pressed ? 0.90f : 1.0f;
+        const float dim = pressed ? 0.96f : 1.0f;
 
         if (isSel)
         {
@@ -227,6 +228,29 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
         juce::Graphics::ScopedSaveState ss (g);
         g.reduceClipRegion (path);
+        if (pressed)
+        {
+            // The tilt: the face leans away from the light, darkening toward
+            // its far (bottom) end...
+            juce::ColourGradient tilt (juce::Colours::transparentBlack, k.getX(), k.getY(),
+                                       juce::Colours::black.withAlpha (0.32f), k.getX(), k.getBottom(), false);
+            tilt.addColour (0.35, juce::Colours::black.withAlpha (0.10f));
+            g.setGradientFill (tilt);
+            g.fillPath (path);
+            // ...and the seams deepen - the key now sits below its neighbours.
+            juce::ColourGradient lSeam (juce::Colours::black.withAlpha (0.35f), k.getX(), k.getY(),
+                                        juce::Colours::transparentBlack, k.getX() + 3.0f, k.getY(), false);
+            g.setGradientFill (lSeam);
+            g.fillRect (k.withWidth (3.0f));
+            juce::ColourGradient rSeam (juce::Colours::transparentBlack, k.getRight() - 3.0f, k.getY(),
+                                        juce::Colours::black.withAlpha (0.35f), k.getRight(), k.getY(), false);
+            g.setGradientFill (rSeam);
+            g.fillRect (k.withLeft (k.getRight() - 3.0f));
+            // The hinge edge stays lit - it hasn't moved.
+            g.setColour (juce::Colours::white.withAlpha (isSel ? 0.5f : 0.10f));
+            g.drawLine (k.getX() + 2.0f, k.getY() + 1.0f, k.getRight() - 2.0f, k.getY() + 1.0f, 1.0f);
+        }
+        else
         {
             g.setColour (juce::Colours::white.withAlpha (isSel ? 0.7f : (isWhite ? 0.08f : 0.10f)));
             g.drawLine (k.getX() + 2.0f, k.getY() + 1.0f, k.getRight() - 2.0f, k.getY() + 1.0f,
