@@ -154,8 +154,8 @@ namespace hw
 
     void brushedMetal (juce::Graphics& g, juce::Rectangle<float> r, float radius, bool isPlate)
     {
-        // The July 10 handoff's BAKED matte finish: metal-l 0.5 (a 35% black
-        // overlay, premultiplied into every stop below), sheen 0.1 (near-
+        // The July 10 handoff's BAKED matte finish, lifted ~23% per Yuval
+        // (stops premultiplied at x0.80, i.e. metal-l ~0.7), sheen 0.1 (near-
         // matte), reflect 0.2 (a whisper of clearcoat environment light).
         // Copied stop-for-stop. The handoff's micro-grain was tried and CUT
         // (Yuval: "it looks weird" in the JUCE rendering).
@@ -165,9 +165,9 @@ namespace hw
         if (isPlate)
         {
             // Plate: vertical hsl(220 13% 18 -> 12% 11) x0.65.
-            juce::ColourGradient grad (juce::Colour (0xff1a1d22), r.getX(), r.getY(),
-                                       juce::Colour (0xff101214), r.getX(), r.getBottom(), false);
-            grad.addColour (0.46, juce::Colour (0xff14161a));
+            juce::ColourGradient grad (juce::Colour (0xff202329), r.getX(), r.getY(),
+                                       juce::Colour (0xff141619), r.getX(), r.getBottom(), false);
+            grad.addColour (0.46, juce::Colour (0xff191b20));
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, radius);
         }
@@ -193,15 +193,15 @@ namespace hw
         else
         {
             // Faceplate: the 97deg anisotropic sweep, nine stops.
-            juce::ColourGradient grad (juce::Colour (0xff0d0e10), r.getX(), r.getY(),
-                                       juce::Colour (0xff0f1012), r.getRight(), r.getY() + r.getHeight() * 0.12f, false);
-            grad.addColour (0.13, juce::Colour (0xff191b1f));
-            grad.addColour (0.27, juce::Colour (0xff262b33));
-            grad.addColour (0.39, juce::Colour (0xff2f3542));
-            grad.addColour (0.51, juce::Colour (0xff191b1f));
-            grad.addColour (0.64, juce::Colour (0xff272b33));
-            grad.addColour (0.75, juce::Colour (0xff2a2f39));
-            grad.addColour (0.89, juce::Colour (0xff17181b));
+            juce::ColourGradient grad (juce::Colour (0xff111214), r.getX(), r.getY(),
+                                       juce::Colour (0xff131416), r.getRight(), r.getY() + r.getHeight() * 0.12f, false);
+            grad.addColour (0.13, juce::Colour (0xff1f2126));
+            grad.addColour (0.27, juce::Colour (0xff2f353f));
+            grad.addColour (0.39, juce::Colour (0xff3a4151));
+            grad.addColour (0.51, juce::Colour (0xff1f2126));
+            grad.addColour (0.64, juce::Colour (0xff30353e));
+            grad.addColour (0.75, juce::Colour (0xff343a46));
+            grad.addColour (0.89, juce::Colour (0xff1c1e21));
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, radius);
         }
@@ -340,7 +340,7 @@ namespace hw
 
         // Dark metal dome base.
         juce::ColourGradient off (juce::Colour (0xff3a3d44), r.getX() + diameter * 0.4f, r.getY() + diameter * 0.35f,
-                                  juce::Colour (0xff17181b), r.getRight(), r.getBottom(), true);
+                                  juce::Colour (0xff1c1e21), r.getRight(), r.getBottom(), true);
         g.setGradientFill (off);
         g.fillEllipse (r);
         g.setColour (juce::Colours::black.withAlpha (0.6f));
