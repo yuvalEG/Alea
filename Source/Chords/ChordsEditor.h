@@ -1,11 +1,13 @@
 #pragma once
 
 #include "ChordsProcessor.h"
+#include "../Hardware.h"
 
-// Chord Randomizer UI (spec section 7): Alea header with transport, the
-// series row of big chord cards, a controls row, and the history ticker.
-// Deliberately shares the Scale Shifter design language - palette, Space
-// Grotesk, header layout, OUT chooser, knob and meter.
+// Chord Randomizer UI, hardware faceplate edition (design handoff July 2026):
+// Alea header with transport, a series row of backlit glass chord pads, the
+// CHORDS and LOOP module plates, the LCD keyboard monitor and the engraved
+// history plate. Built entirely from the family's shared hardware primitives
+// (Hardware.h) so both Alea products stay visually identical.
 class ChordsEditor : public juce::AudioProcessorEditor,
                      private juce::Timer
 {
@@ -24,19 +26,21 @@ private:
     void showMenu();
     void updateCardFonts();   // one shared fitted size for the whole series
     void buildOutputBox();
+    void applyAutoGate();     // EVERY dims to 35% while AUTO is off (DS rule)
 
-    // One big chord name on a panel card - the heir of the old 75 pt label.
+    // One big backlit glass pad per chord (design .hw-card): a dark purple
+    // glass face with scanlines and gloss, the chord name lit in the scale
+    // purple while sounding, a bottom progress strip, and a pin dot top-right.
     // The font size is set by the editor: every card in a series shares the
     // smallest fitted size, so C#Maj7 and A7 never render at different scales.
-    // During playback the sounding card lights up with a bar-progress strip,
-    // and clicking any card jumps the loop there.
+    // Clicking any card jumps the loop there.
     struct ChordCard : juce::Component
     {
         juce::String text;
         float fontSize = 40.0f;
         bool active = false;
         bool clickable = false;   // only while the loop plays
-        bool incoming = false;    // pending swap: this chord arrives at the boundary (amber)
+        bool incoming = false;    // pending swap: this chord arrives at the boundary (cyan)
         bool pinned = false;      // survives rolls
         float progress = 0.0f;
         std::function<void()> onPress, onPinToggle;
@@ -45,8 +49,8 @@ private:
         juce::Rectangle<float> pinZone() const;
     };
 
-    // Scale Shifter's 88-key monitor strip, single-color: the notes of the
-    // sounding chord light up in playing green.
+    // The monitor: a glass LCD holding a real mini keyboard - white keys in
+    // pale metal, the sounding chord's notes lit purple behind the scanlines.
     struct MonitorStrip : juce::Component
     {
         explicit MonitorStrip (ChordsProcessor& p) : proc (p) {}
@@ -54,25 +58,10 @@ private:
         void paint (juce::Graphics&) override;
     };
 
-    // A row of labeled segments; used for series length (1-8), bars per
-    // chord (1/2/4) and the octave picker. Same look as the family's mode
-    // selectors. In multi mode segments toggle independently (a bitmask,
-    // never empty) - the octave picker lets chords land in several octaves.
-    struct SegmentRow : juce::Component
-    {
-        juce::StringArray labels;
-        int selected = 0;                       // single mode: index into labels
-        bool multi = false;
-        bool allowEmpty = false;                // multi mode: may all segments go dark?
-        int mask = 1;                           // multi mode: bit per label
-        std::function<void (int)> onChange;     // index, or the new mask in multi mode
-        void paint (juce::Graphics&) override;
-        void mouseDown (const juce::MouseEvent&) override;
-    };
-
-    // Past rolls, newest at the right, grouped by roll, fading with age.
-    // Scrollable (wheel, trackpad, drag, or the edge page buttons); clicking
-    // a roll recalls it into the series row. History holds ~1000 chords.
+    // Past rolls, newest at the right, grouped by roll, engraved into the
+    // plate and fading with age. Scrollable (wheel, trackpad, drag, or the
+    // edge page buttons); clicking a roll recalls it into the series row.
+    // History holds ~1000 chords. The plate + title are painted by the editor.
     struct HistoryTicker : juce::Component
     {
         explicit HistoryTicker (ChordsProcessor& p) : proc (p) {}
@@ -102,40 +91,39 @@ private:
         void scrollBy (float delta);
     };
 
-    // Centered transport: a drawn play triangle / pause bars (icon paths,
-    // not font glyphs - musical Unicode is unreliable in JUCE).
-    struct TransportButton : juce::Button
-    {
-        TransportButton() : juce::Button ("transport") { setClickingTogglesState (true); }
-        void paintButton (juce::Graphics&, bool over, bool down) override;
-    };
-
     ChordsProcessor& chordsProc;
     const bool standalone;
     int seenRevision = -1;
 
     juce::Image logo;
-    TransportButton playButton;
-    juce::TextButton menuButton, rollButton { "ROLL" },
-                     freezeButton { "FREEZE" }, panicButton { "PANIC" };
-    juce::Slider tempoBox;
-    // DICE control language (QA round 11): buttons act, checkboxes toggle
-    // independent options, segments pick one-of-N, dropdowns hold lists.
-    // Toggle labels are sentence case; ALL-CAPS is for captions/titles/buttons.
-    juce::ToggleButton simplifyToggle { "Simplify chords" },
-                       susToggle { "Add sus chords" },
+    ui::TransportButton playButton;
+    juce::TextButton menuButton,
+                     rollButton { "Roll" },     // the hero key: always lit cyan
+                     panicButton { "Panic" };   // red legend, never a red fill
+    // Backlit keys whose lit state crossfades: FREEZE (ice), CLICK (white),
+    // AUTO (cyan - the automatic version of ROLL).
+    ui::AnimatedButton freezeButton { "Freeze" }, clickButton { "Click" },
+                       autoButton { "Auto" };
+    juce::Slider tempoBox;                      // the glass BPM LCD (drag to set)
+    // Control language (QA round 11): buttons act, toggles flip independent
+    // options, segments pick one-of-N, dropdowns hold lists. Toggle labels are
+    // sentence case; ALL-CAPS is for captions/titles/buttons.
+    juce::ToggleButton simplifyToggle { "Simplify" },
+                       susToggle { "Add sus" },
                        keyLockToggle { "Key lock" },
                        // Voicings (spec M5) live in LOOP - how it sounds, never what rolls.
-                       smoothToggle { "Smooth voicing" },
+                       smoothToggle { "Smooth" },
                        bassToggle { "Add bass note" };
     juce::ComboBox keyBox, scaleBox;            // key lock: tonic + scale type
-    juce::TextButton clickButton { "CLICK" };   // metronome, next to the tempo
     juce::Slider clickVolKnob;                  // click level, beside CLICK
     juce::HyperlinkButton helpLink;             // plugin only: routing help in the README
-    juce::ComboBox autoRollBox;                 // AUTO ROLL: off / every N loops - one control
-    SegmentRow lengthRow, barsRow, octaveRow,
-               sizeRow,                         // CHORD SIZE: triads / 7ths / 9ths
-               voicingRow;                      // VOICING: close / open spacing
+    // The dice rows share the family segmented switch; octave is multi-select
+    // (a bitmask, never empty) - chords may land in several octaves at once.
+    ui::SegmentedSelector lengthRow,            // NUMBER OF CHORDS 1-8
+                          typeRow,              // CHORD TYPE: triads / 7ths / 9ths
+                          everyRow,             // AUTO cadence: every 1 / 2 / 4 loops
+                          barsRow, octaveRow,
+                          voicingRow;           // VOICING: close / open spacing
     juce::ComboBox outputBox;
     void rebuildKeyBox();
     juce::Slider volKnob;
@@ -144,12 +132,13 @@ private:
     MonitorStrip monitor;
     juce::OwnedArray<ChordCard> cards;
 
-    juce::Rectangle<int> dicePanel, loopPanel, monitorPanel;   // titled blocks
+    juce::Rectangle<int> chordsPanel, loopPanel, monitorPanel, historyPanel; // module plates
     juce::Rectangle<int> meterRect;   // beside the knob when the synth is on
     float meterLevel = 0.0f;          // falling peak
     bool lastSynthOn = true;
     bool lastPlaying = false;
     bool lastPending = false;
+    bool lastAutoOn = false;
     juce::uint64 lastSoundingHi = 0;
     juce::uint64 lastSounding = 0;
     int devicePollCountdown = 90;     // ~3s at 30 Hz: MIDI hotplug refresh

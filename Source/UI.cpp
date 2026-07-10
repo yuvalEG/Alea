@@ -11,368 +11,25 @@ juce::String noteName (int midiNote)
 }
 
 //==============================================================================
-// Hardware faceplate drawing (the skeuomorphic reskin).
-
-namespace hw
-{
-    // Baked finish (design handoff): brush 0 = clean satin, no grain;
-    // sheen 1.9 = strong specular; glow 1.4 = brighter LED bloom.
-    constexpr float kSheen = 1.9f, kGlow = 1.4f;
-
-    // A real Gaussian glow behind a filled shape (JUCE_DRAWING_GUIDE
-    // technique 2): rasterise the shape into an image, then juce::DropShadow
-    // it in the accent colour. Not clipped to any control's bounds because
-    // the caller draws it; soft, not a stroked outline.
-    void dropGlow (juce::Graphics& g, const juce::Path& filledShape, juce::Colour colour, int blur)
-    {
-        const auto bounds = filledShape.getBounds().getSmallestIntegerContainer().expanded (blur + 2);
-        if (bounds.isEmpty() || bounds.getWidth() > 4096 || bounds.getHeight() > 4096)
-            return;
-        juce::Image img (juce::Image::ARGB, bounds.getWidth(), bounds.getHeight(), true);
-        {
-            juce::Graphics ig (img);
-            ig.setColour (juce::Colours::white);
-            auto s = filledShape;
-            s.applyTransform (juce::AffineTransform::translation ((float) -bounds.getX(), (float) -bounds.getY()));
-            ig.fillPath (s);
-        }
-        juce::Graphics::ScopedSaveState ss (g);
-        g.addTransform (juce::AffineTransform::translation ((float) bounds.getX(), (float) bounds.getY()));
-        juce::DropShadow (colour, blur, {}).drawForImage (g, img);
-    }
-
-    // Soft glow the JUCE way (no box-shadow / blur): stroke the shape a few
-    // times growing outward at falling alpha (JUCE_DRAWING_GUIDE technique 1).
-    void glowRoundedRect (juce::Graphics& g, juce::Rectangle<float> r, float radius,
-                          juce::Colour colour, float strength)
-    {
-        for (int i = 3; i >= 1; --i)
-        {
-            g.setColour (colour.withAlpha (0.14f * (float) i * kGlow * strength));
-            g.drawRoundedRectangle (r.expanded ((float) i * 1.6f), radius, (float) i * 1.4f);
-        }
-    }
-
-    // Glowing text (LCD phosphor / lit note): a gentle halo, then crisp text
-    // on top so it stays readable (a heavy multi-pass halo drowned the glyphs).
-    void glowText (juce::Graphics& g, const juce::String& text, juce::Rectangle<int> area,
-                   juce::Justification just, juce::Colour colour)
-    {
-        g.setColour (colour.withAlpha (0.16f));
-        g.drawText (text, area.translated (1, 0), just);
-        g.drawText (text, area.translated (-1, 0), just);
-        g.drawText (text, area.translated (0, 1), just);
-        g.drawText (text, area.translated (0, -1), just);
-        g.setColour (colour);
-        g.drawText (text, area, just);
-    }
-
-    void brushedMetal (juce::Graphics& g, juce::Rectangle<float> r, float radius, bool isPlate)
-    {
-        if (isPlate)
-        {
-            // Flat satin vertical base (hsl(220 12% 17->12%)), hairline seam,
-            // top inner highlight - no grain.
-            juce::ColourGradient grad (juce::Colour (0xff262a30), r.getX(), r.getY(),
-                                       juce::Colour (0xff191b1f), r.getX(), r.getBottom(), false);
-            grad.addColour (0.46, juce::Colour (0xff21242a));
-            g.setGradientFill (grad);
-            g.fillRoundedRectangle (r, radius);
-            g.setColour (metalLine);
-            g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
-            g.setColour (juce::Colours::white.withAlpha (0.11f));
-            g.drawLine (r.getX() + radius, r.getY() + 1.0f, r.getRight() - radius, r.getY() + 1.0f, 1.0f);
-        }
-        else
-        {
-            // Raised slab: a broad anisotropic sheen sweep across the width
-            // (the 97deg gradient), plus a pronounced top-left specular.
-            juce::ColourGradient grad (juce::Colour (0xff191b20), r.getX(), r.getY(),
-                                       juce::Colour (0xff191a1e), r.getRight(), r.getBottom(), false);
-            grad.addColour (0.18, juce::Colour (0xff262a32));
-            grad.addColour (0.34, juce::Colour (0xff333844)); // sheen peak
-            grad.addColour (0.50, juce::Colour (0xff1a1c22));
-            grad.addColour (0.68, juce::Colour (0xff2c313b));
-            grad.addColour (0.84, juce::Colour (0xff1c1e24));
-            g.setGradientFill (grad);
-            g.fillRoundedRectangle (r, radius);
-            // Pronounced travelling specular (sheen 1.9), top-left origin.
-            juce::ColourGradient spec (juce::Colours::white.withAlpha (0.16f * kSheen), r.getX() + r.getWidth() * 0.30f, r.getY() - r.getHeight() * 0.15f,
-                                       juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.30f, r.getY() + r.getHeight() * 0.55f, true);
-            g.setGradientFill (spec);
-            g.fillRoundedRectangle (r, radius);
-            // Raised edge: bright top seam, dark seam all round.
-            g.setColour (juce::Colours::white.withAlpha (0.14f));
-            g.drawLine (r.getX() + radius, r.getY() + 1.5f, r.getRight() - radius, r.getY() + 1.5f, 2.0f);
-            g.setColour (metalLine);
-            g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
-        }
-    }
-
-    void screw (juce::Graphics& g, juce::Point<float> centre, float slotDeg, float size)
-    {
-        const auto r = juce::Rectangle<float> (size, size).withCentre (centre);
-        juce::ColourGradient body (juce::Colour (0xff3d4046), r.getX() + size * 0.4f, r.getY() + size * 0.34f,
-                                   juce::Colour (0xff0d0e11), r.getRight(), r.getBottom(), true);
-        body.addColour (0.58, juce::Colour (0xff202226));
-        g.setGradientFill (body);
-        g.fillEllipse (r);
-        g.setColour (juce::Colours::black.withAlpha (0.6f));
-        g.drawEllipse (r.reduced (0.3f), 0.6f);
-        // Slot.
-        juce::Path slot;
-        slot.addRoundedRectangle (centre.x - size * 0.29f, centre.y - 0.6f, size * 0.58f, 1.2f, 0.6f);
-        slot.applyTransform (juce::AffineTransform::rotation (juce::degreesToRadians (slotDeg), centre.x, centre.y));
-        g.setColour (juce::Colours::black.withAlpha (0.65f));
-        g.fillPath (slot);
-    }
-
-    void insetWell (juce::Graphics& g, juce::Rectangle<float> r, float radius)
-    {
-        juce::ColourGradient grad (juce::Colour (0xff101114), r.getX(), r.getY(),
-                                   juce::Colour (0xff1a1b20), r.getX(), r.getBottom(), false);
-        g.setGradientFill (grad);
-        g.fillRoundedRectangle (r, radius);
-        // Inner top shadow reads as recessed.
-        g.setColour (juce::Colours::black.withAlpha (0.55f));
-        g.drawLine (r.getX() + radius, r.getY() + 0.8f, r.getRight() - radius, r.getY() + 0.8f, 1.4f);
-        g.setColour (juce::Colours::white.withAlpha (0.04f));
-        g.drawLine (r.getX() + radius, r.getBottom() - 0.8f, r.getRight() - radius, r.getBottom() - 0.8f, 1.0f);
-    }
-
-    void lcd (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour phosphor)
-    {
-        juce::ColourGradient bg (phosphor.withMultipliedBrightness (0.16f).withMultipliedSaturation (1.4f), r.getCentreX(), r.getY(),
-                                 juce::Colour (0xff06120d), r.getCentreX(), r.getBottom(), false);
-        g.setGradientFill (bg);
-        g.fillRoundedRectangle (r, 8.0f);
-        // Faint inner phosphor wash (kept low so an idle screen reads dark, not lit).
-        g.setColour (phosphor.withAlpha (0.05f));
-        g.fillRoundedRectangle (r.reduced (2.0f), 6.0f);
-        // Corner gloss (under the readout).
-        juce::Path clip;
-        clip.addRoundedRectangle (r, 8.0f);
-        g.saveState();
-        g.reduceClipRegion (clip);
-        juce::ColourGradient gloss (juce::Colours::white.withAlpha (0.10f), r.getX(), r.getY(),
-                                    juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.5f, r.getY() + r.getHeight() * 0.5f, false);
-        g.setGradientFill (gloss);
-        g.fillRect (r);
-        g.restoreState();
-        g.setColour (juce::Colours::black.withAlpha (0.7f));
-        g.drawRoundedRectangle (r.reduced (0.5f), 8.0f, 1.0f);
-    }
-
-    // The CRT scanlines - the TOP layer, drawn after the readout so the note
-    // and LED read as sitting behind the glass (old-monitor look).
-    void lcdScanlines (juce::Graphics& g, juce::Rectangle<float> r)
-    {
-        juce::Path clip;
-        clip.addRoundedRectangle (r, 8.0f);
-        g.saveState();
-        g.reduceClipRegion (clip);
-        g.setColour (juce::Colours::black.withAlpha (0.18f));
-        for (float y = r.getY(); y < r.getBottom(); y += 3.0f)
-            g.fillRect (r.getX(), y, r.getWidth(), 1.0f);
-        g.restoreState();
-    }
-
-    void meter (juce::Graphics& g, juce::Rectangle<float> r, float level01)
-    {
-        g.setColour (juce::Colour (0xff0a0b0d));
-        g.fillRoundedRectangle (r, 4.0f);
-        g.setColour (juce::Colours::black.withAlpha (0.6f));
-        g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
-        constexpr int segs = 12;
-        const auto inner = r.reduced (3.0f);
-        const float gap = 2.0f;
-        const float segH = (inner.getHeight() - gap * (segs - 1)) / (float) segs;
-        const int lit = juce::jlimit (0, segs, (int) std::ceil (level01 * segs));
-        for (int i = 0; i < segs; ++i)
-        {
-            const float y = inner.getBottom() - (float) (i + 1) * segH - (float) i * gap;
-            auto cell = juce::Rectangle<float> (inner.getX(), y, inner.getWidth(), segH);
-            const bool on = i < lit;
-            juce::Colour c = i >= segs - 1 ? colors::red
-                           : i >= segs - 3 ? colors::amber
-                                           : colors::playing;
-            if (on)
-            {
-                g.setColour (c);
-                g.fillRoundedRectangle (cell, 1.0f);
-            }
-            else
-            {
-                g.setColour (juce::Colour (0xff1e2733));
-                g.fillRoundedRectangle (cell, 1.0f);
-            }
-        }
-    }
-
-    juce::Colour button (juce::Graphics& g, juce::Rectangle<float> r, bool lit,
-                         juce::Colour ledColour, bool over, bool down)
-    {
-        if (lit)
-        {
-            // Backlit key: a clean top-lit coloured face (bright top -> mid ->
-            // darker bottom) with a bright inner top highlight and a soft inner
-            // core. No expanded outline (that read as a square stroke); the
-            // outer bloom is added by the container via dropGlow where it fits.
-            juce::ColourGradient grad (ledColour.brighter (0.55f), r.getX(), r.getY(),
-                                       ledColour.darker (0.42f), r.getX(), r.getBottom(), false);
-            grad.addColour (0.5, ledColour);
-            g.setGradientFill (grad);
-            g.fillRoundedRectangle (r, 4.0f);
-            // Soft bright core (an inner glow, faded - not an outline).
-            g.setColour (ledColour.brighter (0.7f).withAlpha (0.35f));
-            g.fillRoundedRectangle (r.reduced (r.getWidth() * 0.16f, r.getHeight() * 0.22f), 3.0f);
-            g.setColour (juce::Colours::white.withAlpha (0.55f));
-            g.drawLine (r.getX() + 4.0f, r.getY() + 1.5f, r.getRight() - 4.0f, r.getY() + 1.5f, 1.4f);
-            g.setColour (ledColour.darker (0.55f));
-            g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
-            return juce::Colour (0xff07120d); // black legend
-        }
-        auto top = juce::Colour (0xff30323a), mid = juce::Colour (0xff23252b), bot = juce::Colour (0xff191a1e);
-        if (down) { std::swap (top, bot); }
-        juce::ColourGradient grad (top, r.getX(), r.getY(), bot, r.getX(), r.getBottom(), false);
-        grad.addColour (0.46, mid);
-        g.setGradientFill (grad);
-        g.fillRoundedRectangle (r, 4.0f);
-        g.setColour (metalLine);
-        g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
-        if (! down)
-        {
-            g.setColour (juce::Colours::white.withAlpha (0.14f));
-            g.drawLine (r.getX() + 3.0f, r.getY() + 1.0f, r.getRight() - 3.0f, r.getY() + 1.0f, 1.0f);
-        }
-        return over ? juce::Colour (0xffe8eaf1) : juce::Colour (0xffc0c4d0);
-    }
-
-    void knob (juce::Graphics& g, juce::Rectangle<float> bounds, float pos, juce::Colour accent, bool bipolar)
-    {
-        const auto c = bounds.getCentre();
-        const float R = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
-        // Ratios measured from the CSS .hw-knob layers (relative to the full
-        // visual extent = the tick ring): cap 0.72, arc ring 0.69-0.88 thick,
-        // ticks 0.88-0.94.
-        const float capR  = R * 0.72f;
-        const float arcMid = R * 0.785f;
-        const float arcT   = R * 0.19f;
-        auto ring = [&] (float rad) { return juce::Rectangle<float> (rad * 2.0f, rad * 2.0f).withCentre (c); };
-        const float a0 = juce::MathConstants<float>::pi * 1.25f;
-        const float a1 = juce::MathConstants<float>::pi * 2.75f;
-        const float av = a0 + juce::jlimit (0.0f, 1.0f, pos) * (a1 - a0);
-        const float amid = (a0 + a1) * 0.5f;
-
-        // Recessed well behind everything.
-        juce::ColourGradient well (juce::Colour (0xff17181c), c.x, c.y,
-                                   juce::Colour (0xff26282e), c.x, c.y + R, true);
-        g.setGradientFill (well);
-        g.fillEllipse (ring (R * 0.99f));
-
-        // Value arc: a thick ring, dark unlit track + accent lit span.
-        juce::Path track; track.addCentredArc (c.x, c.y, arcMid, arcMid, 0.0f, a0, a1, true);
-        g.setColour (juce::Colours::black.withAlpha (0.55f));
-        g.strokePath (track, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
-        juce::Path lit; lit.addCentredArc (c.x, c.y, arcMid, arcMid, 0.0f, bipolar ? amid : a0, av, true);
-        g.setColour (accent.withAlpha (0.9f));
-        g.strokePath (lit, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
-        g.setColour (accent.brighter (0.45f));
-        g.strokePath (lit, juce::PathStrokeType (arcT * 0.42f, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
-
-        // Tick ring, just outside the arc.
-        g.setColour (juce::Colours::white.withAlpha (0.20f));
-        for (int i = 0; i <= 10; ++i)
-        {
-            const float a = a0 + (float) i / 10.0f * (a1 - a0);
-            g.drawLine (c.x + std::sin (a) * R * 0.90f, c.y - std::cos (a) * R * 0.90f,
-                        c.x + std::sin (a) * R * 0.955f, c.y - std::cos (a) * R * 0.955f, 1.0f);
-        }
-
-        // Metal cap: radial highlight biased to top (CSS 50%,30%).
-        g.setColour (juce::Colours::black.withAlpha (0.6f));
-        g.fillEllipse (ring (capR + 1.0f));
-        juce::ColourGradient body (juce::Colour (0xff3a3d44), c.x, c.y - capR * 0.4f,
-                                   juce::Colour (0xff101114), c.x, c.y + capR, true);
-        body.addColour (0.42, juce::Colour (0xff26282d));
-        body.addColour (0.72, juce::Colour (0xff191a1e));
-        g.setGradientFill (body);
-        g.fillEllipse (ring (capR));
-        g.setColour (juce::Colours::white.withAlpha (0.16f));
-        g.drawEllipse (ring (capR).reduced (1.0f), 1.0f);
-        // Domed centre.
-        const float domR = capR * 0.5f;
-        juce::ColourGradient dome (juce::Colour (0xff33363d), c.x, c.y - domR * 0.5f,
-                                   juce::Colour (0xff16171b), c.x, c.y + domR, true);
-        g.setGradientFill (dome);
-        g.fillEllipse (ring (domR));
-
-        // Pointer: an accent bar in the upper cap (CSS 9%..35% from top).
-        juce::Path ptr;
-        ptr.addRoundedRectangle (c.x - 1.5f, c.y - capR * 0.86f, 3.0f, capR * 0.5f, 1.5f);
-        ptr.applyTransform (juce::AffineTransform::rotation (av, c.x, c.y));
-        g.setColour (accent.brighter (0.2f));
-        g.fillPath (ptr);
-    }
-} // namespace hw
-
-//==============================================================================
-SegmentedSelector::SegmentedSelector (juce::RangedAudioParameter& param,
-                                      const juce::StringArray& opts, juce::Colour accentColour,
-                                      const juce::StringArray& tips)
-    : options (opts), tooltips (tips), accent (accentColour),
-      attachment (param, [this] (float v) { value = (int) v; repaint(); })
-{
-    attachment.sendInitialUpdate();
-}
-
-juce::String SegmentedSelector::getTooltip()
-{
-    if (tooltips.isEmpty())
-        return {};
-    const int idx = juce::jlimit (0, tooltips.size() - 1,
-                                  (int) ((float) getMouseXYRelative().x / ((float) getWidth() / (float) options.size())));
-    return tooltips[idx];
-}
-
-void SegmentedSelector::paint (juce::Graphics& g)
-{
-    // Hardware segmented switch: a recessed inset track holding push-button
-    // keys; the selected one is a backlit emerald key (the single lit colour).
-    const auto bounds = getLocalBounds().toFloat();
-    hw::insetWell (g, bounds, 6.0f);
-
-    const float w = bounds.getWidth() / (float) options.size();
-    for (int i = 0; i < options.size(); ++i)
-    {
-        auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight())
-                       .reduced (3.0f, 3.0f);
-        if (i == value) // soft emerald bloom behind the lit segment
-        {
-            juce::Path p;
-            p.addRoundedRectangle (seg, 4.0f);
-            hw::dropGlow (g, p, hw::led, 6);
-        }
-        const auto legend = hw::button (g, seg, i == value, hw::led, false, false);
-        g.setColour (legend);
-        g.setFont (juce::FontOptions (12.0f));
-        g.drawText (options[i].toUpperCase(), seg, juce::Justification::centred);
-    }
-}
-
-void SegmentedSelector::mouseDown (const juce::MouseEvent& e)
-{
-    const int idx = juce::jlimit (0, options.size() - 1,
-                                  (int) (e.position.x / ((float) getWidth() / (float) options.size())));
-    attachment.setValueAsCompleteGesture ((float) idx);
-}
-
-//==============================================================================
 CurveSelector::CurveSelector (juce::RangedAudioParameter& param, juce::Colour accentColour)
     : accent (accentColour),
-      attachment (param, [this] (float v) { value = (int) v; repaint(); })
+      attachment (param, [this] (float v) { value = (int) v; anim.go(); })
 {
+    anim.onFrame = [this]
+    {
+        bool moving = false;
+        for (int i = 0; i < 4; ++i)
+        {
+            const float target = i == value ? 1.0f : 0.0f;
+            litAmt[(size_t) i] += (target - litAmt[(size_t) i]) * 0.4f;
+            if (std::abs (target - litAmt[(size_t) i]) < 0.01f) litAmt[(size_t) i] = target;
+            else moving = true;
+        }
+        repaint();
+        return moving;
+    };
     attachment.sendInitialUpdate();
+    if (value >= 0 && value < 4) litAmt[(size_t) value] = 1.0f; // snap on open
 }
 
 void CurveSelector::paint (juce::Graphics& g)
@@ -400,13 +57,14 @@ void CurveSelector::paint (juce::Graphics& g)
     {
         auto seg = juce::Rectangle<float> (bounds.getX() + w * (float) i, bounds.getY(), w, bounds.getHeight())
                        .reduced (3.0f, 2.0f);
-        if (i == value)
+        const float lit = litAmt[(size_t) i];
+        if (lit > 0.004f && accent.getPerceivedBrightness() > 0.4f)
         {
             juce::Path p;
             p.addRoundedRectangle (seg, 4.0f);
-            hw::dropGlow (g, p, hw::led, 6);
+            hw::dropGlow (g, p, accent.withAlpha (0.8f * lit), 6);
         }
-        const auto glyph = hw::button (g, seg, i == value, hw::led, false, false);
+        const auto glyph = hw::button (g, seg, lit, accent, false, false);
 
         const auto plot = seg.withSizeKeepingCentre (juce::jmin (34.0f, seg.getWidth() - 16.0f), seg.getHeight() - 14.0f);
         juce::Path path;
@@ -463,18 +121,23 @@ PianoKeyboard::PianoKeyboard (AleaAudioProcessor& p, char scaleId, int sourceIdx
 
 juce::Rectangle<float> PianoKeyboard::whiteKeyBounds (int slot) const
 {
-    const float w = (float) getWidth() / 7.0f;
-    return { w * (float) slot, 0.0f, w, (float) getHeight() };
+    // Keys sit inside a padded keybed so the lit-key bloom has dark bed to
+    // spread into (design keybed padding: 5px). Without this margin the glow
+    // had nowhere to show and read as no glow at all.
+    const auto bed = getLocalBounds().toFloat().reduced (kKeybedPad);
+    const float w = bed.getWidth() / 7.0f;
+    return { bed.getX() + w * (float) slot, bed.getY(), w, bed.getHeight() };
 }
 
 juce::Rectangle<float> PianoKeyboard::blackKeyBounds (int whitesBefore) const
 {
-    const float w = (float) getWidth() / 7.0f;
+    const auto bed = getLocalBounds().toFloat().reduced (kKeybedPad);
+    const float w = bed.getWidth() / 7.0f;
     const float bw = w * 0.62f;
     // Centered on the boundary after its preceding white key, clamped so a
     // black root at the very left stays fully visible.
-    const float centre = juce::jlimit (bw * 0.5f, (float) getWidth() - bw * 0.5f, w * (float) whitesBefore);
-    return { centre - bw * 0.5f, 0.0f, bw, (float) getHeight() * 0.6f };
+    const float centre = juce::jlimit (bw * 0.5f, bed.getWidth() - bw * 0.5f, w * (float) whitesBefore);
+    return { bed.getX() + centre - bw * 0.5f, bed.getY(), bw, bed.getHeight() * 0.6f };
 }
 
 void PianoKeyboard::paint (juce::Graphics& g)
@@ -486,16 +149,26 @@ void PianoKeyboard::paint (juce::Graphics& g)
     // full green - like a little VU meter inside the key.
     const float velNorm = (float) alea.activeVelocity.load() / 127.0f;
 
-    auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key)
+    auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key, float radius)
     {
-        const auto fill = key.withTop (key.getBottom() - key.getHeight() * juce::jmax (0.12f, velNorm));
-        // The fill's upper edge dissolves into the key underneath instead of
-        // ending in a hard line.
-        juce::ColourGradient grad (colors::playing.withAlpha (0.0f), fill.getX(), fill.getY(),
+        const float h = key.getHeight() * juce::jmax (0.12f, velNorm);
+        const auto fill = key.withTop (key.getBottom() - h);
+
+        // Clip to the key's bottom-rounded shape so the light follows the key
+        // rather than ending in hard rectangular corners.
+        juce::Path clip;
+        clip.addRoundedRectangle (key.getX(), key.getY(), key.getWidth(), key.getHeight(),
+                                  radius, radius, false, false, true, true);
+        juce::Graphics::ScopedSaveState ss (g);
+        g.reduceClipRegion (clip);
+
+        // The good part, kept: green rising from the bottom and dissolving
+        // softly upward. No hard top line, no bright band.
+        juce::ColourGradient body (colors::playing.withAlpha (0.0f), fill.getX(), fill.getY(),
                                    colors::playing, fill.getX(), fill.getBottom(), false);
-        grad.addColour (0.40, colors::playing.withAlpha (0.85f));
-        g.setGradientFill (grad);
-        g.fillRoundedRectangle (fill, 3.0f);
+        body.addColour (0.40, colors::playing.withAlpha (0.85f));
+        g.setGradientFill (body);
+        g.fillRect (fill);
     };
 
     const int root = rootRaw != nullptr ? (int) rootRaw->load() : 0;
@@ -540,7 +213,12 @@ void PianoKeyboard::paint (juce::Graphics& g)
                 }
             }
         }
-        juce::DropShadow (accent.withAlpha (0.85f), (int) (9.0f * hw::kGlow), {}).drawForImage (g, mask);
+        // Design halo: a single tight, FULL-strength accent bloom (gallery lit
+        // key = "0 0 14px accent" at full alpha) - punchy and saturated, not a
+        // broad wash. A faint wider aura underneath adds depth without haze.
+        juce::DropShadow (accent.withAlpha (0.35f), 24, {}).drawForImage (g, mask);
+        juce::DropShadow (accent,                   14, {}).drawForImage (g, mask);
+        juce::DropShadow (accent,                   14, {}).drawForImage (g, mask);
     }
 
     // White keys: dark grey when unselected (never white - scale keys), bright
@@ -557,28 +235,52 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
         if (selected[i])
         {
-            g.setGradientFill (juce::ColourGradient (accent.brighter (0.22f), key.getX(), key.getY(),
-                                                     accent.darker (0.20f), key.getX(), key.getBottom(), false));
+            // Flat, vivid accent face (gallery lit key is near-flat accent); a
+            // whisper of top-lighting keeps it from looking painted-on.
+            juce::ColourGradient grad (accent.interpolatedWith (juce::Colours::white, 0.06f), key.getX(), key.getY(),
+                                       accent.interpolatedWith (juce::Colours::black, 0.12f), key.getX(), key.getBottom(), false);
+            grad.addColour (0.5, accent);
+            g.setGradientFill (grad);
             g.fillPath (path);
-            g.setColour (juce::Colours::white.withAlpha (0.22f)); // top highlight
-            g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.2f);
+            g.setColour (juce::Colours::white.withAlpha (0.7f)); // crisp bright top highlight
+            g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.4f);
         }
         else
         {
-            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff272730), key.getX(), key.getY(),
-                                                     juce::Colour (0xff1a1a20), key.getX(), key.getBottom(), false));
+            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff2a2c32), key.getX(), key.getY(),
+                                                     juce::Colour (0xff131418), key.getX(), key.getBottom(), false));
             g.fillPath (path);
             g.setColour (juce::Colours::white.withAlpha (0.05f));
             g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.0f);
         }
         if (isPlayingKey)
-            velocityFill (key);
+            velocityFill (key, 3.0f);
 
         g.setColour (selected[i] || isPlayingKey ? juce::Colours::black.withAlpha (0.8f)
                                                  : colors::secondary.withAlpha (0.75f));
         g.setFont (juce::FontOptions (14.0f));
         g.drawText (params::pitchClassNames[pc],
                     key.withTop (key.getBottom() - 18.0f).toNearestInt(), juce::Justification::centred);
+    }
+
+    // Crisp dark seams between adjacent white keys. The accent bloom otherwise
+    // floods the thin gaps and merges neighbouring lit keys into one blob;
+    // these keep every key distinct. Drawn now (over the white fills, under the
+    // black keys) so a black key covers the seam wherever it sits on top.
+    {
+        const auto bed = getLocalBounds().toFloat().reduced (kKeybedPad);
+        const float w = bed.getWidth() / 7.0f;
+        for (int s = 1; s < 7; ++s)
+        {
+            const float x = bed.getX() + w * (float) s;
+            // Translucent groove, not opaque black: over a lit key it darkens to
+            // an accent-tinted seam that still glows; over dark keys it reads as
+            // a subtle recess. Opaque black killed the bloom between lit keys.
+            g.setColour (juce::Colours::black.withAlpha (0.5f));
+            g.drawLine (x - 0.6f, bed.getY(), x - 0.6f, bed.getBottom(), 1.8f);
+            g.setColour (juce::Colours::white.withAlpha (0.06f)); // keeper-light: the raised edge
+            g.drawLine (x + 0.8f, bed.getY(), x + 0.8f, bed.getBottom(), 1.0f);
+        }
     }
 
     // Black keys: near-black when unselected, accent + top-lit when selected.
@@ -595,13 +297,21 @@ void PianoKeyboard::paint (juce::Graphics& g)
         const bool isPlayingKey = mine && i == activePc;
         const auto path = keyPath (key, 2.5f);
 
+        // Dark surround: a black halo hugging the key's sides and bottom edge,
+        // so the black key lifts cleanly off the white keys underneath even
+        // when both are lit accent (design: 0 2px 3px black drop shadow).
+        g.setColour (juce::Colours::black.withAlpha (0.9f));
+        g.fillPath (keyPath ({ key.getX() - 1.6f, key.getY(), key.getWidth() + 3.2f, key.getHeight() + 2.4f }, 3.0f));
+
         if (selected[i])
         {
-            g.setGradientFill (juce::ColourGradient (accent.brighter (0.22f), key.getX(), key.getY(),
-                                                     accent.darker (0.25f), key.getX(), key.getBottom(), false));
+            juce::ColourGradient grad (accent.interpolatedWith (juce::Colours::white, 0.08f), key.getX(), key.getY(),
+                                       accent.interpolatedWith (juce::Colours::black, 0.14f), key.getX(), key.getBottom(), false);
+            grad.addColour (0.55, accent);
+            g.setGradientFill (grad);
             g.fillPath (path);
-            g.setColour (juce::Colours::white.withAlpha (0.24f));
-            g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.0f);
+            g.setColour (juce::Colours::white.withAlpha (0.7f));
+            g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.2f);
         }
         else
         {
@@ -612,7 +322,7 @@ void PianoKeyboard::paint (juce::Graphics& g)
             g.drawLine (key.getX() + 2.0f, key.getY() + 1.0f, key.getRight() - 2.0f, key.getY() + 1.0f, 1.0f);
         }
         if (isPlayingKey)
-            velocityFill (key);
+            velocityFill (key, 2.5f);
     }
 }
 
@@ -813,32 +523,6 @@ void MorphBar::mouseUp (const juce::MouseEvent&)
 }
 
 //==============================================================================
-void TransportButton::paintButton (juce::Graphics& g, bool over, bool)
-{
-    auto b = getLocalBounds().toFloat();
-    const bool on = getToggleState();
-    g.setColour (on ? colors::green : colors::green.withAlpha (over ? 0.24f : 0.16f));
-    g.fillRoundedRectangle (b, 5.0f);
-    g.setColour (on ? colors::green : colors::green.withAlpha (0.75f));
-    g.drawRoundedRectangle (b.reduced (0.6f), 5.0f, 1.2f);
-
-    g.setColour (on ? juce::Colours::black : colors::green.brighter (0.45f));
-    const float cy = b.getCentreY();
-    const float ix = 15.0f;
-    if (on) // stop square - holding a moment is FREEZE's job
-        g.fillRoundedRectangle (ix - 5.0f, cy - 5.0f, 10.0f, 10.0f, 1.5f);
-    else
-    {
-        juce::Path p;
-        p.addTriangle (ix - 5.0f, cy - 6.5f, ix - 5.0f, cy + 6.5f, ix + 6.5f, cy);
-        g.fillPath (p);
-    }
-    g.setFont (juce::FontOptions (14.0f));
-    g.drawText (on ? "STOP" : "PLAY", (int) ix + 11, 0, getWidth() - (int) ix - 14, getHeight(),
-                juce::Justification::centredLeft);
-}
-
-//==============================================================================
 OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
 {
     const bool standalone = alea.wrapperType == juce::AudioProcessor::wrapperType_Standalone;
@@ -923,6 +607,32 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
     addAndMakeVisible (transposeSlider);
     transposeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         alea.apvts, "transpose", transposeSlider);
+
+    // Double-click-editable "N st" readout (like the BPM box).
+    if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (alea.apvts.getParameter ("transpose")))
+    {
+        transposeField.setJustificationType (juce::Justification::centred);
+        transposeField.setFont (juce::Font (juce::FontOptions (12.0f)).boldened());
+        transposeField.setColour (juce::Label::textColourId, colors::text);
+        transposeField.setColour (juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+        transposeField.setColour (juce::Label::outlineColourId, juce::Colours::transparentBlack);
+        transposeField.setColour (juce::Label::backgroundWhenEditingColourId, colors::control);
+        transposeField.setColour (juce::Label::textWhenEditingColourId, colors::text);
+        transposeField.setColour (juce::Label::outlineWhenEditingColourId, colors::green);
+        transposeField.setEditable (false, true, false);
+        addAndMakeVisible (transposeField);
+        transposeFieldAtt = std::make_unique<juce::ParameterAttachment> (*rp,
+            [this] (float v) { if (! transposeField.isBeingEdited())
+                                   transposeField.setText (juce::String ((int) std::lround (v)) + " st", juce::dontSendNotification); });
+        transposeFieldAtt->sendInitialUpdate();
+        transposeField.onTextChange = [this, rp]
+        {
+            const int st = transposeField.getText().retainCharacters ("-0123456789").getIntValue();
+            rp->beginChangeGesture();
+            rp->setValueNotifyingHost (rp->convertTo0to1 ((float) st));
+            rp->endChangeGesture();
+        };
+    }
 }
 
 void OutputPanel::resized()
@@ -943,6 +653,7 @@ void OutputPanel::resized()
         rx -= ks + 10;
     }
     transposeSlider.setBounds (rx - ks, ky, ks, ks);
+    transposeField.setBounds (transposeSlider.getX() - 8, transposeSlider.getBottom() + 10, ks + 16, 14);
     rx -= ks + 12;
     volSlider.setVisible (synth);
     outputBox->setBounds (0, ky + (ks - 26) / 2, rx, 26);
@@ -974,11 +685,8 @@ void OutputPanel::paint (juce::Graphics& g)
         g.setFont (juce::Font (juce::FontOptions (12.0f)).boldened());
         g.drawText (val, kb.getX() - 12, kb.getBottom() + 10, kb.getWidth() + 24, 14, juce::Justification::centred);
     };
-    if (outputBox != nullptr)
-    {
-        const int st = (int) std::lround (alea.apvts.getRawParameterValue ("transpose")->load());
-        knobCaption (transposeSlider.getBounds(), "TRANSPOSE", juce::String (st) + " st");
-    }
+    if (outputBox != nullptr) // caption only; the value is the editable field
+        knobCaption (transposeSlider.getBounds(), "TRANSPOSE", {});
 
     // Output meter (internal synth): a 12-segment strip beside the LEVEL knob.
     if (lastSynthOn && outputBox != nullptr)

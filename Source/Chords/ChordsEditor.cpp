@@ -1,26 +1,10 @@
 #include "ChordsEditor.h"
 #include "BinaryData.h"
 
+using namespace ui;
+
 namespace
 {
-    // Spec palette - identical to Scale Shifter's (spec section 7.1).
-    namespace colors
-    {
-        const juce::Colour background { 0xff0a0a0f };
-        const juce::Colour panel      { 0xff12121a };
-        const juce::Colour control    { 0xff22222f };
-        const juce::Colour border     { 0xff2a2a3a };
-        const juce::Colour text       { 0xffe8e8f0 };
-        const juce::Colour secondary  { 0xff8888a0 };
-        const juce::Colour purple     { 0xff7c3aed };
-        const juce::Colour cyan       { 0xff06b6d4 };
-        const juce::Colour green      { 0xff10b981 };
-        const juce::Colour playing    { 0xff22c55e };
-        const juce::Colour amber      { 0xfff59e0b };
-        const juce::Colour red        { 0xffef4444 };
-        const juce::Colour ice        { 0xff9bdcf0 }; // FREEZE active - icy, cyan means "next" here
-    }
-
     float textWidth (const juce::Font& font, const juce::String& s)
     {
         juce::GlyphArrangement ga;
@@ -28,81 +12,38 @@ namespace
         return ga.getBoundingBox (0, -1, true).getWidth();
     }
 
-    // About dialog: wordmark over a subtle vertical gradient, text below
-    // (same construction as Scale Shifter's).
-    struct AboutComponent : juce::Component
-    {
-        AboutComponent()
-        {
-            logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
-
-            text.setMultiLine (true);
-            text.setReadOnly (true);
-            text.setCaretVisible (false);
-            text.setScrollbarsShown (true);
-            text.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
-            text.setColour (juce::TextEditor::textColourId, colors::text);
-            text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
-            text.setFont (juce::FontOptions (17.5f));
-            text.setText (juce::String::fromUTF8 (
-                "Alea Chord Randomizer, version " CHORDS_VERSION "\n\n"
-                "THE EXERCISE\n\n"
-                "This app was born from an improvisation exercise by guitar "
-                "teacher Yonatan Benaroche: generate a short random chord "
-                "progression, loop it, and improvise over it with your "
-                "instrument. A progression you did not choose forces your ear "
-                "and your hands out of familiar shapes.\n\n"
-                "HOW TO USE\n\n"
-                "ROLL the dice (or press R), hit play (or the spacebar), jam. "
-                "DICE decides what the dice can roll. LOOP decides how it "
-                "sounds, voicing included: spread it open, smooth the "
-                "voice-leading, add a bass note. Rolling mid-loop swaps the "
-                "new chords in at the next change, and clicking a chord jumps "
-                "there. Key lock keeps every roll diatonic, flavors included.\n\n"
-                "MONITOR shows what is sounding. Make the window shorter to "
-                "tuck it away and find the chord's notes yourself, a nice "
-                "theory workout.\n\n"
-                "AUTO ROLL rolls for you every few loops (press A to flip "
-                "it). Pin a chord (the little circle on its card) and it "
-                "survives rolls. Keep what you love, reroll the rest.\n\n"
-                "OUT plays the built-in synth or sends MIDI to any device. "
-                "Past rolls pile up in HISTORY. Click one to bring it back.\n\n"
-                "GET IN TOUCH\n\n"
-                "I'll be happy to hear your feedback, ideas and music! Reach "
-                "me on GitHub (github.com/yuvalEG/Alea) or at "
-                "yuvalprod@gmail.com\n\n"
-                "Open source (GPLv3), built with JUCE. The piano is the "
-                "Salamander Grand Piano by Alexander Holm (CC BY 3.0). "
-                "Check for updates from the top-right menu.\n\n"
-                "Made By Yuval Egozi"),
-                juce::dontSendNotification);
-            addAndMakeVisible (text);
-            setSize (720, 700);
-        }
-
-        void paint (juce::Graphics& g) override
-        {
-            g.setGradientFill (juce::ColourGradient (colors::panel.brighter (0.08f), 0.0f, 0.0f,
-                                                     colors::background, 0.0f, (float) getHeight(), false));
-            g.fillRect (getLocalBounds());
-
-            if (logo.isValid())
-                g.drawImage (logo, juce::Rectangle<float> ((float) getWidth() / 2.0f - 62.0f, 16.0f, 124.0f, 48.0f),
-                             juce::RectanglePlacement::centred);
-
-            g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.5f), 40.0f, 0.0f,
-                                                     colors::cyan.withAlpha (0.5f), (float) getWidth() - 40.0f, 0.0f, false));
-            g.fillRect (40, 74, getWidth() - 80, 1);
-        }
-
-        void resized() override
-        {
-            text.setBounds (getLocalBounds().withTrimmedTop (86).reduced (18, 10));
-        }
-
-        juce::Image logo;
-        juce::TextEditor text;
-    };
+    // The product's About text; the dialog shell is the shared family one.
+    const juce::String aboutText = juce::String::fromUTF8 (
+        "Alea Chord Randomizer, version " CHORDS_VERSION "\n\n"
+        "THE EXERCISE\n\n"
+        "This app was born from an improvisation exercise by guitar "
+        "teacher Yonatan Benaroche: generate a short random chord "
+        "progression, loop it, and improvise over it with your "
+        "instrument. A progression you did not choose forces your ear "
+        "and your hands out of familiar shapes.\n\n"
+        "HOW TO USE\n\n"
+        "ROLL the dice (or press R), hit play (or the spacebar), jam. "
+        "CHORDS decides what the dice can roll. LOOP decides how it "
+        "sounds, voicing included: spread it open, smooth the "
+        "voice-leading, add a bass note. Rolling mid-loop swaps the "
+        "new chords in at the next change, and clicking a chord jumps "
+        "there. Key lock keeps every roll diatonic, flavors included.\n\n"
+        "MONITOR shows what is sounding. Make the window shorter to "
+        "tuck it away and find the chord's notes yourself, a nice "
+        "theory workout.\n\n"
+        "AUTO rolls for you every few loops (press A to flip it). "
+        "Pin a chord (the little dot on its card) and it survives "
+        "rolls. Keep what you love, reroll the rest.\n\n"
+        "OUT plays the built-in synth or sends MIDI to any device. "
+        "Past rolls pile up in HISTORY. Click one to bring it back.\n\n"
+        "GET IN TOUCH\n\n"
+        "I'll be happy to hear your feedback, ideas and music! Reach "
+        "me on GitHub (github.com/yuvalEG/Alea) or at "
+        "yuvalprod@gmail.com\n\n"
+        "Open source (GPLv3), built with JUCE. The piano is the "
+        "Salamander Grand Piano by Alexander Holm (CC BY 3.0). "
+        "Check for updates from the top-right menu.\n\n"
+        "Made By Yuval Egozi");
 }
 
 //==============================================================================
@@ -114,69 +55,86 @@ juce::Rectangle<float> ChordsEditor::ChordCard::pinZone() const
 void ChordsEditor::ChordCard::paint (juce::Graphics& g)
 {
     auto b = getLocalBounds().toFloat();
-    g.setColour (colors::panel);
-    g.fillRoundedRectangle (b, 10.0f);
 
-    // The family gradient as meaning: purple = sounding now, cyan = arrives
-    // at the next boundary.
-    g.setColour (incoming ? colors::cyan.withAlpha (0.85f)
-                          : active ? colors::purple.withAlpha (0.95f) : colors::border);
-    const bool strong = incoming || active;
-    g.drawRoundedRectangle (b.reduced (strong ? 1.0f : 0.5f), 10.0f, strong ? 2.0f : 1.0f);
+    // The accent carries the meaning: purple = sounding now (the scale-A
+    // colour), cyan = arrives at the next boundary.
+    const auto accent = incoming ? colors::cyan : colors::purple;
+    const bool lit = active || incoming;
 
-    // The sounding chord fills a thin progress strip along its bottom edge.
+    // Backlit glass pad (design .hw-card): dark purple-tinted glass, brighter
+    // at the top centre, sinking to near-black at the bottom.
+    {
+        juce::ColourGradient glass (juce::Colour (0xff17131f), b.getCentreX(), b.getY(),
+                                    juce::Colour (0xff0c0910), b.getCentreX(), b.getBottom(), false);
+        g.setGradientFill (glass);
+        g.fillRoundedRectangle (b, 10.0f);
+        // Dark press at the very top (the inset shadow of a recessed pane).
+        juce::ColourGradient press (juce::Colours::black.withAlpha (0.45f), b.getX(), b.getY(),
+                                    juce::Colours::transparentBlack, b.getX(), b.getY() + 10.0f, false);
+        g.setGradientFill (press);
+        g.fillRoundedRectangle (b, 10.0f);
+    }
+
+    // Scanlines + a diagonal gloss, clipped to the pane.
+    {
+        juce::Path clip;
+        clip.addRoundedRectangle (b, 10.0f);
+        juce::Graphics::ScopedSaveState ss (g);
+        g.reduceClipRegion (clip);
+        g.setColour (juce::Colours::black.withAlpha (0.22f));
+        for (float y = b.getY(); y < b.getBottom(); y += 3.0f)
+            g.fillRect (b.getX(), y, b.getWidth(), 1.0f);
+        juce::ColourGradient gloss (juce::Colours::white.withAlpha (0.08f), b.getX(), b.getY(),
+                                    juce::Colours::transparentWhite,
+                                    b.getX() + b.getWidth() * 0.45f, b.getY() + b.getHeight() * 0.75f, false);
+        g.setGradientFill (gloss);
+        g.fillRect (b);
+    }
+
+    // Frame: dark bezel always; the sounding/incoming card adds an accent ring
+    // and a soft bloom outside it.
+    if (lit)
+        hw::glowRoundedRect (g, b.reduced (1.0f), 10.0f, accent.withAlpha (0.28f), 0.7f);
+    g.setColour (juce::Colours::black.withAlpha (0.7f));
+    g.drawRoundedRectangle (b.reduced (0.5f), 10.0f, 1.0f);
+    if (lit)
+    {
+        g.setColour (accent.interpolatedWith (juce::Colours::black, 0.35f).withAlpha (0.95f));
+        g.drawRoundedRectangle (b.reduced (1.2f), 9.0f, 1.6f);
+    }
+
+    // The chord name is phosphor behind the glass: dim scale-purple when idle,
+    // fully lit with a glow while sounding (cyan when it is the incoming one).
+    g.setFont (juce::Font (juce::FontOptions (fontSize)).boldened());
+    if (lit)
+        hw::glowText (g, text, getLocalBounds(), juce::Justification::centred, accent.brighter (0.35f));
+    else
+    {
+        g.setColour (colors::purple.interpolatedWith (juce::Colour (0xff6b6f80), 0.45f));
+        g.drawText (text, getLocalBounds(), juce::Justification::centred);
+    }
+
+    // The sounding chord fills a thin lit progress strip along its bottom edge.
     if (active && progress > 0.0f)
     {
-        g.setColour (colors::purple.withAlpha (0.55f));
-        g.fillRoundedRectangle (b.getX() + 8.0f, b.getBottom() - 7.0f,
-                                (b.getWidth() - 16.0f) * juce::jlimit (0.0f, 1.0f, progress), 3.0f, 1.5f);
-    }
-
-    // Chord labels are always white - the frame alone carries the color
-    // (a cyan label read as a different kind of object, QA).
-    g.setColour (colors::text);
-    g.setFont (juce::FontOptions (fontSize));
-    g.drawText (text, getLocalBounds(), juce::Justification::centred);
-
-    // Pin, top-right: filled when this chord survives rolls.
-    const auto pin = pinZone().reduced (7.0f);
-    if (pinned)
-    {
-        g.setColour (colors::text.withAlpha (0.9f));
-        g.fillEllipse (pin);
-    }
-    else
-    {
-        g.setColour (colors::secondary.withAlpha (0.45f));
-        g.drawEllipse (pin.reduced (0.5f), 1.2f);
-    }
-}
-
-void ChordsEditor::TransportButton::paintButton (juce::Graphics& g, bool over, bool)
-{
-    // Shared family design (see ui::TransportButton in Scale Shifter):
-    // green, labeled, play/stop.
-    auto b = getLocalBounds().toFloat();
-    const bool on = getToggleState();
-    g.setColour (on ? colors::green : colors::green.withAlpha (over ? 0.24f : 0.16f));
-    g.fillRoundedRectangle (b, 5.0f);
-    g.setColour (on ? colors::green : colors::green.withAlpha (0.75f));
-    g.drawRoundedRectangle (b.reduced (0.6f), 5.0f, 1.2f);
-
-    g.setColour (on ? juce::Colours::black : colors::green.brighter (0.45f));
-    const float cy = b.getCentreY();
-    const float ix = 15.0f;
-    if (on) // stop square - holding a moment is FREEZE's job
-        g.fillRoundedRectangle (ix - 5.0f, cy - 5.0f, 10.0f, 10.0f, 1.5f);
-    else
-    {
+        const auto strip = juce::Rectangle<float> (b.getX() + 8.0f, b.getBottom() - 7.0f,
+                                                   (b.getWidth() - 16.0f) * juce::jlimit (0.0f, 1.0f, progress), 3.0f);
         juce::Path p;
-        p.addTriangle (ix - 5.0f, cy - 6.5f, ix - 5.0f, cy + 6.5f, ix + 6.5f, cy);
+        p.addRoundedRectangle (strip, 1.5f);
+        hw::dropGlow (g, p, colors::purple.withAlpha (0.8f), 5);
+        g.setColour (colors::purple.brighter (0.15f));
         g.fillPath (p);
     }
-    g.setFont (juce::FontOptions (14.0f));
-    g.drawText (on ? "STOP" : "PLAY", (int) ix + 11, 0, getWidth() - (int) ix - 14, getHeight(),
-                juce::Justification::centredLeft);
+
+    // Pin, top-right: a lit amber dot when this chord survives rolls.
+    const auto pin = pinZone().reduced (7.0f);
+    if (pinned)
+        hw::ledDot (g, pin.getCentre(), 1.0f, colors::amber, pin.getWidth());
+    else
+    {
+        g.setColour (juce::Colour (0xff4a4d58));
+        g.drawEllipse (pin.reduced (0.5f), 1.2f);
+    }
 }
 
 void ChordsEditor::ChordCard::mouseUp (const juce::MouseEvent& e)
@@ -209,38 +167,105 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
 
     auto isBlack = [] (int n) { const int pc = n % 12; return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
 
+    // The monitor is a purple glass LCD holding a real mini keybed; the
+    // sounding notes light purple and read as behind the screen glass.
+    hw::lcd (g, b, colors::purple);
+    const auto bed = b.reduced (7.0f);
+    hw::insetWell (g, bed, 6.0f);
+    const auto keys = bed.reduced (4.0f);
+
     // C1 (24) to C7 (96): the voicing options stretched the reach (QA,
     // July 8) - the bass bottoms out at C1, open voicings at octave 4 top
     // out near A6. 43 white keys, blacks drawn over the gaps.
     constexpr int low = 24, high = 96;
-    const float ww = b.getWidth() / 43.0f;
+    const float ww = keys.getWidth() / 43.0f;
+
+    auto whiteRect = [&] (int white) {
+        return juce::Rectangle<float> (keys.getX() + (float) white * ww, keys.getY(), ww - 1.0f, keys.getHeight());
+    };
+    auto blackRect = [&] (int white) {
+        const float bw = ww * 0.62f;
+        return juce::Rectangle<float> (keys.getX() + (float) white * ww - bw / 2.0f, keys.getY(), bw, keys.getHeight() * 0.58f);
+    };
+    auto keyPath = [] (juce::Rectangle<float> k, float r)
+    {
+        juce::Path p;
+        p.addRoundedRectangle (k.getX(), k.getY(), k.getWidth(), k.getHeight(), r, r, false, false, true, true);
+        return p;
+    };
+
+    // Purple bloom behind every lit key (the real Gaussian glow pass).
+    {
+        juce::Image mask (juce::Image::ARGB, getWidth(), getHeight(), true);
+        bool any = false;
+        {
+            juce::Graphics mg (mask);
+            mg.setColour (juce::Colours::white);
+            int white = 0;
+            for (int n = low; n <= high; ++n)
+            {
+                if (isBlack (n)) { if (lit[n]) { mg.fillPath (keyPath (blackRect (white), 1.5f)); any = true; } }
+                else             { if (lit[n]) { mg.fillPath (keyPath (whiteRect (white), 2.0f)); any = true; } ++white; }
+            }
+        }
+        if (any)
+            juce::DropShadow (colors::purple.withAlpha (0.85f), 11, {}).drawForImage (g, mask);
+    }
+
+    // White keys: pale worn metal, purple when sounding.
     int white = 0;
     for (int n = low; n <= high; ++n)
     {
         if (isBlack (n)) continue;
-        g.setColour (lit[n] ? colors::purple.brighter (0.25f) : colors::control.brighter (0.22f));
-        g.fillRect (juce::Rectangle<float> (b.getX() + (float) white * ww, b.getY(), ww - 1.0f, b.getHeight()));
+        const auto k = whiteRect (white);
+        const auto path = keyPath (k, 2.0f);
+        if (lit[n])
+        {
+            juce::ColourGradient grad (colors::purple.brighter (0.30f), k.getX(), k.getY(),
+                                       colors::purple.darker (0.10f), k.getX(), k.getBottom(), false);
+            g.setGradientFill (grad);
+        }
+        else
+        {
+            juce::ColourGradient grad (juce::Colour (0xffcfd2dc), k.getX(), k.getY(),
+                                       juce::Colour (0xff8b8f9e), k.getX(), k.getBottom(), false);
+            grad.addColour (0.68, juce::Colour (0xffa9adbb));
+            g.setGradientFill (grad);
+        }
+        g.fillPath (path);
+        g.setColour (juce::Colours::white.withAlpha (lit[n] ? 0.7f : 0.6f));
+        g.drawLine (k.getX() + 1.0f, k.getY() + 0.8f, k.getRight() - 1.0f, k.getY() + 0.8f, 1.0f);
         ++white;
     }
+
+    // Black keys sit over the gaps, with a dark halo lifting them off.
     white = 0;
     for (int n = low; n <= high; ++n)
     {
         if (! isBlack (n)) { ++white; continue; }
-        const float bw = ww * 0.62f;
-        g.setColour (lit[n] ? colors::purple.brighter (0.25f) : juce::Colour (0xff08080c));
-        g.fillRect (juce::Rectangle<float> (b.getX() + (float) white * ww - bw / 2.0f, b.getY(), bw, b.getHeight() * 0.62f));
+        const auto k = blackRect (white);
+        g.setColour (juce::Colours::black.withAlpha (0.75f));
+        g.fillPath (keyPath (k.expanded (1.0f, 0.0f).withHeight (k.getHeight() + 1.5f), 2.0f));
+        if (lit[n])
+            g.setGradientFill (juce::ColourGradient (colors::purple.brighter (0.35f), k.getX(), k.getY(),
+                                                     colors::purple.darker (0.05f), k.getX(), k.getBottom(), false));
+        else
+            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff26282d), k.getX(), k.getY(),
+                                                     juce::Colour (0xff0c0d10), k.getX(), k.getBottom(), false));
+        g.fillPath (keyPath (k, 1.5f));
+        g.setColour (juce::Colours::white.withAlpha (lit[n] ? 0.6f : 0.14f));
+        g.drawLine (k.getX() + 1.0f, k.getY() + 0.8f, k.getRight() - 1.0f, k.getY() + 0.8f, 1.0f);
     }
 
-    // Notes beyond the strip get a small edge arrow - the Scale Shifter
-    // idiom. C1-C7 covers everything reachable today; this is the safety
-    // net for whatever a future option adds.
+    // Notes beyond the strip get a small edge arrow - the family idiom.
+    // C1-C7 covers everything reachable today; this is the safety net.
     bool below = false, above = false;
     for (int n = 0; n < low; ++n)        below = below || lit[n];
     for (int n = high + 1; n < 128; ++n) above = above || lit[n];
-    auto arrow = [&g, &b] (bool left)
+    auto arrow = [&g, &keys] (bool left)
     {
-        const float cy = b.getCentreY();
-        const float x = left ? b.getX() + 3.0f : b.getRight() - 3.0f;
+        const float cy = keys.getCentreY();
+        const float x = left ? keys.getX() + 3.0f : keys.getRight() - 3.0f;
         const float back = left ? 9.0f : -9.0f;
         juce::Path p;
         p.addTriangle (x, cy, x + back, cy - 7.0f, x + back, cy + 7.0f);
@@ -249,73 +274,27 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
     };
     if (below) arrow (true);
     if (above) arrow (false);
-}
 
-//==============================================================================
-void ChordsEditor::SegmentRow::paint (juce::Graphics& g)
-{
-    const int n = juce::jmax (1, labels.size());
-    const float segW = (float) getWidth() / (float) n;
-    for (int i = 0; i < n; ++i)
-    {
-        auto seg = juce::Rectangle<float> (segW * (float) i, 0.0f, segW, (float) getHeight()).reduced (2.0f, 0.0f);
-        const bool isSelected = multi ? ((mask >> i) & 1) != 0 : (i == selected);
-
-        g.setColour (isSelected ? colors::text.withAlpha (0.92f) : colors::control);
-        g.fillRoundedRectangle (seg, 6.0f);
-        if (! isSelected)
-        {
-            g.setColour (colors::border);
-            g.drawRoundedRectangle (seg.reduced (0.5f), 6.0f, 1.0f);
-        }
-
-        g.setColour (isSelected ? juce::Colours::black : colors::secondary);
-        g.setFont (juce::FontOptions (15.0f));
-        g.drawText (labels[i], seg, juce::Justification::centred);
-    }
-}
-
-void ChordsEditor::SegmentRow::mouseDown (const juce::MouseEvent& e)
-{
-    const int n = juce::jmax (1, labels.size());
-    const int idx = juce::jlimit (0, n - 1, (int) ((float) e.x / ((float) getWidth() / (float) n)));
-    if (multi)
-    {
-        const int toggled = mask ^ (1 << idx);
-        if (! allowEmpty && toggled == 0)
-            return; // at least one segment always stays on
-        mask = toggled;
-        repaint();
-        if (onChange != nullptr)
-            onChange (mask);
-    }
-    else if (idx != selected && onChange != nullptr)
-    {
-        onChange (idx);
-    }
+    // The CRT scanlines cross over the keys - they sit behind the glass.
+    hw::lcdScanlines (g, b);
 }
 
 //==============================================================================
 void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
 {
-    auto b = getLocalBounds().toFloat();
-    g.setColour (colors::panel);
-    g.fillRoundedRectangle (b, 8.0f);
-
-    g.setColour (colors::secondary);
-    g.setFont (juce::FontOptions (11.0f));
-    g.drawText ("HISTORY", 12, 6, 120, 12, juce::Justification::centredLeft);
-
-    const auto area = getLocalBounds().withTrimmedTop (18).reduced (12, 4).toFloat();
+    // The plate and its engraved HISTORY title are painted by the editor;
+    // this component only lays the engraved roll groups into it.
+    const auto area = getLocalBounds().toFloat();
 
     if (proc.history.empty())
     {
+        g.setColour (juce::Colour (0xff868ba0).withAlpha (0.8f));
         g.setFont (juce::FontOptions (13.0f, juce::Font::italic));
         g.drawText ("your past rolls will appear here", area, juce::Justification::centredLeft);
         return;
     }
 
-    const juce::Font font { juce::FontOptions (17.0f) };
+    const juce::Font font { juce::FontOptions (16.0f, juce::Font::bold) };
     constexpr float chordGap = 10.0f, groupGap = 24.0f;
 
     // Measure every group once: total content width bounds the scroll range.
@@ -337,8 +316,8 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
     scroll = juce::jlimit (0.0f, maxScroll, scroll);
 
     // Newest roll sits at the right edge; scrolling shifts the view into the
-    // past. Older rolls march left and fade. Hovered rolls highlight -
-    // clicking one recalls it into the series row.
+    // past. Older rolls march left and fade - engraved into the metal.
+    // Hovered rolls highlight; clicking one recalls it into the series row.
     groupRects.clear();
     g.saveState();
     g.reduceClipRegion (area.toNearestInt());
@@ -364,24 +343,26 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
                                                        groupW + 16.0f, area.getHeight());
         groupRects.push_back ({ groupRect, age });
 
-        const float alpha = juce::jmax (0.25f, 1.0f - 0.15f * (float) age);
+        const float alpha = juce::jmax (0.30f, 1.0f - 0.15f * (float) age);
 
         if (age == hoveredGroup)
         {
-            g.setColour (colors::control.brighter (0.06f));
+            g.setColour (juce::Colours::white.withAlpha (0.06f));
             g.fillRoundedRectangle (groupRect, 6.0f);
         }
 
-        // A hair of a divider between this roll and the newer one to its right.
+        // A machined groove between this roll and the newer one to its right.
         if (age > 0)
         {
-            g.setColour (colors::border.withAlpha (alpha + 0.15f));
-            g.fillRect (juce::Rectangle<float> (rightX + groupGap / 2.0f, area.getY() + 4.0f,
-                                                1.0f, area.getHeight() - 8.0f));
+            const float gx = rightX + groupGap / 2.0f;
+            g.setColour (juce::Colours::black.withAlpha (0.5f));
+            g.fillRect (juce::Rectangle<float> (gx, area.getY() + 3.0f, 1.0f, area.getHeight() - 6.0f));
+            g.setColour (juce::Colours::white.withAlpha (0.06f));
+            g.fillRect (juce::Rectangle<float> (gx + 1.0f, area.getY() + 3.0f, 1.0f, area.getHeight() - 6.0f));
         }
 
-        g.setColour (colors::text.withAlpha (age == hoveredGroup ? 1.0f
-                                                                 : alpha * (age == 0 ? 1.0f : 0.85f)));
+        const auto ink = juce::Colour (0xffc8ccd8)
+                             .withAlpha (age == hoveredGroup ? 1.0f : alpha * (age == 0 ? 1.0f : 0.85f));
         g.setFont (font);
 
         float x = startX;
@@ -389,8 +370,8 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
         {
             const auto t = c.text();
             const float w = textWidth (font, t);
-            g.drawText (t, juce::Rectangle<float> (x, area.getY(), w + 2.0f, area.getHeight()),
-                        juce::Justification::centredLeft);
+            const auto cell = juce::Rectangle<float> (x, area.getY(), w + 2.0f, area.getHeight()).toNearestInt();
+            hw::engraved (g, t, cell, juce::Justification::centredLeft, ink);
             x += w + chordGap;
         }
 
@@ -400,24 +381,26 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
 
     g.restoreState();
 
-    // Edge page buttons, shown when there is more history in that direction.
-    auto drawPager = [&] (juce::Rectangle<float>& store, float x, const char* glyph)
+    // Edge page keys, shown when there is more history in that direction.
+    auto drawPager = [&] (juce::Rectangle<float>& store, float x, bool left)
     {
         store = { x, (float) getHeight() / 2.0f - 14.0f, 18.0f, 28.0f };
-        g.setColour (colors::control);
-        g.fillRoundedRectangle (store, 5.0f);
-        g.setColour (colors::border);
-        g.drawRoundedRectangle (store.reduced (0.5f), 5.0f, 1.0f);
-        g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (12.0f));
-        g.drawText (juce::String::fromUTF8 (glyph), store, juce::Justification::centred);
+        hw::button (g, store, 0.0f, hw::led, false, false);
+        juce::Path p;
+        const float cx = store.getCentreX(), cy = store.getCentreY();
+        if (left)
+            p.addTriangle (cx - 3.5f, cy, cx + 3.0f, cy - 5.0f, cx + 3.0f, cy + 5.0f);
+        else
+            p.addTriangle (cx + 3.5f, cy, cx - 3.0f, cy - 5.0f, cx - 3.0f, cy + 5.0f);
+        g.setColour (juce::Colour (0xffc0c4d0));
+        g.fillPath (p);
     };
 
     olderButton = newerButton = {};
     if (scroll < maxScroll)
-        drawPager (olderButton, 4.0f, "\xe2\x97\x82");
+        drawPager (olderButton, 0.0f, true);
     if (scroll > 0.0f)
-        drawPager (newerButton, (float) getWidth() - 22.0f, "\xe2\x96\xb8");
+        drawPager (newerButton, (float) getWidth() - 18.0f, false);
 }
 
 int ChordsEditor::HistoryTicker::groupAt (juce::Point<float> pos) const
@@ -489,71 +472,27 @@ void ChordsEditor::HistoryTicker::mouseExit (const juce::MouseEvent&)
 }
 
 //==============================================================================
+namespace
+{
+    // Per-window colour choices (design handoff): lit selections are WHITE in
+    // this window; cyan is reserved for the ROLL/AUTO action pair, purple for
+    // the sounding chord, green for the internal-synth chrome.
+    const juce::Colour kSel = colors::text;
+}
+
 ChordsEditor::ChordsEditor (ChordsProcessor& p)
     : AudioProcessorEditor (p), chordsProc (p),
       standalone (p.isStandaloneLike()),
+      lengthRow  (juce::StringArray { "1", "2", "3", "4", "5", "6", "7", "8" }, kSel),
+      typeRow    (juce::StringArray { "triads", "7ths", "9ths" }, kSel),
+      everyRow   (juce::StringArray { "1", "2", "4" }, colors::cyan),
+      barsRow    (juce::StringArray { "1", "2", "4" }, kSel),
+      octaveRow  (juce::StringArray { "2", "3", "4" }, kSel),
+      voicingRow (juce::StringArray { "close", "open" }, kSel),
       ticker (p), monitor (p)
 {
-    // Space Grotesk everywhere - the family typeface (spec section 7.1).
-    struct ChordsLookAndFeel : juce::LookAndFeel_V4
-    {
-        ChordsLookAndFeel()
-        {
-            setDefaultSansSerifTypeface (juce::Typeface::createSystemTypefaceFor (
-                BinaryData::SpaceGroteskMedium_ttf, BinaryData::SpaceGroteskMedium_ttfSize));
-            setColour (juce::ToggleButton::textColourId, colors::text);
-            setColour (juce::ToggleButton::tickColourId, colors::text);
-            setColour (juce::ToggleButton::tickDisabledColourId, colors::border);
-        }
-        juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override
-        { return juce::FontOptions (juce::jmin (16.5f, (float) buttonHeight * 0.62f)); }
-        juce::Font getComboBoxFont (juce::ComboBox&) override { return juce::FontOptions (16.0f); }
-        juce::Font getPopupMenuFont() override { return juce::FontOptions (16.0f); }
-        juce::Font getLabelFont (juce::Label& label) override
-        { return juce::FontOptions (juce::jmin (15.5f, (float) label.getHeight() * 0.72f)); }
-
-        // OUT menu group titles read as real titles, not the greyed default:
-        // a purple-to-cyan divider above, then the name in bright bold caps.
-        void drawPopupMenuSectionHeader (juce::Graphics& g, const juce::Rectangle<int>& area,
-                                         const juce::String& name) override
-        {
-            auto r = area.toFloat();
-            g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.55f), r.getX() + 10.0f, 0.0f,
-                                                     colors::cyan.withAlpha (0.55f), r.getRight() - 10.0f, 0.0f, false));
-            g.fillRect (r.getX() + 10.0f, r.getY() + 4.0f, r.getWidth() - 20.0f, 1.5f);
-            g.setColour (colors::text);
-            g.setFont (juce::Font (juce::FontOptions (13.5f)).boldened());
-            g.drawText (name.toUpperCase(), area.reduced (12, 0).withTrimmedTop (4),
-                        juce::Justification::centredLeft);
-        }
-
-        // Sleek knob, as in Scale Shifter: small filled body, hairline value
-        // arc, thin pointer - no hollow ring.
-        void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
-                               float startAngle, float endAngle, juce::Slider& slider) override
-        {
-            const auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (5.0f);
-            const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f - 3.0f;
-            const auto centre = bounds.getCentre();
-            const float angle = startAngle + pos * (endAngle - startAngle);
-
-            g.setColour (colors::control.brighter (0.10f));
-            g.fillEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f);
-            g.setColour (colors::border);
-            g.drawEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f, 1.0f);
-
-            juce::Path arc;
-            arc.addCentredArc (centre.x, centre.y, radius + 2.5f, radius + 2.5f, 0.0f, startAngle, angle, true);
-            g.setColour (slider.findColour (juce::Slider::rotarySliderFillColourId));
-            g.strokePath (arc, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-            g.setColour (colors::text.withAlpha (0.9f));
-            g.drawLine (centre.x + std::sin (angle) * radius * 0.45f, centre.y - std::cos (angle) * radius * 0.45f,
-                        centre.x + std::sin (angle) * radius * 0.88f, centre.y - std::cos (angle) * radius * 0.88f, 1.8f);
-        }
-    };
-    static ChordsLookAndFeel chordsLnf; // process lifetime: dialogs may outlive the editor
-    juce::LookAndFeel::setDefaultLookAndFeel (&chordsLnf);
+    // The family LookAndFeel (Hardware.h): Space Grotesk, hardware chrome.
+    juce::LookAndFeel::setDefaultLookAndFeel (&ui::hardwareLookAndFeel());
 
     logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
 
@@ -569,16 +508,45 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
         addChildComponent (card);
     }
 
-    // ROLL brings the next chords, so it wears the "next" color - cyan,
-    // quietly (a tint, not a slab), and smaller than its first oversized cut.
-    rollButton.setColour (juce::TextButton::buttonColourId, colors::cyan.withAlpha (0.14f));
-    rollButton.setColour (juce::TextButton::textColourOffId, colors::cyan.brighter (0.3f));
+    // ROLL is the hero action key: a big, permanently lit cyan key (the "next"
+    // colour) with the LED bloom. Pressing it still physically clicks.
+    rollButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan);
+    rollButton.setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
+    rollButton.getProperties().set ("litAmt", 1.0f);
+    rollButton.getProperties().set ("bloom", true);
+    rollButton.getProperties().set ("fontSize", 19.0f);
     rollButton.onClick = [this] { doRoll(); };
     addAndMakeVisible (rollButton);
 
+    // AUTO is the automatic version of ROLL, directly beneath it: engage it
+    // and the series re-rolls on its own. Lit cyan when armed.
+    autoButton.setClickingTogglesState (true);
+    autoButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan);
+    autoButton.getProperties().set ("bloom", true);
+    autoButton.onClick = [this]
+    {
+        const bool on = autoButton.getToggleState();
+        chordsProc.autoRollOn.store (on);
+        if (! on)
+        {
+            chordsProc.cancelAutoRollSwap();
+            refresh();
+        }
+        applyAutoGate();
+    };
+    addAndMakeVisible (autoButton);
+
+    // The AUTO cadence: re-roll every 1 / 2 / 4 loops. Relevant only while
+    // AUTO is armed - dimmed and inert otherwise (applyAutoGate).
+    everyRow.onChange = [this] (int idx)
+    {
+        chordsProc.autoRollLoops.store (idx == 0 ? 1 : idx == 1 ? 2 : 4);
+    };
+    addAndMakeVisible (everyRow);
+
     // Transport: the loop is the product (spec M2). Space toggles it.
     // In a DAW the host owns transport and tempo (spec M4), so the button
-    // hides and the tempo bar becomes a readout.
+    // hides and the tempo LCD becomes a readout.
     playButton.onClick = [this]
     {
         const bool on = playButton.getToggleState();
@@ -589,38 +557,30 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     addChildComponent (playButton);
     playButton.setVisible (standalone);
 
-    // Tempo: a draggable bar, exactly like Scale Shifter's tempo box.
+    // Tempo: the glass BPM LCD - drag to set (the shared LookAndFeel draws
+    // any linear slider with component ID "bpm" as the family LCD).
+    tempoBox.setComponentID ("bpm");
     tempoBox.setSliderStyle (juce::Slider::LinearBar);
+    tempoBox.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     tempoBox.setRange (30.0, 300.0, 1.0);
-    tempoBox.setColour (juce::Slider::trackColourId, colors::green.withAlpha (0.55f));
-    tempoBox.setColour (juce::Slider::backgroundColourId, colors::control);
-    tempoBox.setColour (juce::Slider::textBoxTextColourId, colors::text);
-    tempoBox.setColour (juce::Slider::textBoxOutlineColourId, colors::border);
     tempoBox.setTextValueSuffix (" BPM");
     tempoBox.setValue ((double) chordsProc.bpm.load(), juce::dontSendNotification);
     tempoBox.onValueChange = [this] { chordsProc.bpm.store ((float) tempoBox.getValue()); };
     tempoBox.setEnabled (standalone);
-    tempoBox.setAlpha (standalone ? 1.0f : 0.55f);
     addAndMakeVisible (tempoBox);
 
     // FREEZE holds the sounding chord (time stops); PANIC is instant silence.
     // Opposite jobs, opposite ends of the header - the family rule. Active
-    // FREEZE wears the family ice blue (same in both apps; plain cyan is
-    // taken by meaning in each).
+    // FREEZE wears the family ice blue; PANIC is a red legend, never a red key.
     freezeButton.setClickingTogglesState (true);
-    freezeButton.setColour (juce::TextButton::buttonColourId, colors::control);
     freezeButton.setColour (juce::TextButton::buttonOnColourId, colors::ice);
-    freezeButton.setColour (juce::TextButton::textColourOffId, colors::text);
-    freezeButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
     freezeButton.onClick = [this] { chordsProc.frozen.store (freezeButton.getToggleState()); };
     addAndMakeVisible (freezeButton);
 
-    panicButton.setColour (juce::TextButton::buttonColourId, colors::control);
     panicButton.setColour (juce::TextButton::textColourOffId, colors::red);
     panicButton.onClick = [this] { chordsProc.panicRequest.store (true); };
     addAndMakeVisible (panicButton);
 
-    lengthRow.labels = { "1", "2", "3", "4", "5", "6", "7", "8" };
     lengthRow.onChange = [this] (int idx)
     {
         chordsProc.setSeriesLength (idx + 1);
@@ -629,18 +589,14 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     addAndMakeVisible (lengthRow);
 
     // Bars per chord: 1, 2 or 4 bars of 4/4 before the loop moves on.
-    barsRow.labels = { "1", "2", "4" };
     barsRow.onChange = [this] (int idx)
     {
         chordsProc.barsPerChord.store (idx == 0 ? 1 : idx == 1 ? 2 : 4);
-        barsRow.selected = idx;
-        barsRow.repaint();
     };
     addAndMakeVisible (barsRow);
 
     // Voicing octaves, multi-select: every checked octave sounds together.
-    octaveRow.labels = { "2", "3", "4" };
-    octaveRow.multi = true;
+    octaveRow.setMulti (false); // never empty - something must sound
     octaveRow.onChange = [this] (int newMask)
     {
         chordsProc.octaveMask.store (newMask);
@@ -651,15 +607,16 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     // Voicings (spec M5), output stage only - never the dice. Changes
     // re-voice at the next chord boundary silently: the chords aren't
     // changing, so no switching theater.
-    voicingRow.labels = { "close", "open" };
     voicingRow.onChange = [this] (int idx)
     {
-        voicingRow.selected = idx;
-        voicingRow.repaint();
         chordsProc.openVoicing.store (idx == 1);
         chordsProc.updateLoop();
     };
     addAndMakeVisible (voicingRow);
+
+    // Toggle switches flip independent options; all wear the window's white.
+    for (auto* t : { &simplifyToggle, &susToggle, &keyLockToggle, &smoothToggle, &bassToggle })
+        t->setColour (juce::ToggleButton::tickColourId, kSel);
 
     smoothToggle.onClick = [this]
     {
@@ -675,13 +632,10 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     };
     addAndMakeVisible (bassToggle);
 
-    // Metronome lives next to the tempo - a mode toggle, so the shared
-    // white accent (colored accents stay reserved for meaning).
+    // Metronome lives next to the tempo - a white-lit key (colored accents
+    // stay reserved for meaning).
     clickButton.setClickingTogglesState (true);
-    clickButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    clickButton.setColour (juce::TextButton::buttonOnColourId, colors::text.withAlpha (0.92f));
-    clickButton.setColour (juce::TextButton::textColourOffId, colors::text);
-    clickButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
+    clickButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffc8ccd8));
     clickButton.onClick = [this] { chordsProc.metronomeOn.store (clickButton.getToggleState()); };
     addChildComponent (clickButton);
     clickButton.setVisible (standalone); // DAWs bring their own metronome
@@ -689,7 +643,7 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     clickVolKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     clickVolKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     clickVolKnob.setPopupDisplayEnabled (true, true, this);
-    clickVolKnob.setColour (juce::Slider::rotarySliderFillColourId, colors::text.withAlpha (0.8f));
+    clickVolKnob.setColour (juce::Slider::rotarySliderFillColourId, kSel.withAlpha (0.8f));
     clickVolKnob.setRange (-12.0, 12.0, 0.1);
     clickVolKnob.setDoubleClickReturnValue (true, 0.0);
     clickVolKnob.setValue ((double) chordsProc.clickVolDb.load(), juce::dontSendNotification);
@@ -698,39 +652,10 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     addChildComponent (clickVolKnob);
     clickVolKnob.setVisible (standalone);
 
-    // AUTO ROLL is one self-describing dropdown under ROLL: off, or a
-    // cadence. Switching to off also takes back a preview it already rolled.
-    autoRollBox.setColour (juce::ComboBox::backgroundColourId, colors::control);
-    autoRollBox.setColour (juce::ComboBox::textColourId, colors::text);
-    autoRollBox.setColour (juce::ComboBox::outlineColourId, colors::border);
-    autoRollBox.setColour (juce::ComboBox::arrowColourId, colors::secondary);
-    autoRollBox.addItem ("off", 1);
-    for (int n : { 1, 2, 3, 4, 6, 8 })
-        autoRollBox.addItem (n == 1 ? juce::String ("every loop")
-                                    : "every " + juce::String (n) + " loops", n + 1);
-    autoRollBox.onChange = [this]
-    {
-        const int id = autoRollBox.getSelectedId();
-        if (id <= 0)
-            return;
-        const bool on = id > 1;
-        chordsProc.autoRollOn.store (on);
-        if (on)
-            chordsProc.autoRollLoops.store (id - 1);
-        else
-        {
-            chordsProc.cancelAutoRollSwap();
-            refresh();
-        }
-    };
-    addAndMakeVisible (autoRollBox);
-
     addAndMakeVisible (monitor);
 
     // OUT chooser + volume knob, straight from the Scale Shifter playbook.
-    outputBox.setColour (juce::ComboBox::backgroundColourId, colors::control);
     outputBox.setColour (juce::ComboBox::textColourId, colors::text);
-    outputBox.setColour (juce::ComboBox::outlineColourId, colors::border);
     outputBox.setColour (juce::ComboBox::arrowColourId, colors::secondary);
     buildOutputBox();
     addAndMakeVisible (outputBox);
@@ -739,7 +664,6 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     volKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     volKnob.setPopupDisplayEnabled (true, true, this);
     volKnob.setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
-    volKnob.setColour (juce::Slider::thumbColourId, colors::text);
     volKnob.setRange (-24.0, 6.0, 0.1);
     volKnob.setDoubleClickReturnValue (true, 0.0);
     volKnob.setValue ((double) chordsProc.synthVolDb.load(), juce::dontSendNotification);
@@ -752,18 +676,15 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     susToggle.onClick = [this] { chordsProc.susOn = susToggle.getToggleState(); };
     addAndMakeVisible (susToggle);
 
-    // CHORD SIZE: how tall the stack is - a triad, a seventh chord, or a
+    // CHORD TYPE: how tall the stack is - a triad, a seventh chord, or a
     // ninth chord (which by nature contains its seventh). One of three;
     // no couplings to explain.
-    sizeRow.labels = { "triads", "7ths", "9ths" };
-    sizeRow.onChange = [this] (int level)
+    typeRow.onChange = [this] (int level)
     {
         chordsProc.useSevenths = level >= 1;
         chordsProc.ninthsOn = level == 2;
-        sizeRow.selected = level;
-        sizeRow.repaint();
     };
-    addAndMakeVisible (sizeRow);
+    addAndMakeVisible (typeRow);
 
     // Key lock: rolls draw only from the chosen key and scale's seven
     // diatonic chords - flavors included, kept diatonic (Simplify is
@@ -772,9 +693,7 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     addAndMakeVisible (keyLockToggle);
     for (auto* box : { &keyBox, &scaleBox })
     {
-        box->setColour (juce::ComboBox::backgroundColourId, colors::control);
         box->setColour (juce::ComboBox::textColourId, colors::text);
-        box->setColour (juce::ComboBox::outlineColourId, colors::border);
         box->setColour (juce::ComboBox::arrowColourId, colors::secondary);
         addAndMakeVisible (*box);
     }
@@ -804,8 +723,6 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     };
 
     menuButton.setButtonText (juce::String::fromUTF8 ("\xe2\x8b\xaf"));
-    menuButton.setColour (juce::TextButton::buttonColourId, colors::control);
-    menuButton.setColour (juce::TextButton::textColourOffId, colors::text);
     menuButton.onClick = [this] { showMenu(); };
     addAndMakeVisible (menuButton);
 
@@ -837,8 +754,9 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
                      (juce::Component*) &playButton, (juce::Component*) &outputBox,
                      (juce::Component*) &volKnob, (juce::Component*) &tempoBox,
                      (juce::Component*) &clickButton, (juce::Component*) &susToggle,
-                     (juce::Component*) &autoRollBox, (juce::Component*) &clickVolKnob,
-                     (juce::Component*) &sizeRow, (juce::Component*) &voicingRow,
+                     (juce::Component*) &autoButton, (juce::Component*) &everyRow,
+                     (juce::Component*) &clickVolKnob,
+                     (juce::Component*) &typeRow, (juce::Component*) &voicingRow,
                      (juce::Component*) &smoothToggle, (juce::Component*) &bassToggle,
                      (juce::Component*) &keyLockToggle, (juce::Component*) &keyBox,
                      (juce::Component*) &scaleBox })
@@ -846,15 +764,31 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     // Space belongs to the host in a DAW; the plugin never grabs keys.
     setWantsKeyboardFocus (standalone);
 
-    // Every open is 900x680 - size is not persisted (family behavior, and
-    // persisted sizes kept restoring shutdown transients). Short windows
-    // are legitimate within a session: the tucked-monitor practice mode.
+    // Every open is 1040x760 (the handoff faceplate width) - size is not
+    // persisted (family behavior, and persisted sizes kept restoring shutdown
+    // transients). Short windows are legitimate within a session: the
+    // tucked-monitor practice mode.
     setResizable (true, true);
-    setResizeLimits (880, 500, 4096, 2400);
-    setSize (900, 680);
+    setResizeLimits (900, 520, 4096, 2400);
+    setSize (1040, 760);
 
     refresh();
+    applyAutoGate();
     startTimerHz (30); // fast enough for the bar-progress strip and meter
+}
+
+void ChordsEditor::applyAutoGate()
+{
+    // The EVERY selector matters only while AUTO is armed: dim it to ~35%
+    // and let it sleep (the design system's "dim irrelevant controls" rule).
+    const bool on = chordsProc.autoRollOn.load();
+    everyRow.setEnabled (on);
+    everyRow.setAlpha (on ? 1.0f : 0.35f);
+    if (lastAutoOn != on)
+    {
+        lastAutoOn = on;
+        repaint (chordsPanel); // the EVERY caption dims with its control
+    }
 }
 
 void ChordsEditor::buildOutputBox()
@@ -926,7 +860,7 @@ void ChordsEditor::timerCallback()
     // strip, drive the meter, dim the OUT extras when a MIDI device owns
     // the sound.
     // During a pending swap the sounding card still shows the old chord, so
-    // the green highlight stays on - refresh() keeps that card honest.
+    // the lit highlight stays on - refresh() keeps that card honest.
     const bool loopRunning = chordsProc.playing.load();
     const bool pendingNow = loopRunning && chordsProc.swapPending();
     const int sounding = chordsProc.playingChord.load();
@@ -960,7 +894,7 @@ void ChordsEditor::timerCallback()
         monitor.repaint();
     }
 
-    // Host mode: the tempo bar is a readout of the DAW's tempo.
+    // Host mode: the tempo LCD is a readout of the DAW's tempo.
     if (! standalone && std::abs (tempoBox.getValue() - (double) chordsProc.bpm.load()) > 0.5)
         tempoBox.setValue ((double) chordsProc.bpm.load(), juce::dontSendNotification);
 
@@ -978,9 +912,14 @@ void ChordsEditor::timerCallback()
 
     if (chordsProc.frozen.load() != freezeButton.getToggleState())
         freezeButton.setToggleState (chordsProc.frozen.load(), juce::dontSendNotification);
+    if (chordsProc.autoRollOn.load() != autoButton.getToggleState())
+    {
+        autoButton.setToggleState (chordsProc.autoRollOn.load(), juce::dontSendNotification);
+        applyAutoGate();
+    }
 
-    // Pending swap: the sounding card stays green with the old chord, all
-    // other cards preview the incoming series in amber.
+    // Pending swap: the sounding card stays lit with the old chord, all
+    // other cards preview the incoming series in cyan.
     if (pendingNow != lastPending)
     {
         lastPending = pendingNow;
@@ -1007,7 +946,7 @@ void ChordsEditor::timerCallback()
         lastPlaying = isPlaying;
         playButton.setToggleState (isPlaying, juce::dontSendNotification);
         playButton.repaint();
-        repaint (0, 0, getWidth(), 56); // status dot
+        repaint (0, 0, getWidth(), 56); // status LED + word
     }
 }
 
@@ -1015,19 +954,17 @@ void ChordsEditor::refresh()
 {
     seenRevision = chordsProc.revision;
 
-    lengthRow.selected = chordsProc.seriesLength - 1;
-    lengthRow.repaint();
+    lengthRow.setSelected (chordsProc.seriesLength - 1);
     const int bars = chordsProc.barsPerChord.load();
-    barsRow.selected = bars >= 4 ? 2 : bars - 1;
-    barsRow.repaint();
-    octaveRow.mask = juce::jlimit (1, 7, chordsProc.octaveMask.load());
-    octaveRow.repaint();
-    voicingRow.selected = chordsProc.openVoicing.load() ? 1 : 0;
-    voicingRow.repaint();
+    barsRow.setSelected (bars >= 4 ? 2 : bars - 1);
+    octaveRow.setMask (juce::jlimit (1, 7, chordsProc.octaveMask.load()));
+    voicingRow.setSelected (chordsProc.openVoicing.load() ? 1 : 0);
     smoothToggle.setToggleState (chordsProc.smoothVoicing.load(), juce::dontSendNotification);
     bassToggle.setToggleState (chordsProc.bassNote.load(), juce::dontSendNotification);
-    autoRollBox.setSelectedId (chordsProc.autoRollOn.load() ? chordsProc.autoRollLoops.load() + 1 : 1,
-                               juce::dontSendNotification);
+    autoButton.setToggleState (chordsProc.autoRollOn.load(), juce::dontSendNotification);
+    const int loops = chordsProc.autoRollLoops.load();
+    everyRow.setSelected (loops >= 4 ? 2 : loops >= 2 ? 1 : 0);
+    applyAutoGate();
     keyLockToggle.setToggleState (chordsProc.keyLockOn, juce::dontSendNotification);
     if (scaleBox.getSelectedId() != chordsProc.keyScale + 1)
     {
@@ -1039,14 +976,13 @@ void ChordsEditor::refresh()
     clickButton.setToggleState (chordsProc.metronomeOn.load(), juce::dontSendNotification);
     clickVolKnob.setValue ((double) chordsProc.clickVolDb.load(), juce::dontSendNotification);
     volKnob.setValue ((double) chordsProc.synthVolDb.load(), juce::dontSendNotification);
-    sizeRow.selected = chordsProc.ninthsOn ? 2 : chordsProc.useSevenths ? 1 : 0;
-    sizeRow.repaint();
+    typeRow.setSelected (chordsProc.ninthsOn ? 2 : chordsProc.useSevenths ? 1 : 0);
     simplifyToggle.setToggleState (chordsProc.simplify, juce::dontSendNotification);
     susToggle.setToggleState (chordsProc.susOn, juce::dontSendNotification);
 
-    // While a swap is pending: the SOUNDING card keeps its old chord (green
-    // highlight, progress), every other card previews the incoming series
-    // in amber.
+    // While a swap is pending: the SOUNDING card keeps its old chord (lit,
+    // progress running), every other card previews the incoming series in
+    // cyan - the "next" colour.
     const bool pendingSwap = chordsProc.playing.load() && chordsProc.swapPending()
                           && ! chordsProc.pendingOldSeries.empty();
     const int soundingIdx = pendingSwap
@@ -1069,7 +1005,7 @@ void ChordsEditor::refresh()
         else if (i < (int) chordsProc.series.size())
         {
             cards[i]->text = chordsProc.series[(size_t) i].text();
-            // Amber means "about to change" - a card whose chord survives
+            // Cyan means "about to change" - a card whose chord survives
             // the swap (pinned, typically) stays calm.
             cards[i]->incoming = pendingSwap
                 && ! (i < (int) chordsProc.pendingOldSeries.size()
@@ -1130,8 +1066,7 @@ bool ChordsEditor::keyPressed (const juce::KeyPress& key)
         doRoll();
         return true;
     }
-    // A flips auto roll between off and the last-used cadence - the
-    // one-click path the dropdown can't give.
+    // A flips AUTO - the one-key path to armed/disarmed.
     if (key.getTextCharacter() == 'a' || key.getTextCharacter() == 'A')
     {
         const bool on = ! chordsProc.autoRollOn.load();
@@ -1206,137 +1141,115 @@ void ChordsEditor::showMenu()
     m.addSeparator();
     m.addItem ("About Alea Chord Randomizer...", []
     {
-        juce::DialogWindow::LaunchOptions o;
-        o.content.setOwned (new AboutComponent());
-        o.dialogTitle = "About Alea Chord Randomizer";
-        o.dialogBackgroundColour = colors::panel;
-        o.escapeKeyTriggersCloseButton = true;
-        o.useNativeTitleBar = true;
-        o.resizable = false;
-        o.launchAsync();
+        ui::showAboutDialog ("About Alea Chord Randomizer", aboutText, 17.5f, 720, 700);
     });
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton));
 }
 
 void ChordsEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (colors::background);
+    // The whole window is one raised brushed-gunmetal faceplate slab.
+    hw::brushedMetal (g, getLocalBounds().toFloat(), 16.0f, false);
 
-    // Header: wordmark, subtitle, then the status dot + word, like the
-    // Scale Shifter header reads.
-    if (logo.isValid())
-        g.drawImage (logo, juce::Rectangle<float> (20.0f, 12.0f, 87.0f, 34.0f),
-                     juce::RectanglePlacement::centred);
+    // Header: wordmark with a clean outer drop shadow (letters fully in front
+    // of it), then the engraved subtitle and the PLAYING LED.
+    drawWordmark (g, logo, { 20, 11, 87, 34 });
 
     int statusX = 118;
-    if (getWidth() > 470)
+    if (getWidth() > 560)
     {
-        g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (15.0f));
-        g.drawText ("Chord Randomizer", 118, 0, 150, 56, juce::Justification::centredLeft);
-        statusX = 258;
+        g.setFont (juce::FontOptions (14.0f));
+        hw::engraved (g, "Chord Randomizer", { 118, 14, 150, 28 },
+                      juce::Justification::centredLeft, juce::Colour (0xff9297a8));
+        statusX = 254;
     }
     const bool isPlaying = chordsProc.playing.load();
     const bool pending = isPlaying && chordsProc.swapPending();
-    g.setColour (pending ? colors::cyan : isPlaying ? colors::playing : colors::control.brighter (0.15f));
-    g.fillEllipse ((float) statusX, 23.0f, 10.0f, 10.0f);
-    if (getWidth() > 620)
+    hw::ledDot (g, { (float) statusX + 5.0f, 28.0f }, isPlaying ? 1.0f : 0.0f,
+                pending ? colors::cyan : colors::playing);
+    if (getWidth() > 640)
     {
-        // The sounding chord stays purple on its own card, so the header
-        // keeps just the word - cyan, like the incoming cards.
-        g.setColour (pending ? colors::cyan : colors::secondary);
-        g.setFont (juce::FontOptions (13.0f));
-        g.drawText (pending ? "switching" : isPlaying ? "playing" : "stopped",
-                    statusX + 16, 0, 80, 56, juce::Justification::centredLeft);
+        g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+        const auto word = pending ? "SWITCHING" : isPlaying ? "PLAYING" : "STOPPED";
+        const auto ink = pending ? colors::cyan : isPlaying ? juce::Colour (0xff9fe6b6)
+                                                            : juce::Colour (0xff7f8496);
+        hw::engraved (g, word, { statusX + 16, 14, 90, 28 }, juce::Justification::centredLeft, ink);
     }
 
-    g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.35f), 0.0f, 0.0f,
-                                             colors::cyan.withAlpha (0.35f), (float) getWidth(), 0.0f, false));
-    g.fillRect (0, 55, getWidth(), 1);
-
-    // The two control blocks: DICE (what gets rolled) and LOOP (how it plays).
-    auto paintPanel = [&g] (juce::Rectangle<int> r, const char* title)
-    {
-        g.setColour (colors::panel);
-        g.fillRoundedRectangle (r.toFloat(), 8.0f);
-        g.setColour (colors::text);
-        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-        g.drawText (title, r.getX() + 12, r.getY() + 6, 160, 18, juce::Justification::centredLeft);
-    };
-    paintPanel (dicePanel, "DICE");
-    paintPanel (loopPanel, "LOOP");
+    // The module plates: CHORDS (what gets rolled), LOOP (how it plays),
+    // MONITOR (what sounds) and HISTORY (what sounded before).
+    hw::plate (g, chordsPanel, "CHORDS");
+    hw::plate (g, loopPanel, "LOOP");
     if (monitor.isVisible())
-        paintPanel (monitorPanel, "MONITOR");
+        hw::plate (g, monitorPanel, "MONITOR");
+    hw::plate (g, historyPanel, "HISTORY");
 
-    // Divider between the roll column and the dice configuration - both are
-    // dice business, but acting and configuring are different verbs.
-    g.setColour (colors::border);
-    g.fillRect (rollButton.getRight() + 7, dicePanel.getY() + 34, 1, dicePanel.getHeight() - 48);
-
-    // Control captions.
-    g.setColour (colors::secondary);
-    g.setFont (juce::FontOptions (12.0f));
-    g.drawText ("CHORDS", lengthRow.getX(), lengthRow.getY() - 16,
-                lengthRow.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("CHORD SIZE", sizeRow.getX(), sizeRow.getY() - 16,
-                sizeRow.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("AUTO ROLL", autoRollBox.getX(), autoRollBox.getY() - 16,
-                autoRollBox.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("BARS", barsRow.getX(), barsRow.getY() - 16,
-                barsRow.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("OCTAVE", octaveRow.getX(), octaveRow.getY() - 16,
-                octaveRow.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("VOICING", voicingRow.getX(), voicingRow.getY() - 16,
-                voicingRow.getWidth(), 14, juce::Justification::centredLeft);
-    g.drawText ("OUT", outputBox.getX(), outputBox.getY() - 16,
-                outputBox.getWidth(), 14, juce::Justification::centredLeft);
-
-    // Output meter (internal synth): vertical falling peak with green /
-    // amber / red zones - red means the limiter is working.
-    if (chordsProc.synthOn.load() && ! meterRect.isEmpty())
+    // Engraved control captions, above their rows.
+    auto caption = [&g] (const juce::Component& c, const juce::String& text, float alpha = 1.0f)
     {
-        const auto m = meterRect.toFloat();
-        g.setColour (colors::control);
-        g.fillRoundedRectangle (m, 2.0f);
-        const float lvl = juce::jlimit (0.0f, 1.0f, meterLevel);
-        auto fill = m.withTrimmedTop (m.getHeight() * (1.0f - lvl));
-        g.setColour (lvl > 0.92f ? colors::red : lvl > 0.72f ? colors::amber : colors::playing);
-        g.fillRoundedRectangle (fill, 2.0f);
-        g.setColour (colors::border);
-        g.drawRoundedRectangle (m, 2.0f, 1.0f);
+        g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+        g.setColour (juce::Colours::black.withAlpha (0.8f * alpha));
+        const auto area = juce::Rectangle<int> (c.getX(), c.getY() - 17, juce::jmax (150, c.getWidth()), 14);
+        g.drawText (text, area.translated (1, 1), juce::Justification::centredLeft);
+        g.setColour (juce::Colour (0xff868ba0).withAlpha (alpha));
+        g.drawText (text, area, juce::Justification::centredLeft);
+    };
+    caption (lengthRow, "NUMBER OF CHORDS");
+    caption (typeRow, "CHORD TYPE");
+    caption (everyRow, juce::String::fromUTF8 ("EVERY \xc2\xb7 LOOPS"),
+             chordsProc.autoRollOn.load() ? 1.0f : 0.35f);
+    caption (barsRow, "BARS");
+    caption (octaveRow, "OCTAVE");
+    caption (outputBox, "OUT");
+    caption (voicingRow, "VOICING");
+
+    // LEVEL knob caption + the output meter (internal synth only).
+    if (chordsProc.synthOn.load())
+    {
+        g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+        const auto kb = volKnob.getBounds();
+        g.setColour (juce::Colours::black.withAlpha (0.8f));
+        g.drawText ("LEVEL", kb.getX() - 11, kb.getBottom() + 1, kb.getWidth() + 24, 13, juce::Justification::centred);
+        g.setColour (juce::Colour (0xff868ba0));
+        g.drawText ("LEVEL", kb.getX() - 12, kb.getBottom(), kb.getWidth() + 24, 13, juce::Justification::centred);
+
+        if (! meterRect.isEmpty())
+        {
+            meterLevel = juce::jlimit (0.0f, 1.0f, meterLevel);
+            hw::meter (g, meterRect.toFloat(), meterLevel);
+        }
     }
 }
 
 void ChordsEditor::resized()
 {
-
     auto b = getLocalBounds();
+    constexpr int M = 18; // faceplate margin
 
     // Plugin footer: routing help bottom-left (the resize handle owns the
     // bottom-right corner); absent in the standalone.
     if (! standalone)
         helpLink.setBounds (b.removeFromBottom (20).withTrimmedLeft (16).withTrimmedBottom (2).withWidth (200));
 
-    auto header = b.removeFromTop (56);
-    menuButton.setBounds (header.getRight() - 48, 14, 36, 28);
-    panicButton.setBounds (menuButton.getX() - 8 - 66, 15, 66, 26);
-    tempoBox.setBounds (panicButton.getX() - 8 - 100, 15, 100, 26);
+    // Header, right cluster: Transport - FREEZE - CLICK - BPM - PANIC - menu.
+    auto header = b.removeFromTop (54);
+    menuButton.setBounds (header.getRight() - M - 36, 13, 36, 28);
+    panicButton.setBounds (menuButton.getX() - 10 - 62, 13, 62, 28);
+    tempoBox.setBounds (panicButton.getX() - 10 - 96, 12, 96, 30);
     int leftEdge = tempoBox.getX();
     if (standalone) // the plugin has no click - DAWs bring their own
     {
-        clickVolKnob.setBounds (leftEdge - 4 - 30, 13, 30, 30);
-        clickButton.setBounds (clickVolKnob.getX() - 4 - 62, 15, 62, 26);
+        clickVolKnob.setBounds (leftEdge - 6 - 30, 12, 30, 30);
+        clickButton.setBounds (clickVolKnob.getX() - 6 - 58, 13, 58, 28);
         leftEdge = clickButton.getX();
     }
-    freezeButton.setBounds (leftEdge - 8 - 74, 15, 74, 26);
+    freezeButton.setBounds (leftEdge - 10 - 70, 13, 70, 28);
+    playButton.setBounds (freezeButton.getX() - 10 - 76, 13, 76, 28);
 
-    // The transport sits mid-header (window-centered when there is room,
-    // nudged into the free lane between the status and the right cluster).
-    const int playX = juce::jlimit (384, freezeButton.getX() - 86, getWidth() / 2 - 38);
-    playButton.setBounds (playX, 14, 76, 28);
-
-    auto hist = b.removeFromBottom (100).reduced (16, 0).withTrimmedBottom (12);
-    ticker.setBounds (hist);
+    // HISTORY plate at the very bottom.
+    auto hist = b.removeFromBottom (92).reduced (M, 0).withTrimmedBottom (10);
+    historyPanel = hist;
+    ticker.setBounds (hist.reduced (12, 0).withTrimmedTop (28).withTrimmedBottom (8));
 
     // MONITOR: the keyboard earns the full window width (QA, July 8 -
     // C1-C7 was cramped at half width inside LOOP). Full and titled, or
@@ -1345,81 +1258,81 @@ void ChordsEditor::resized()
     // FEATURE (Yuval): practice naming a chord's notes without the
     // keyboard giving them away. The default window shows it with room
     // to spare, so only a deliberate drag tucks it.
-    const bool showMonitor = b.getHeight() >= 208 + 116 + 120; // panels + monitor + a card floor (history already taken)
+    const bool showMonitor = b.getHeight() >= 216 + 128 + 116; // plates + monitor + a card floor
     monitor.setVisible (showMonitor);
     monitorPanel = {};
     if (showMonitor)
     {
-        monitorPanel = b.removeFromBottom (116).reduced (16, 0).withTrimmedBottom (8);
-        monitor.setBounds (monitorPanel.reduced (10).withTrimmedTop (16));
+        monitorPanel = b.removeFromBottom (128).reduced (M, 0).withTrimmedBottom (10);
+        monitor.setBounds (monitorPanel.reduced (12, 0).withTrimmedTop (26).withTrimmedBottom (10));
     }
 
-    // The two control blocks. DICE, top to bottom: roll + series length,
-    // extensions + wideners, key lock, and auto roll on its own at the
-    // bottom. LOOP: bars, octaves, output chain, and the voicing row (M5).
-    auto panels = b.removeFromBottom (208).reduced (16, 6);
-    dicePanel = panels.removeFromLeft ((int) ((float) panels.getWidth() * 0.46f));
+    // The two module plates. CHORDS: the ROLL/AUTO action column, then one
+    // captioned row per dice concept. LOOP: bars, octaves, output chain, and
+    // the voicing row (M5).
+    auto panels = b.removeFromBottom (216).reduced (M, 4);
+    chordsPanel = panels.removeFromLeft ((panels.getWidth() - 12) / 2);
     panels.removeFromLeft (12);
     loopPanel = panels;
 
-    auto dice = dicePanel.reduced (12).withTrimmedTop (22);
+    auto dice = chordsPanel.reduced (12).withTrimmedTop (24);
 
-    // Left: the action column - ROLL, and its automation dropdown below.
-    auto rollStack = dice.removeFromLeft (122);
-    rollStack.removeFromTop (14);
-    rollButton.setBounds (rollStack.removeFromTop (34));
-    rollStack.removeFromTop (24); // AUTO ROLL caption breathes here
-    autoRollBox.setBounds (rollStack.removeFromTop (26));
-    dice.removeFromLeft (14);
+    // Left: the action column - the big lit ROLL key, AUTO beneath it, and
+    // the gated EVERY cadence below.
+    auto rollStack = dice.removeFromLeft (124);
+    rollButton.setBounds (rollStack.removeFromTop (52));
+    rollStack.removeFromTop (8);
+    autoButton.setBounds (rollStack.removeFromTop (32));
+    rollStack.removeFromTop (21); // EVERY caption breathes here
+    everyRow.setBounds (rollStack.removeFromTop (26));
+    dice.removeFromLeft (16);
 
     // Right: the dice themselves, one captioned row per concept.
-    lengthRow.setBounds (dice.removeFromTop (44).withTrimmedTop (16).withHeight (28));
-    dice.removeFromTop (6);
-
-    auto sizeArea = dice.removeFromTop (42);
-    sizeRow.setBounds (sizeArea.removeFromLeft (juce::jmin (186, sizeArea.getWidth()))
-                           .withTrimmedTop (16).withHeight (26));
-    dice.removeFromTop (6);
+    lengthRow.setBounds (dice.removeFromTop (43).withTrimmedTop (17).withHeight (26));
+    dice.removeFromTop (4);
+    typeRow.setBounds (dice.removeFromTop (43).withTrimmedTop (17).withHeight (26));
+    dice.removeFromTop (8);
 
     auto checks = dice.removeFromTop (22);
-    simplifyToggle.setBounds (checks.removeFromLeft (checks.getWidth() / 2));
+    simplifyToggle.setBounds (checks.removeFromLeft (juce::jmin (128, checks.getWidth() / 2)));
+    checks.removeFromLeft (8);
     susToggle.setBounds (checks);
-    dice.removeFromTop (6);
+    dice.removeFromTop (8);
 
     auto rowE = dice.removeFromTop (26);
-    keyLockToggle.setBounds (rowE.removeFromLeft (80));
-    keyBox.setBounds (rowE.removeFromLeft (58).withSizeKeepingCentre (58, 24));
+    keyLockToggle.setBounds (rowE.removeFromLeft (106));
+    rowE.removeFromLeft (4);
+    keyBox.setBounds (rowE.removeFromLeft (60).withSizeKeepingCentre (60, 26));
     rowE.removeFromLeft (6);
-    const int scaleW = juce::jmin (122, rowE.getWidth());
-    scaleBox.setBounds (rowE.removeFromLeft (scaleW).withSizeKeepingCentre (scaleW, 24));
+    const int scaleW = juce::jmin (118, rowE.getWidth());
+    scaleBox.setBounds (rowE.removeFromLeft (scaleW).withSizeKeepingCentre (scaleW, 26));
 
-    auto loop = loopPanel.reduced (12).withTrimmedTop (22);
-    loop.removeFromTop (10); // two rows share DICE's height - let them breathe
-    auto loopTop = loop.removeFromTop (44);
-    auto controlsRow = loopTop.withTrimmedTop (16).withHeight (28);
-    barsRow.setBounds (controlsRow.removeFromLeft (78));
-    controlsRow.removeFromLeft (14);
-    octaveRow.setBounds (controlsRow.removeFromLeft (78));
-    controlsRow.removeFromLeft (14);
-    meterRect = controlsRow.removeFromRight (12).withSizeKeepingCentre (12, 40).translated (0, -6);
-    controlsRow.removeFromRight (4);
-    volKnob.setBounds (controlsRow.removeFromRight (44).withSizeKeepingCentre (42, 42).translated (0, -7));
+    // LOOP plate: BARS / OCTAVE / OUT on the first row; VOICING, the voicing
+    // toggles, and the green LEVEL knob + meter on the second.
+    auto loop = loopPanel.reduced (12).withTrimmedTop (24);
+    auto row1 = loop.removeFromTop (43).withTrimmedTop (17).withHeight (26);
+    barsRow.setBounds (row1.removeFromLeft (104));
+    row1.removeFromLeft (14);
+    octaveRow.setBounds (row1.removeFromLeft (104));
+    row1.removeFromLeft (14);
+    outputBox.setBounds (row1);
+    loop.removeFromTop (12);
+
+    auto row2 = loop.removeFromTop (86);
+    auto voiceCol = row2.removeFromLeft (128);
+    voicingRow.setBounds (voiceCol.withTrimmedTop (17).withHeight (26));
+    row2.removeFromLeft (16);
+    auto togglesCol = row2.removeFromLeft (juce::jmin (150, row2.getWidth() - 96)).withTrimmedTop (14);
+    smoothToggle.setBounds (togglesCol.removeFromTop (22));
+    togglesCol.removeFromTop (8);
+    bassToggle.setBounds (togglesCol.removeFromTop (22));
+
+    meterRect = juce::Rectangle<int> (row2.getRight() - 14, row2.getY() + 6, 14, 58);
+    volKnob.setBounds (row2.getRight() - 14 - 8 - 58, row2.getY() + 6, 58, 58);
     volKnob.setVisible (chordsProc.synthOn.load());
-    controlsRow.removeFromRight (4);
-    outputBox.setBounds (controlsRow);
-
-    // Voicing row (M5): spacing selector, then the two voicing checkboxes.
-    // The caption needs the same breathing room as every other row (QA,
-    // July 8: it sat too close to the BARS row above).
-    loop.removeFromTop (16);
-    auto voiceRow = loop.removeFromTop (42).withTrimmedTop (16).withHeight (26);
-    voicingRow.setBounds (voiceRow.removeFromLeft (118));
-    voiceRow.removeFromLeft (14);
-    smoothToggle.setBounds (voiceRow.removeFromLeft (juce::jmin (158, voiceRow.getWidth() / 2)));
-    bassToggle.setBounds (voiceRow);
 
     // Series cards fill the middle, growing with the window.
-    auto area = b.reduced (16, 12);
+    auto area = b.reduced (M, 10);
     const int n = juce::jmax (1, (int) chordsProc.series.size());
     constexpr int gap = 12;
     const int cw = (area.getWidth() - gap * (n - 1)) / juce::jmax (1, n);

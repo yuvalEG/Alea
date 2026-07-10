@@ -17,6 +17,8 @@ public:
 private:
     void timerCallback() override;
     void updateModeVisibility();
+    void updateSweepGating(); // amber (on) / grey (off) backlight for the morph controls
+    int sweepGate = -1;       // last applied gating state (-1 = unset), so it's idempotent
     void applyPresetAndMark (int index);
     void markPreset (int index); // -1 = nothing selected
     void layoutMain();
@@ -24,6 +26,21 @@ private:
 
     void setupSlider (juce::Slider&, const juce::String& paramID, juce::Colour accent, bool positionStyle = false);
     void setupCombo (juce::ComboBox&, const juce::String& paramID, const juce::StringArray& customLabels = {});
+
+    // A transparent, double-click-editable value field over a knob's readout
+    // (like the BPM box). Shows the parameter's text; typing sets it back.
+    // `parse` (optional) converts typed text to a denormalised value; without
+    // it the parameter's own text parsing is used.
+    juce::Label& addValueField (juce::Slider& knob, const juce::String& paramID,
+                                std::function<double (const juce::String&)> parse = {});
+    std::vector<std::unique_ptr<juce::Label>> valueFields;
+    std::vector<std::unique_ptr<juce::ParameterAttachment>> valueFieldAtts;
+    struct FieldPos { juce::Label* label; juce::Slider* knob; int dy; };
+    std::vector<FieldPos> fieldPositions;   // positioned under their knob in resized()
+    juce::Label* intervalFreeField = nullptr;
+    juce::Label* lengthFreeField   = nullptr;
+    juce::Label* morphDurFreeField = nullptr;
+    std::vector<juce::Label*> scaleAFields, scaleBFields; // dim with their scale
 
     AleaAudioProcessor& alea;
 
@@ -57,7 +74,7 @@ private:
 
     // Morph panel
     ui::MorphBar morphBar;
-    juce::TextButton autoSweep { "AUTO-SWEEP" };
+    ui::AnimatedButton autoSweep { "AUTO-SWEEP" }; // lit crossfades on toggle
     ui::SegmentedSelector morphDurMode, morphMode;
     ui::CurveSelector morphCurve;
     juce::Slider morphDurBars, morphDurFree; // one dual-mode DURATION knob (sync bars / free seconds)
@@ -66,7 +83,7 @@ private:
     ui::SegmentedSelector tempoSource;
     juce::Slider internalTempo;
     juce::TextButton menuButton;
-    juce::TextButton freezeButton { "FREEZE" };
+    ui::AnimatedButton freezeButton { "FREEZE" };
     juce::TextButton panicButton { "PANIC" };
     ui::TransportButton playButton;        // standalone transport (play / pause)
     juce::HyperlinkButton helpLink;         // plugin only: routing help in the README
@@ -76,15 +93,18 @@ private:
     ui::OutputPanel output;
 
     // Presets panel: every preset is a bubble; the lit one is active
-    std::vector<std::unique_ptr<juce::TextButton>> presetBtns;
+    std::vector<std::unique_ptr<ui::AnimatedButton>> presetBtns;
     juce::TextButton savePreset { "Save" }, loadPreset { "Load" };
     std::unique_ptr<juce::FileChooser> fileChooser;
     std::vector<float> presetSnapshot; // param values after a preset settles; divergence clears the mark
     int snapshotCountdown = 0;         // ticks until snapshot capture - lets the host echo edits back first
     int shownPreset = -2;              // last mark painted; -2 forces a sync from the engine on first tick
 
-    // Scale panels dim when the morph is fully on the other side
+    // Scale panels dim when the morph is fully on the other side - animated.
     float alphaA = 1.0f, alphaB = 1.0f;
+    float targetAlphaA = 1.0f, targetAlphaB = 1.0f;
+    ui::FrameAnimator scaleAnim;
+    bool advanceScaleAlpha(); // one fade frame toward the targets; false when settled
 
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> comboAttachments;

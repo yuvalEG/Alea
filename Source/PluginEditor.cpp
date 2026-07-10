@@ -8,22 +8,8 @@ namespace
 {
     constexpr int kWidth = 940, kHeight = 742; // fits the OUTPUT row + LCD + monitor + history (compact output row)
 
-    // About dialog: wordmark over a subtle vertical gradient, text below.
-    struct AboutComponent : juce::Component
-    {
-        AboutComponent()
-        {
-            logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
-
-            text.setMultiLine (true);
-            text.setReadOnly (true);
-            text.setCaretVisible (false);
-            text.setScrollbarsShown (true);
-            text.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
-            text.setColour (juce::TextEditor::textColourId, colors::text);
-            text.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
-            text.setFont (juce::FontOptions (20.5f));
-            text.setText (juce::String::fromUTF8 (
+    // The product's About text; the dialog shell is the shared family one.
+    const juce::String aboutText = juce::String::fromUTF8 (
                 "Aleatoric Scale Shifter, version " ALEA_VERSION "\n\n\n"
                 "HOW TO USE\n\n"
                 "Alea generates MIDI notes. It makes no sound of its own "
@@ -57,37 +43,7 @@ namespace
                 "Alea is open source (GPLv3), built with JUCE. The piano is "
                 "the Salamander Grand Piano by Alexander Holm (CC BY 3.0). "
                 "Check for updates from the menu in the top-right corner.\n\n\n"
-                "Plugin Made By Yuval Egozi"),
-                juce::dontSendNotification);
-            addAndMakeVisible (text);
-            setSize (820, 760);
-        }
-
-        void paint (juce::Graphics& g) override
-        {
-            g.setGradientFill (juce::ColourGradient (colors::panel.brighter (0.08f), 0.0f, 0.0f,
-                                                     colors::background, 0.0f, (float) getHeight(), false));
-            g.fillRect (getLocalBounds());
-
-            if (logo.isValid())
-                g.drawImage (logo, juce::Rectangle<float> ((float) getWidth() / 2.0f - 62.0f, 16.0f, 124.0f, 48.0f),
-                             juce::RectanglePlacement::centred);
-
-            // A whisper of the scale colors under the wordmark
-            g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.5f), 40.0f, 0.0f,
-                                                     colors::cyan.withAlpha (0.5f), (float) getWidth() - 40.0f, 0.0f, false));
-            g.fillRect (40, 74, getWidth() - 80, 1);
-        }
-
-        void resized() override
-        {
-            text.setBounds (getLocalBounds().withTrimmedTop (86).reduced (18, 10));
-        }
-
-        juce::Image logo;
-        juce::TextEditor text;
-    };
-
+                "Plugin Made By Yuval Egozi");
 }
 
 AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
@@ -96,149 +52,26 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
       keyboardB (p, 'b', 1, colors::cyan),
       restsA (p, 'a', 0, colors::purple),
       restsB (p, 'b', 1, colors::cyan),
-      intervalMode (*p.apvts.getParameter ("intervalMode"), params::timingModes, colors::text.withAlpha (0.9f)),
-      lengthMode   (*p.apvts.getParameter ("lengthMode"),   params::timingModes, colors::text.withAlpha (0.9f)),
+      intervalMode (*p.apvts.getParameter ("intervalMode"), params::timingModes, ui::hw::led),
+      lengthMode   (*p.apvts.getParameter ("lengthMode"),   params::timingModes, ui::hw::led),
       morphBar (p),
-      morphDurMode (*p.apvts.getParameter ("morphDurMode"), params::morphDurModes, colors::text.withAlpha (0.9f)),
+      // Morph controls light amber (the panel accent) - gated to grey by Auto-Sweep.
+      morphDurMode (*p.apvts.getParameter ("morphDurMode"), params::morphDurModes, colors::amber),
       morphMode (*p.apvts.getParameter ("morphMode"),
                  juce::StringArray { juce::String::fromUTF8 ("A \xe2\x86\x92 B"),
                                      juce::String::fromUTF8 ("A \xe2\x86\x92 B \xe2\x86\xbb"),
                                      juce::String::fromUTF8 ("A \xe2\x87\x84 B") },
-                 colors::text.withAlpha (0.9f),
+                 colors::amber,
                  juce::StringArray { "One-Shot: travel to B, then stay there",
                                      "Loop: travel to B, jump back to A, repeat",
                                      "Bounce: back and forth between A and B" }),
-      morphCurve (*p.apvts.getParameter ("morphCurve"), colors::text.withAlpha (0.9f)),
-      tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, colors::text.withAlpha (0.9f)),
+      morphCurve (*p.apvts.getParameter ("morphCurve"), colors::amber),
+      tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, ui::hw::led),
       standalone (p.wrapperType == juce::AudioProcessor::wrapperType_Standalone),
       output (p)
 {
-    // Space Grotesk everywhere, sized up: buttons, combos, menus, textboxes.
-    struct AleaLookAndFeel : juce::LookAndFeel_V4
-    {
-        AleaLookAndFeel()
-        {
-            setDefaultSansSerifTypeface (juce::Typeface::createSystemTypefaceFor (
-                BinaryData::SpaceGroteskMedium_ttf, BinaryData::SpaceGroteskMedium_ttfSize));
-            // Toggle buttons light emerald by default (the hardware LED);
-            // FREEZE overrides to ice, PANIC never lights (red legend).
-            setColour (juce::TextButton::buttonOnColourId, ui::hw::led);
-            setColour (juce::TextButton::textColourOffId, juce::Colour (0xffc0c4d0));
-            setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
-        }
-        juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override
-        { return juce::FontOptions (juce::jmin (16.5f, (float) buttonHeight * 0.62f)); }
-        juce::Font getPopupMenuFont() override { return juce::FontOptions (16.0f); }
-        juce::Font getLabelFont (juce::Label& label) override
-        { return juce::FontOptions (juce::jmin (15.5f, (float) label.getHeight() * 0.72f)); }
-
-        // OUT menu group titles read as real titles, not the greyed default:
-        // a purple-to-cyan divider above, then the name in bright bold caps.
-        void drawPopupMenuSectionHeader (juce::Graphics& g, const juce::Rectangle<int>& area,
-                                         const juce::String& name) override
-        {
-            auto r = area.toFloat();
-            g.setGradientFill (juce::ColourGradient (colors::purple.withAlpha (0.55f), r.getX() + 10.0f, 0.0f,
-                                                     colors::cyan.withAlpha (0.55f), r.getRight() - 10.0f, 0.0f, false));
-            g.fillRect (r.getX() + 10.0f, r.getY() + 4.0f, r.getWidth() - 20.0f, 1.5f);
-            g.setColour (colors::text);
-            g.setFont (juce::Font (juce::FontOptions (13.5f)).boldened());
-            g.drawText (name.toUpperCase(), area.reduced (12, 0).withTrimmedTop (4),
-                        juce::Justification::centredLeft);
-        }
-
-        // Hardware knob, 1:1 with the handoff: a recessed well, a backlit
-        // value-arc ring (from 225deg over 270deg of travel), a fine tick
-        // ring, a domed metal cap, and an accent pointer at the top.
-        void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
-                               float, float, juce::Slider& slider) override
-        {
-            // Bipolar (arc grows from 12 o'clock) only when the range is
-            // symmetric around 0 - e.g. Transpose (-24..+24). The volume knob
-            // (-24..+6) is a normal knob: its centre is not the default.
-            const bool bipolar = std::abs (slider.getMinimum() + slider.getMaximum()) < 0.001;
-            ui::hw::knob (g, juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height),
-                          pos, slider.findColour (juce::Slider::rotarySliderFillColourId), bipolar);
-        }
-
-        // Hardware push-button: metal face, or a backlit LED key when lit.
-        void drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&,
-                                   bool over, bool down) override
-        {
-            const bool lit = b.getToggleState();
-            const auto led = b.findColour (juce::TextButton::buttonOnColourId);
-            ui::hw::button (g, b.getLocalBounds().toFloat(), lit, led, over, down);
-        }
-
-        void drawButtonText (juce::Graphics& g, juce::TextButton& b, bool over, bool) override
-        {
-            const bool lit = b.getToggleState();
-            auto colour = lit ? b.findColour (juce::TextButton::textColourOnId)
-                              : b.findColour (juce::TextButton::textColourOffId);
-            if (over && ! lit)
-                colour = colour.brighter (0.4f);
-            g.setColour (colour);
-            g.setFont (juce::FontOptions (juce::jmin (13.0f, (float) b.getHeight() * 0.5f)));
-            g.drawText (b.getButtonText().toUpperCase(), b.getLocalBounds(), juce::Justification::centred);
-        }
-
-        // Recessed metal combo box with a chevron.
-        void drawComboBox (juce::Graphics& g, int width, int height, bool,
-                           int, int, int, int, juce::ComboBox&) override
-        {
-            const auto r = juce::Rectangle<float> (0.0f, 0.0f, (float) width, (float) height);
-            ui::hw::insetWell (g, r, 4.0f);
-            juce::Path chev;
-            const float cx = (float) width - 14.0f, cy = (float) height * 0.5f;
-            chev.startNewSubPath (cx - 4.0f, cy - 2.0f);
-            chev.lineTo (cx, cy + 2.5f);
-            chev.lineTo (cx + 4.0f, cy - 2.0f);
-            g.setColour (juce::Colour (0xff7f8496));
-            g.strokePath (chev, juce::PathStrokeType (1.6f));
-        }
-        juce::Font getComboBoxFont (juce::ComboBox&) override { return juce::FontOptions (14.5f); }
-
-        // The tempo readout is a glass green BPM LCD (design). Every other
-        // linear slider keeps the JUCE default draw.
-        void drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height,
-                               float pos, float minPos, float maxPos,
-                               juce::Slider::SliderStyle style, juce::Slider& s) override
-        {
-            if (s.getComponentID() == "bpm")
-            {
-                const auto r = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height);
-                ui::hw::lcd (g, r, colors::green);
-                g.setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
-                ui::hw::glowText (g, s.getTextFromValue (s.getValue()), r.toNearestInt(),
-                                  juce::Justification::centred,
-                                  colors::green.brighter (0.35f).withAlpha (s.isEnabled() ? 1.0f : 0.55f));
-                return;
-            }
-            // MiniSlider: recessed track, accent fill with a soft glow, round
-            // cap (JUCE_DRAWING_GUIDE section 5).
-            const float cy = (float) y + (float) height * 0.5f;
-            auto track = juce::Rectangle<float> ((float) x, cy - 3.0f, (float) width, 6.0f);
-            ui::hw::insetWell (g, track, 3.0f);
-            auto acc = s.findColour (juce::Slider::trackColourId);
-            if (acc.getAlpha() < 40) acc = colors::green;
-            const float fillEnd = juce::jlimit ((float) x, (float) x + (float) width, pos);
-            g.setColour (acc.withAlpha (0.35f));
-            g.fillRoundedRectangle (track.withRight (fillEnd).expanded (0.0f, 1.0f), 3.5f);
-            g.setColour (acc);
-            g.fillRoundedRectangle (track.withRight (fillEnd), 3.0f);
-            // Round cap.
-            juce::Rectangle<float> cap (15.0f, 15.0f);
-            cap.setCentre (fillEnd, cy);
-            juce::ColourGradient cg (juce::Colour (0xff4a4d55), cap.getX(), cap.getY(),
-                                     juce::Colour (0xff131418), cap.getX(), cap.getBottom(), false);
-            g.setGradientFill (cg);
-            g.fillEllipse (cap);
-            g.setColour (juce::Colours::white.withAlpha (0.35f));
-            g.drawEllipse (cap.reduced (0.5f), 1.0f);
-        }
-    };
-    static AleaLookAndFeel aleaLnf; // process lifetime: dialogs may outlive the editor
-    juce::LookAndFeel::setDefaultLookAndFeel (&aleaLnf);
+    // The family LookAndFeel (Hardware.h): Space Grotesk, hardware chrome.
+    juce::LookAndFeel::setDefaultLookAndFeel (&ui::hardwareLookAndFeel());
 
     content.addAndMakeVisible (keyboardA);
     content.addAndMakeVisible (keyboardB);
@@ -246,6 +79,8 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     content.addAndMakeVisible (restsB);
     content.addAndMakeVisible (intervalMode);
     content.addAndMakeVisible (lengthMode);
+    intervalMode.setVertical (true); // Sync/Free/Random stacked; knob to the right
+    lengthMode.setVertical (true);
     content.addAndMakeVisible (morphBar);
     content.addAndMakeVisible (morphDurMode);
     content.addAndMakeVisible (morphMode);
@@ -312,6 +147,30 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     // Free mode auto-formats seconds -> minutes in the readout (no unit control).
     morphDurFree.textFromValueFunction = [] (double v) { return params::morphTimeString ((float) v); };
     morphDurFree.updateText();
+
+    // Double-click-editable value fields over each knob's readout (octave,
+    // velocity, free-time, morph duration). Integers parse themselves; the
+    // free-time fields accept seconds, or "N min".
+    auto secs = [] (const juce::String& t)
+    {
+        const double n = t.retainCharacters ("0123456789.").getDoubleValue();
+        return t.containsIgnoreCase ("min") ? n * 60.0 : n;
+    };
+    scaleAFields = { &addValueField (aOctMin, "aOctMin"), &addValueField (aOctMax, "aOctMax"),
+                     &addValueField (aVelMin, "aVelMin"), &addValueField (aVelMax, "aVelMax") };
+    scaleBFields = { &addValueField (bOctMin, "bOctMin"), &addValueField (bOctMax, "bOctMax"),
+                     &addValueField (bVelMin, "bVelMin"), &addValueField (bVelMax, "bVelMax") };
+    for (auto& fp : fieldPositions) fp.dy = 10;                       // oct/vel readouts sit +10
+    intervalFreeField = &addValueField (intervalFree, "intervalFree", secs);
+    lengthFreeField   = &addValueField (lengthFree,   "lengthFree",   secs);
+    fieldPositions[fieldPositions.size() - 2].dy = 16;               // timing free readouts sit +16
+    fieldPositions[fieldPositions.size() - 1].dy = 16;
+    morphDurFreeField = &addValueField (morphDurFree, "morphDurFree", secs);
+    fieldPositions.back().dy = 10;                                    // duration readout sits +10
+    // Free fields start hidden (default modes are Sync); updateModeVisibility toggles them.
+    intervalFreeField->setVisible (false);
+    lengthFreeField->setVisible (false);
+    morphDurFreeField->setVisible (false);
 
     setupSlider (internalTempo, "internalTempo", colors::green);
     internalTempo.setComponentID ("bpm"); // drawn as a glass green BPM LCD
@@ -404,14 +263,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         m.addSeparator();
         m.addItem ("About Alea...", []
         {
-            juce::DialogWindow::LaunchOptions o;
-            o.content.setOwned (new AboutComponent());
-            o.dialogTitle = "About Alea";
-            o.dialogBackgroundColour = colors::panel;
-            o.escapeKeyTriggersCloseButton = true;
-            o.useNativeTitleBar = true;
-            o.resizable = false;
-            o.launchAsync();
+            ui::showAboutDialog ("About Alea", aboutText, 20.5f, 820, 760);
         });
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton));
     };
@@ -464,17 +316,22 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     autoSweep.setButtonText (juce::String::fromUTF8 ("AUTO-SWEEP \xe2\x86\x92"));
     autoSweep.setClickingTogglesState (true);
     autoSweep.setColour (juce::TextButton::buttonColourId, colors::control);
-    autoSweep.setColour (juce::TextButton::buttonOnColourId, ui::hw::led);
+    autoSweep.setColour (juce::TextButton::buttonOnColourId, colors::amber); // master lights amber
     autoSweep.setColour (juce::TextButton::textColourOffId, juce::Colour (0xffc0c4d0));
     autoSweep.setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
     content.addAndMakeVisible (autoSweep);
     sweepAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         alea.apvts, "autoSweep", autoSweep);
+    // Auto-Sweep gates the four dependent morph controls: amber when ON, matte
+    // grey when OFF. They stay fully interactive either way (never disabled,
+    // values never cleared) - only the backlight colour changes.
+    autoSweep.onStateChange = [this] { updateSweepGating(); };
+    updateSweepGating();
 
     // Every preset is a one-click bubble; the active one stays lit.
     for (size_t i = 0; i < presets::factory().size(); ++i)
     {
-        auto b = std::make_unique<juce::TextButton> (juce::String::fromUTF8 (presets::factory()[i].name));
+        auto b = std::make_unique<ui::AnimatedButton> (juce::String::fromUTF8 (presets::factory()[i].name));
         b->setColour (juce::TextButton::buttonColourId, colors::control);
         b->setColour (juce::TextButton::buttonOnColourId, ui::hw::led);
         b->setColour (juce::TextButton::textColourOffId, juce::Colour (0xffc0c4d0));
@@ -535,8 +392,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     setResizeLimits (kWidth * 4 / 5, 398 + 208 + (standalone ? 10 : 30), kWidth * 2, viewHeight * 2);
     setSize (kWidth, viewHeight); // triggers resized() -> layoutMain()
 
+    scaleAnim.onFrame = [this] { return advanceScaleAlpha(); };
     updateModeVisibility();
     timerCallback(); // apply dimming/visibility state before first paint
+    alphaA = targetAlphaA; alphaB = targetAlphaB; advanceScaleAlpha(); // snap on open
     startTimerHz (15);
 }
 
@@ -558,6 +417,45 @@ void AleaAudioProcessorEditor::markPreset (int index)
 {
     for (size_t k = 0; k < presetBtns.size(); ++k)
         presetBtns[k]->setToggleState ((int) k == index, juce::dontSendNotification);
+}
+
+juce::Label& AleaAudioProcessorEditor::addValueField (juce::Slider& knob, const juce::String& paramID,
+                                                      std::function<double (const juce::String&)> parse)
+{
+    auto* rp = dynamic_cast<juce::RangedAudioParameter*> (alea.apvts.getParameter (paramID));
+    jassert (rp != nullptr);
+
+    auto label = std::make_unique<juce::Label>();
+    auto* lp = label.get();
+    lp->setJustificationType (juce::Justification::centred);
+    lp->setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
+    lp->setColour (juce::Label::textColourId, colors::text);
+    lp->setColour (juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+    lp->setColour (juce::Label::outlineColourId, juce::Colours::transparentBlack);
+    lp->setColour (juce::Label::backgroundWhenEditingColourId, colors::control);
+    lp->setColour (juce::Label::textWhenEditingColourId, colors::text);
+    lp->setColour (juce::Label::outlineWhenEditingColourId, colors::green);
+    lp->setEditable (false, true, false); // double-click to type a value (like the BPM box)
+    content.addAndMakeVisible (lp);
+
+    // Keep the field showing the parameter's own text unless the user is typing.
+    auto att = std::make_unique<juce::ParameterAttachment> (*rp,
+        [lp, rp] (float) { if (! lp->isBeingEdited()) lp->setText (rp->getCurrentValueAsText(), juce::dontSendNotification); });
+    att->sendInitialUpdate();
+
+    lp->onTextChange = [rp, lp, parse]
+    {
+        const float norm = parse ? juce::jlimit (0.0f, 1.0f, rp->convertTo0to1 ((float) parse (lp->getText())))
+                                 : rp->getValueForText (lp->getText());
+        rp->beginChangeGesture();
+        rp->setValueNotifyingHost (norm);
+        rp->endChangeGesture();
+    };
+
+    valueFieldAtts.push_back (std::move (att));
+    valueFields.push_back (std::move (label));
+    fieldPositions.push_back ({ lp, &knob, 8 });
+    return *lp;
 }
 
 void AleaAudioProcessorEditor::setupSlider (juce::Slider& s, const juce::String& paramID, juce::Colour accent,
@@ -624,8 +522,8 @@ void AleaAudioProcessorEditor::layoutMain()
     outputPanel = { 30 + tw + mw, by, avail - tw - mw, bh };
 
     // Short windows drop the morph panel's lower rows instead of clipping.
-    morphMode.setVisible (bh >= 232);
-    morphCurve.setVisible (bh >= 278);
+    morphMode.setVisible (bh >= 250);
+    morphCurve.setVisible (bh >= 296);
 
     // Header
     // Header: left cluster fixed, right cluster anchored to the window edge
@@ -662,17 +560,21 @@ void AleaAudioProcessorEditor::layoutMain()
     scaleControls (scaleAPanel, keyboardA, restsA, aOctMin, aOctMax, aVelMin, aVelMax);
     scaleControls (scaleBPanel, keyboardB, restsB, bOctMin, bOctMax, bVelMin, bVelMax);
 
-    // Timing: each row is a Sync/Free/Random selector, then a knob (synced
-    // divisions or free seconds) with its value painted beside it.
+    // Timing: each row (NOTE RATE, NOTE LENGTH) is a vertical Sync/Free/Random
+    // selector on the left with a knob (synced division or free seconds) and
+    // its value on the right.
     {
-        const int x = timingPanel.getX() + 12, w = timingPanel.getWidth() - 24;
-        constexpr int knob = 50;
-        intervalMode.setBounds (x, timingPanel.getY() + 48, w, 26);
-        intervalSync.setBounds (x, timingPanel.getY() + 82, knob, knob);
-        intervalFree.setBounds (x, timingPanel.getY() + 82, knob, knob);
-        lengthMode.setBounds (x, timingPanel.getY() + 156, w, 26);
-        lengthSync.setBounds (x, timingPanel.getY() + 190, knob, knob);
-        lengthFree.setBounds (x, timingPanel.getY() + 190, knob, knob);
+        const int x0 = timingPanel.getX() + 12;
+        const int selW = 122, selH = 96, knob = 62; // bigger knobs (design size 62)
+        const int knobX = x0 + selW + (timingPanel.getWidth() - 24 - selW - knob) / 2;
+        const int row1 = timingPanel.getY() + 52;
+        const int row2 = timingPanel.getY() + 190;
+        intervalMode.setBounds (x0, row1, selW, selH);
+        lengthMode.setBounds   (x0, row2, selW, selH);
+        intervalSync.setBounds (knobX, row1 + 2, knob, knob);
+        intervalFree.setBounds (knobX, row1 + 2, knob, knob);
+        lengthSync.setBounds   (knobX, row2 + 2, knob, knob);
+        lengthFree.setBounds   (knobX, row2 + 2, knob, knob);
     }
 
     // Morph
@@ -685,12 +587,16 @@ void AleaAudioProcessorEditor::layoutMain()
         autoSweep.setBounds (x, morphPanel.getY() + 78, w, 28);
         // SYNC/FREE on the left, one dual-mode DURATION knob on the right -
         // the layout is identical in both modes (no unit dropdown).
-        const int knob = 50, durY = morphPanel.getY() + 118;
-        morphDurMode.setBounds (x, durY + 10, w - knob - 70, 26);
-        morphDurBars.setBounds (morphPanel.getRight() - 12 - knob, durY, knob, knob);
-        morphDurFree.setBounds (morphPanel.getRight() - 12 - knob, durY, knob, knob);
-        morphMode.setBounds (x, morphPanel.getY() + 194, w, 26);
-        morphCurve.setBounds (x, morphPanel.getY() + 238, w, 26);
+        const int knob = 50, durY = morphPanel.getY() + 112;
+        const int selW = w - knob - 70;
+        morphDurMode.setBounds (x, durY + 10, selW, 26);
+        // DURATION knob centred between the SYNC/FREE selector and the plate edge.
+        const int selRight = x + selW, plateRight = morphPanel.getRight() - 12;
+        const int durX = selRight + (plateRight - selRight - knob) / 2;
+        morphDurBars.setBounds (durX, durY, knob, knob);
+        morphDurFree.setBounds (durX, durY, knob, knob);
+        morphMode.setBounds (x, morphPanel.getY() + 212, w, 26);  // pushed down so the
+        morphCurve.setBounds (x, morphPanel.getY() + 256, w, 26); // duration value clears it
     }
 
     output.setBounds (outputPanel.getX() + 12, outputPanel.getY() + 34,
@@ -699,7 +605,7 @@ void AleaAudioProcessorEditor::layoutMain()
     // Presets panel: two rows of four bubbles, Save/Load stacked at the right
     {
         const int x0 = presetsPanel.getX() + 90;
-        const int rowW = presetsPanel.getRight() - 76 - x0;
+        const int rowW = presetsPanel.getRight() - 92 - x0; // leave room for Save/Load clear of the corner screw
         const int perRow = 5;
         const int w = (rowW - (perRow - 1) * 8) / perRow;
         for (size_t k = 0; k < presetBtns.size(); ++k)
@@ -707,8 +613,16 @@ void AleaAudioProcessorEditor::layoutMain()
             const int row = (int) k / perRow, col = (int) k % perRow;
             presetBtns[k]->setBounds (x0 + col * (w + 8), presetsPanel.getY() + 10 + row * 30, w, 26);
         }
-        savePreset.setBounds (presetsPanel.getRight() - 64, presetsPanel.getY() + 10, 54, 26);
-        loadPreset.setBounds (presetsPanel.getRight() - 64, presetsPanel.getY() + 40, 54, 26);
+        // Right edge at -24 so the top-right screw (centre -10, r 5) is clear.
+        savePreset.setBounds (presetsPanel.getRight() - 78, presetsPanel.getY() + 10, 54, 26);
+        loadPreset.setBounds (presetsPanel.getRight() - 78, presetsPanel.getY() + 40, 54, 26);
+    }
+
+    // Editable value fields: centred over each knob's painted readout.
+    for (auto& f : fieldPositions)
+    {
+        const auto b = f.knob->getBounds();
+        f.label->setBounds (b.getCentreX() - 34, b.getBottom() + f.dy, 68, 18);
     }
 
     helpLink.setBounds (12, vh - 22, 240, 18); // left: the resize handle owns the right corner
@@ -727,6 +641,7 @@ bool AleaAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 void AleaAudioProcessorEditor::timerCallback()
 {
     updateModeVisibility();
+    updateSweepGating(); // idempotent; keeps the morph gating in sync with presets/automation
 
     // The engine owns "which preset is active" (it survives editor close/
     // reopen and session reload); the bubbles follow it.
@@ -742,7 +657,8 @@ void AleaAudioProcessorEditor::timerCallback()
         }
     }
 
-    // A fully one-sided morph means the other scale can't sound - dim it.
+    // A fully one-sided morph means the other scale can't sound - dim it. The
+    // fade is animated (super-fast) by scaleAnim; here we just set the target.
     {
         const bool sweep = alea.apvts.getRawParameterValue ("autoSweep")->load() > 0.5f;
         const float pct = sweep ? (float) alea.morphPercent.load()
@@ -750,20 +666,11 @@ void AleaAudioProcessorEditor::timerCallback()
         const float newA = pct >= 99.95f ? 0.35f : 1.0f;
         const float newB = pct <= 0.05f  ? 0.35f : 1.0f;
 
-        if (! juce::approximatelyEqual (newA, alphaA) || ! juce::approximatelyEqual (newB, alphaB))
+        if (! juce::approximatelyEqual (newA, targetAlphaA) || ! juce::approximatelyEqual (newB, targetAlphaB))
         {
-            alphaA = newA;
-            alphaB = newB;
-            for (auto* c : { (juce::Component*) &keyboardA, (juce::Component*) &restsA,
-                             (juce::Component*) &aOctMin, (juce::Component*) &aOctMax,
-                             (juce::Component*) &aVelMin, (juce::Component*) &aVelMax })
-                c->setAlpha (alphaA);
-            for (auto* c : { (juce::Component*) &keyboardB, (juce::Component*) &restsB,
-                             (juce::Component*) &bOctMin, (juce::Component*) &bOctMax,
-                             (juce::Component*) &bVelMin, (juce::Component*) &bVelMax })
-                c->setAlpha (alphaB);
-            content.repaint (scaleAPanel);
-            content.repaint (scaleBPanel);
+            targetAlphaA = newA;
+            targetAlphaB = newB;
+            scaleAnim.go();
         }
     }
 
@@ -806,6 +713,57 @@ void AleaAudioProcessorEditor::timerCallback()
         content.repaint (timingPanel);
 }
 
+bool AleaAudioProcessorEditor::advanceScaleAlpha()
+{
+    auto step = [] (float& a, float target)
+    {
+        a += (target - a) * 0.35f;                 // ~90ms fade
+        if (std::abs (target - a) < 0.004f) { a = target; return false; }
+        return true;
+    };
+    const bool moving = step (alphaA, targetAlphaA) | step (alphaB, targetAlphaB);
+    for (auto* c : { (juce::Component*) &keyboardA, (juce::Component*) &restsA,
+                     (juce::Component*) &aOctMin, (juce::Component*) &aOctMax,
+                     (juce::Component*) &aVelMin, (juce::Component*) &aVelMax })
+        c->setAlpha (alphaA);
+    for (auto* c : { (juce::Component*) &keyboardB, (juce::Component*) &restsB,
+                     (juce::Component*) &bOctMin, (juce::Component*) &bOctMax,
+                     (juce::Component*) &bVelMin, (juce::Component*) &bVelMax })
+        c->setAlpha (alphaB);
+    for (auto* l : scaleAFields) l->setAlpha (alphaA);
+    for (auto* l : scaleBFields) l->setAlpha (alphaB);
+    content.repaint (scaleAPanel);
+    content.repaint (scaleBPanel);
+    return moving;
+}
+
+void AleaAudioProcessorEditor::updateSweepGating()
+{
+    // One input: sweepEnabled. ON -> the morph controls light amber (live);
+    // OFF -> their backlight swaps to matte grey (set, but not driving). They
+    // are never disabled and their values are never cleared - only the colour
+    // passed to the child controls changes.
+    //
+    // Guarded + polled from the timer: a preset can change autoSweep without the
+    // button's onStateChange firing (the attachment coalesces the reset->set, or
+    // the value lands where it already was), which used to leave the accent
+    // stale until a hover re-fired the callback. Reading the parameter each tick
+    // and early-returning when unchanged keeps it in sync with no extra repaints.
+    const bool on = alea.apvts.getRawParameterValue ("autoSweep")->load() > 0.5f;
+    if ((int) on == sweepGate)
+        return;
+    sweepGate = (int) on;
+    const juce::Colour lit = on ? colors::amber : juce::Colour (0xff3d4048);
+    morphDurMode.setAccent (lit);
+    morphMode.setAccent (lit);
+    morphCurve.setAccent (lit);
+    for (auto* k : { &morphDurBars, &morphDurFree })
+    {
+        k->setColour (juce::Slider::rotarySliderFillColourId, lit);
+        k->repaint();
+    }
+}
+
 void AleaAudioProcessorEditor::updateModeVisibility()
 {
     const bool was[] = { intervalSync.isVisible(), intervalFree.isVisible(),
@@ -813,10 +771,12 @@ void AleaAudioProcessorEditor::updateModeVisibility()
     const int iMode = (int) alea.apvts.getRawParameterValue ("intervalMode")->load();
     intervalSync.setVisible (iMode == params::sync);
     intervalFree.setVisible (iMode == params::free);
+    if (intervalFreeField != nullptr) intervalFreeField->setVisible (iMode == params::free);
 
     const int lMode = (int) alea.apvts.getRawParameterValue ("lengthMode")->load();
     lengthSync.setVisible (lMode == params::sync);
     lengthFree.setVisible (lMode == params::free);
+    if (lengthFreeField != nullptr) lengthFreeField->setVisible (lMode == params::free);
 
     // Repaint the painted timing value only when a mode actually switched a
     // knob's visibility (not every timer tick).
@@ -828,6 +788,7 @@ void AleaAudioProcessorEditor::updateModeVisibility()
     const bool durSync = (int) alea.apvts.getRawParameterValue ("morphDurMode")->load() == 0;
     morphDurBars.setVisible (durSync);
     morphDurFree.setVisible (! durSync);
+    if (morphDurFreeField != nullptr) morphDurFreeField->setVisible (! durSync);
     if (durWasSync != durSync)
         content.repaint (morphPanel); // the painted DURATION value follows the mode
 
@@ -854,31 +815,30 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     // The whole window is one raised brushed-gunmetal faceplate slab.
     ui::hw::brushedMetal (g, content.getLocalBounds().toFloat(), 16.0f, false);
 
-    // Header: the wordmark image, with the subtitle beside it
+    // Header: the wordmark with a clean outer drop shadow (the letters fully
+    // occlude the shadow - it never falls on the glyphs).
     {
         static const juce::Image logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
-        if (logo.isValid())
-            g.drawImage (logo, juce::Rectangle<float> (20.0f, 12.0f, 87.0f, 34.0f),
-                         juce::RectanglePlacement::xLeft | juce::RectanglePlacement::yMid);
+        ui::drawWordmark (g, logo, { 20, 12, 87, 34 });
     }
-    // Subtitle and status text yield at narrow widths - the right cluster
-    // (FREEZE..menu) is anchored to the window edge and must not collide.
+    // Header disclosure is purely additive as the window widens - nothing ever
+    // appears, disappears, then reappears. The status LED sits right after the
+    // logo and is ALWAYS shown; the subtitle adds next, then the status word.
     const bool playing = alea.hostIsPlaying.load();
-    if (freezeButton.getX() >= 378)
+    const int fx = freezeButton.getX();
+    g.setColour (playing ? colors::green : colors::control);
+    g.fillEllipse (118.0f, 22.0f, 12.0f, 12.0f); // 1) LED - always
+    if (fx >= 300)                               // 2) + subtitle
     {
         g.setColour (colors::secondary);
         g.setFont (juce::FontOptions (14.0f));
-        g.drawText ("Aleatoric Scale Shifter", 120, 16, 180, 28, juce::Justification::centredLeft);
-
-        g.setColour (playing ? colors::green : colors::control);
-        g.fillEllipse (262.0f, 22.0f, 12.0f, 12.0f);
-        g.setColour (colors::secondary);
-        g.drawText (playing ? "playing" : "stopped", 282, 14, 90, 28, juce::Justification::centredLeft);
+        g.drawText ("Aleatoric Scale Shifter", 140, 16, 158, 28, juce::Justification::centredLeft);
     }
-    else
+    if (fx >= 378)                               // 3) + status word
     {
-        g.setColour (playing ? colors::green : colors::control);
-        g.fillEllipse (126.0f, 22.0f, 12.0f, 12.0f); // dot only, next to the logo
+        g.setColour (colors::secondary);
+        g.setFont (juce::FontOptions (14.0f));
+        g.drawText (playing ? "playing" : "stopped", 302, 14, 74, 28, juce::Justification::centredLeft);
     }
 
     // (The tempo bar reads "120 BPM" itself; the word "TEMPO" was dropped in
@@ -932,16 +892,13 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
         g.drawText ("ROOT", s.panel->getRight() - 12 - 58 - 44, s.panel->getBottom() - 126, 40, 26, juce::Justification::centredRight);
 
         // Each knob's caption + live value, painted below the dial.
-        auto knobLabel = [&] (juce::Slider* k, const juce::String& cap, const juce::String& id)
+        auto knobLabel = [&] (juce::Slider* k, const juce::String& cap, const juce::String&)
         {
+            // Caption only; the value is a double-click-editable field component.
             const auto b = k->getBounds();
-            const int val = (int) std::lround (alea.apvts.getRawParameterValue (id)->load());
             g.setColour (colors::secondary.withMultipliedAlpha (s.alpha));
             g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
             g.drawText (cap, b.getX() - 20, b.getBottom() - 2, b.getWidth() + 40, 13, juce::Justification::centred);
-            g.setColour (colors::text.withMultipliedAlpha (s.alpha));
-            g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
-            g.drawText (juce::String (val), b.getX() - 20, b.getBottom() + 10, b.getWidth() + 40, 15, juce::Justification::centred);
         };
         knobLabel (s.octMin, "OCT LO", juce::String::charToString (s.id) + "OctMin");
         knobLabel (s.octMax, "OCT HI", juce::String::charToString (s.id) + "OctMax");
@@ -951,58 +908,73 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     g.setColour (colors::secondary);
 
     g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened()); // sub-labels: smaller than the panel title
-    g.drawText ("NOTE RATE",   timingPanel.getX() + 12, timingPanel.getY() + 32, 120, 14, juce::Justification::centredLeft);
-    g.drawText ("NOTE LENGTH", timingPanel.getX() + 12, timingPanel.getY() + 140, 120, 14, juce::Justification::centredLeft);
+    g.drawText ("NOTE RATE",   timingPanel.getX() + 12, timingPanel.getY() + 40,  120, 14, juce::Justification::centredLeft);
+    g.drawText ("NOTE LENGTH", timingPanel.getX() + 12, timingPanel.getY() + 172, 120, 14, juce::Justification::centredLeft);
 
-    // The value of each timing knob, painted to its right ("1/4 note", "0.5 s").
-    auto timingValue = [&] (juce::Slider& sync, juce::Slider& freeS, int mode)
+    // Under each knob: a caption then the value ("DIVISION" / "1/4 note"),
+    // centred on the knob. Random mode shows the last dice roll instead.
+    auto timingKnobLabel = [&] (juce::Slider& sync, juce::Slider& freeS, int mode,
+                                const juce::String& freeCaption, int randomPick)
     {
-        if (mode == params::random)
-            return;
         auto& k = (mode == params::sync) ? sync : freeS;
-        g.setColour (colors::text);
-        g.setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
-        g.drawText (k.getTextFromValue (k.getValue()),
-                    k.getRight() + 10, k.getY(), timingPanel.getRight() - k.getRight() - 18, k.getHeight(),
-                    juce::Justification::centredLeft);
+        const auto kb = k.getBounds();
+        const int cx = kb.getCentreX(), below = kb.getBottom();
+        if (mode == params::random)
+        {
+            // A stepped knob showing the dice's current pick - not interactive,
+            // just a live status readout (dimmed to read as read-only).
+            const int n = params::randomPoolNames.size();
+            const float pos = randomPick >= 0 ? (float) randomPick / (float) (n - 1) : 0.0f;
+            ui::hw::knob (g, kb.toFloat(), pos, colors::green.withAlpha (0.55f), false);
+            g.setColour (colors::secondary);
+            g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+            g.drawText ("NOW", cx - 60, below + 2, 120, 14, juce::Justification::centred);
+            g.setColour (colors::text);
+            g.setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
+            g.drawText (randomPick >= 0 ? params::randomPoolNames[randomPick] + " note" : "-",
+                        cx - 60, below + 16, 120, 18, juce::Justification::centred);
+            g.setColour (colors::secondary);
+            return;
+        }
+        g.setColour (colors::secondary);
+        g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+        g.drawText (mode == params::sync ? "DIVISION" : freeCaption, cx - 60, below + 2, 120, 14, juce::Justification::centred);
+        // Sync value is painted here; the free value is an editable field.
+        if (mode == params::sync)
+        {
+            g.setColour (colors::text);
+            g.setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
+            g.drawText (k.getTextFromValue (k.getValue()), cx - 60, below + 16, 120, 18, juce::Justification::centred);
+        }
+        g.setColour (colors::secondary);
     };
     const int iMode = (int) alea.apvts.getRawParameterValue ("intervalMode")->load();
     const int lMode = (int) alea.apvts.getRawParameterValue ("lengthMode")->load();
-    timingValue (intervalSync, intervalFree, iMode);
-    timingValue (lengthSync, lengthFree, lMode);
-
-    // Random-mode monitoring: show what the dice just rolled, beside the row.
-    auto drawRandomPick = [&] (int y, int poolIndex)
-    {
-        g.setColour (colors::text.withAlpha (0.85f));
-        g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-        g.drawText (poolIndex >= 0 ? "now: " + params::randomPoolNames[poolIndex] : "now: -",
-                    timingPanel.getX() + 12, y, timingPanel.getWidth() - 24, 26, juce::Justification::centredLeft);
-        g.setColour (colors::secondary);
-    };
-
-    if (iMode == params::random)
-        drawRandomPick (timingPanel.getY() + 92, alea.lastRandomInterval.load());
-    if (lMode == params::random)
-        drawRandomPick (timingPanel.getY() + 200, alea.lastRandomLength.load());
+    timingKnobLabel (intervalSync, intervalFree, iMode, "RATE",   alea.lastRandomInterval.load());
+    timingKnobLabel (lengthSync,   lengthFree,   lMode, "LENGTH", alea.lastRandomLength.load());
     // DURATION knob caption + value (the visible knob: bars in Sync, seconds
     // in Free), painted below it.
     {
-        auto& durK = morphDurBars.isVisible() ? morphDurBars : morphDurFree;
+        const bool sync = morphDurBars.isVisible();
+        auto& durK = sync ? morphDurBars : morphDurFree;
         const auto kb = durK.getBounds();
         g.setColour (colors::secondary);
         g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
         g.drawText ("DURATION", kb.getX() - 24, kb.getBottom() - 2, kb.getWidth() + 48, 13, juce::Justification::centred);
-        g.setColour (colors::text);
-        g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
-        g.drawText (durK.getTextFromValue (durK.getValue()),
-                    kb.getX() - 24, kb.getBottom() + 10, kb.getWidth() + 48, 14, juce::Justification::centred);
+        // Sync (bars) value painted here; the free (seconds) value is a field.
+        if (sync)
+        {
+            g.setColour (colors::text);
+            g.setFont (juce::Font (juce::FontOptions (13.0f)).boldened());
+            g.drawText (durK.getTextFromValue (durK.getValue()),
+                        kb.getX() - 24, kb.getBottom() + 10, kb.getWidth() + 48, 14, juce::Justification::centred);
+        }
     }
 
     g.setColour (colors::secondary);
     g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
     if (morphMode.isVisible())
-        g.drawText ("MORPH MODE",  morphPanel.getX() + 12, morphPanel.getY() + 178, 130, 12, juce::Justification::centredLeft);
+        g.drawText ("MORPH MODE",  morphPanel.getX() + 12, morphPanel.getY() + 196, 130, 12, juce::Justification::centredLeft);
     if (morphCurve.isVisible())
-        g.drawText ("MORPH CURVE", morphPanel.getX() + 12, morphPanel.getY() + 222, 130, 12, juce::Justification::centredLeft);
+        g.drawText ("MORPH CURVE", morphPanel.getX() + 12, morphPanel.getY() + 240, 130, 12, juce::Justification::centredLeft);
 }

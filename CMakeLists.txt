@@ -86,6 +86,7 @@ juce_add_plugin(Alea
     COPY_PLUGIN_AFTER_BUILD ${ALEA_COPY_AFTER_BUILD})
 
 target_sources(Alea PRIVATE
+    Source/Hardware.cpp
     Source/Sound.cpp
     Source/Params.cpp
     Source/Presets.cpp
@@ -152,6 +153,7 @@ juce_add_plugin(AleaChords
     COPY_PLUGIN_AFTER_BUILD ${CHORDS_COPY_AFTER_BUILD})
 
 target_sources(AleaChords PRIVATE
+    Source/Hardware.cpp
     Source/Sound.cpp
     Source/Chords/ChordEngine.cpp
     Source/Chords/ChordsProcessor.cpp
@@ -182,6 +184,7 @@ clap_juce_extensions_plugin(TARGET AleaChords
 juce_add_console_app(ChordsUISnapshot PRODUCT_NAME "ChordsUISnapshot")
 target_sources(ChordsUISnapshot PRIVATE
     Tools/ChordsUISnapshot.cpp
+    Source/Hardware.cpp
     Source/Sound.cpp
     Source/Chords/ChordEngine.cpp
     Source/Chords/ChordsProcessor.cpp
@@ -200,6 +203,7 @@ target_link_libraries(ChordsUISnapshot
 juce_add_console_app(AleaUISnapshot PRODUCT_NAME "AleaUISnapshot")
 target_sources(AleaUISnapshot PRIVATE
     Tools/UISnapshot.cpp
+    Source/Hardware.cpp
     Source/Sound.cpp
     Source/Params.cpp
     Source/Presets.cpp
