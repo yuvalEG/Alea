@@ -174,17 +174,19 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
     auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key, float radius)
     {
-        const float h = key.getHeight() * juce::jmax (0.12f, velNorm);
+        // The green UNDERLIGHT of the pressed key (design: an inset glow at
+        // ~45%): velocity sets its reach, but it TINTS the key's own colour -
+        // a full-strength fill turned lit keys into a purple-to-green ombre
+        // that read as a bug (July 10 QA round 7).
+        const float h = key.getHeight() * juce::jmax (0.18f, velNorm);
         const auto fill = key.withTop (key.getBottom() - h);
         juce::Path clip;
         clip.addRoundedRectangle (key.getX(), key.getY(), key.getWidth(), key.getHeight(),
                                   radius, radius, false, false, true, true);
         juce::Graphics::ScopedSaveState ss (g);
         g.reduceClipRegion (clip);
-        // Green rising from the bottom and dissolving softly upward.
         juce::ColourGradient body (colors::playing.withAlpha (0.0f), fill.getX(), fill.getY(),
-                                   colors::playing, fill.getX(), fill.getBottom(), false);
-        body.addColour (0.40, colors::playing.withAlpha (0.85f));
+                                   colors::playing.withAlpha (0.55f), fill.getX(), fill.getBottom(), false);
         g.setGradientFill (body);
         g.fillRect (fill);
     };
@@ -195,7 +197,14 @@ void PianoKeyboard::paint (juce::Graphics& g)
     {
         const auto k = pressedRect (key, pressed);
         const auto path = keyPath (k, radius);
-        const float dim = pressed ? 0.86f : 1.0f;
+        const float dim = pressed ? 0.88f : 1.0f;
+        if (pressed)
+        {
+            // The strip the key vacated is deep shadow - the key sits IN the
+            // bed, it doesn't float in front of it.
+            g.setColour (juce::Colours::black.withAlpha (0.55f));
+            g.fillRect (juce::Rectangle<float> (key.getX(), key.getY(), key.getWidth(), 3.5f));
+        }
 
         if (isSel)
         {
@@ -212,11 +221,14 @@ void PianoKeyboard::paint (juce::Graphics& g)
         }
         else
         {
-            // The ORIGINAL unselected gradient, untouched (July 10 QA round 6:
-            // the 3-stop redesign here read as "less pretty").
-            auto top = juce::Colour (isWhite ? 0xff2a2c32 : 0xff1a1b20).withMultipliedBrightness (dim);
-            auto bot = juce::Colour (isWhite ? 0xff131418 : 0xff0a0b0e).withMultipliedBrightness (dim);
-            g.setGradientFill (juce::ColourGradient (top, k.getX(), k.getY(), bot, k.getX(), k.getBottom(), false));
+            // The design's 3-stop top-lit gradient (Yuval: "the new keyboard
+            // gradient is cool" - unselected keys only).
+            auto top = juce::Colour (isWhite ? 0xff2a2c32 : 0xff1c1d22).withMultipliedBrightness (dim);
+            auto mid = juce::Colour (isWhite ? 0xff1c1d22 : 0xff0a0b0d).withMultipliedBrightness (dim);
+            auto bot = juce::Colour (isWhite ? 0xff131418 : 0xff050506).withMultipliedBrightness (dim);
+            juce::ColourGradient grad (top, k.getX(), k.getY(), bot, k.getX(), k.getBottom(), false);
+            grad.addColour (0.70, mid);
+            g.setGradientFill (grad);
             g.fillPath (path);
         }
 
@@ -232,9 +244,19 @@ void PianoKeyboard::paint (juce::Graphics& g)
         }
         else
         {
-            g.setColour (juce::Colours::white.withAlpha (isSel ? 0.7f : (isWhite ? 0.05f : 0.10f)));
+            g.setColour (juce::Colours::white.withAlpha (isSel ? 0.7f : (isWhite ? 0.08f : 0.10f)));
             g.drawLine (k.getX() + 2.0f, k.getY() + 1.0f, k.getRight() - 2.0f, k.getY() + 1.0f,
                         isSel ? 1.4f : 1.0f);
+        }
+        // Shaded bottom lip - the 3D front edge (UNSELECTED keys only; on the
+        // lit accent it dirtied the colour).
+        if (! isSel)
+        {
+            const float lip = juce::jmin (10.0f, k.getHeight() * 0.16f);
+            juce::ColourGradient lipG (juce::Colours::transparentBlack, k.getX(), k.getBottom() - lip,
+                                       juce::Colours::black.withAlpha (0.5f), k.getX(), k.getBottom(), false);
+            g.setGradientFill (lipG);
+            g.fillRect (k.withTop (k.getBottom() - lip));
         }
     };
 
@@ -775,7 +797,8 @@ void OutputPanel::paint (juce::Graphics& g)
     // The glass is PHYSICALLY green (green phosphor, green LED); what is
     // sounding only TINTS it ~20% toward the active side's colour - a fully
     // violet screen read as unnatural (July 10 QA round 6).
-    hw::lcd (g, lcdRect, active >= 0 ? colors::green.interpolatedWith (srcColour, 0.22f)
+    hw::lcd (g, lcdRect, active >= 0 ? colors::green.interpolatedWith (srcColour,
+                                           srcColour == colors::purple ? 0.38f : 0.22f)
                                      : colors::green);
     auto screen = lcdRect.toNearestInt().reduced (10, 4);
     auto barBeat = screen.removeFromRight (86);

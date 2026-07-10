@@ -737,7 +737,7 @@ namespace hw
                 juce::Path glowSrc;
                 juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt)
                     .createStrokedPath (glowSrc, lit);
-                dropGlow (g, glowSrc, accent.withAlpha (0.30f), 6);
+                dropGlow (g, glowSrc, accent.withAlpha (0.45f), 9);
             }
             g.setColour (accent);
             g.strokePath (lit, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
@@ -1182,6 +1182,7 @@ namespace
                                          / juce::jmax (1.0, s.getMaximum() - s.getMinimum()));
                 g.setColour (ink);
                 g.fillRoundedRectangle (track.withWidth (juce::jmax (2.0f, track.getWidth() * t)), 1.0f);
+                hw::lcdScanlines (g, r); // the barely-visible CRT lines over the glass
                 return;
             }
             // MiniSlider: recessed track, accent fill with a soft glow, round
