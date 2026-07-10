@@ -447,11 +447,12 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
         addChildComponent (card);
     }
 
-    // ROLL is the hero action key: a big, permanently lit cyan key (the "next"
-    // colour) with the LED bloom. Pressing it still physically clicks.
+    // ROLL is the hero action key: a big cyan-legend key that FLASHES lit
+    // (with its bloom) whenever a roll fires - pressed by hand or by AUTO.
     rollButton.setColour (juce::TextButton::buttonOnColourId, colors::cyan);
     rollButton.setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
-    rollButton.getProperties().set ("litAmt", 1.0f);
+    rollButton.setColour (juce::TextButton::textColourOffId, colors::cyan.brighter (0.30f));
+    rollButton.getProperties().set ("litAmt", 0.0f);
     rollButton.getProperties().set ("fontSize", 19.0f);
     rollButton.onClick = [this] { doRoll(); };
     addAndMakeVisible (rollButton);
@@ -864,12 +865,28 @@ void ChordsEditor::timerCallback()
     }
 
     // Pending swap: the sounding card stays lit with the old chord, all
-    // other cards preview the incoming series in cyan.
+    // other cards preview the incoming series in cyan. A swap appearing also
+    // means a roll just fired (AUTO's included) - flash the ROLL key.
     if (pendingNow != lastPending)
     {
+        if (pendingNow)
+            rollLit = 1.0f;
         lastPending = pendingNow;
         refresh();
         repaint (0, 0, getWidth(), 56); // status word
+    }
+
+    // The ROLL flash decays over ~a quarter second.
+    {
+        const float shown = (float) rollButton.getProperties().getWithDefault ("litAmt", 0.0f);
+        if (std::abs (rollLit - shown) > 0.004f || (rollLit > 0.004f))
+        {
+            rollLit *= 0.84f;
+            if (rollLit < 0.004f) rollLit = 0.0f;
+            rollButton.getProperties().set ("litAmt", rollLit);
+            rollButton.repaint();
+            repaint (rollButton.getBounds().expanded (18)); // its bloom
+        }
     }
 
     const bool synth = chordsProc.synthOn.load();
@@ -994,6 +1011,7 @@ void ChordsEditor::doRoll()
 {
     chordsProc.rollSeries();
     ticker.scroll = 0.0f; // a fresh roll snaps history back to the newest
+    rollLit = 1.0f;       // the key flashes lit for the roll
     refresh();
 }
 
@@ -1133,7 +1151,7 @@ void ChordsEditor::paint (juce::Graphics& g)
     // The LED blooms, drawn HERE (the parent) so they spread onto the metal
     // instead of clipping to each key's rectangle: the always-lit ROLL, the
     // crossfading header keys, and the lit chord cards.
-    hw::keyBloom (g, rollButton, colors::cyan, 1.0f);
+    hw::keyBloom (g, rollButton, colors::cyan, hw::litAmount (rollButton));
     hw::keyBloom (g, autoButton, colors::cyan, hw::litAmount (autoButton));
     hw::keyBloom (g, freezeButton, colors::ice, hw::litAmount (freezeButton));
     hw::keyBloom (g, clickButton, juce::Colour (0xffc8ccd8), hw::litAmount (clickButton));

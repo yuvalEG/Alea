@@ -152,32 +152,13 @@ namespace hw
         return (float) b.getProperties().getWithDefault ("litAmt", b.getToggleState() ? 1.0f : 0.0f);
     }
 
-    // The fine spun-metal micro-grain (--grain): hairline strokes that catch
-    // light, baked once into a tiny tile and tiled across the metal.
-    static const juce::Image& grainTile (bool isPlate)
-    {
-        static juce::Image face, plate;
-        auto& img = isPlate ? plate : face;
-        if (! img.isValid())
-        {
-            const float wA = isPlate ? 0.0064f : 0.0088f;   // white stroke alpha
-            const float bA = isPlate ? 0.0088f : 0.012f;    // dark stroke alpha
-            img = juce::Image (juce::Image::ARGB, 4, 3, true);
-            juce::Graphics ig (img);
-            ig.setColour (juce::Colours::white.withAlpha (wA * 3.0f)); // 3x: the tile rows are 1px, the CSS strokes 0.5px
-            ig.fillRect (0, 0, 4, 1);
-            ig.setColour (juce::Colours::black.withAlpha (bA * 3.0f));
-            ig.fillRect (0, 1, 4, 1);
-        }
-        return img;
-    }
-
     void brushedMetal (juce::Graphics& g, juce::Rectangle<float> r, float radius, bool isPlate)
     {
         // The July 10 handoff's BAKED matte finish: metal-l 0.5 (a 35% black
         // overlay, premultiplied into every stop below), sheen 0.1 (near-
-        // matte), grain 0.4 (fine spun metal), reflect 0.2 (a whisper of
-        // clearcoat environment light). Copied stop-for-stop.
+        // matte), reflect 0.2 (a whisper of clearcoat environment light).
+        // Copied stop-for-stop. The handoff's micro-grain was tried and CUT
+        // (Yuval: "it looks weird" in the JUCE rendering).
         juce::Path clip;
         clip.addRoundedRectangle (r, radius);
 
@@ -194,8 +175,6 @@ namespace hw
         {
             juce::Graphics::ScopedSaveState ss (g);
             g.reduceClipRegion (clip);
-            g.setTiledImageFill (grainTile (true), 0, 0, 1.0f);
-            g.fillRect (r);
             // Soft top-lit reflection (178deg, reflect 0.2).
             juce::ColourGradient refl (juce::Colours::white.withAlpha (0.010f), r.getX(), r.getY(),
                                        juce::Colours::transparentWhite, r.getX(), r.getY() + r.getHeight() * 0.30f, false);
@@ -230,9 +209,6 @@ namespace hw
         {
             juce::Graphics::ScopedSaveState ss (g);
             g.reduceClipRegion (clip);
-            g.setTiledImageFill (grainTile (false), 0, 0, 1.0f);
-            g.fillRect (r);
-
             // Specular (sheen 0.1 - nearly matte): a faint top-left radial.
             juce::ColourGradient spec (juce::Colours::white.withAlpha (0.016f),
                                        r.getX() + r.getWidth() * 0.30f, r.getY() - r.getHeight() * 0.15f,
@@ -1204,7 +1180,7 @@ namespace
             const float trackH = 18.0f, trackW = 38.0f, inset = 5.0f;
             const auto track = juce::Rectangle<float> (inset, (float) area.getHeight() * 0.5f - trackH * 0.5f,
                                                        trackW, trackH);
-            hw::toggleSwitch (g, track, b.getToggleState() ? 1.0f : 0.0f,
+            hw::toggleSwitch (g, track, hw::litAmount (b),
                               b.findColour (juce::ToggleButton::tickColourId));
             auto ink = b.findColour (juce::ToggleButton::textColourId);
             if (over)

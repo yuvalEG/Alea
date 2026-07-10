@@ -190,6 +190,38 @@ private:
     bool settled = false;
 };
 
+// A physical toggle switch whose knob/track crossfade instead of snapping -
+// the ToggleButton twin of AnimatedButton (the LookAndFeel reads "litAmt").
+class AnimatedToggle : public juce::ToggleButton, private juce::Timer
+{
+public:
+    using juce::ToggleButton::ToggleButton;
+protected:
+    void buttonStateChanged() override
+    {
+        juce::ToggleButton::buttonStateChanged();
+        const float target = getToggleState() ? 1.0f : 0.0f;
+        if (! settled)                       // first sync: snap, don't animate on open
+        {
+            settled = true; litAmt = target;
+            getProperties().set ("litAmt", litAmt);
+        }
+        else if (std::abs (target - litAmt) > 0.001f && ! isTimerRunning())
+            startTimerHz (60);
+    }
+private:
+    void timerCallback() override
+    {
+        const float target = getToggleState() ? 1.0f : 0.0f;
+        litAmt += (target - litAmt) * 0.35f; // ~100ms slide
+        if (std::abs (target - litAmt) < 0.01f) { litAmt = target; stopTimer(); }
+        getProperties().set ("litAmt", litAmt);
+        repaint();
+    }
+    float litAmt = 0.0f;
+    bool settled = false;
+};
+
 // Standalone transport: a backlit green key with a drawn play triangle / stop
 // square (icon paths, never a font glyph) - the icon tells the truth.
 // Identical in both Alea products.

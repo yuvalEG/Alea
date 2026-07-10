@@ -98,7 +98,7 @@ private:
     juce::Image logo;
     ui::TransportButton playButton;
     juce::TextButton menuButton,
-                     rollButton { "Roll" },     // the hero key: always lit cyan
+                     rollButton { "Roll" },     // the hero key: flashes lit on a roll
                      panicButton { "Panic" };   // red legend, never a red fill
     // Backlit keys whose lit state crossfades: FREEZE (ice), CLICK (white),
     // AUTO (cyan - the automatic version of ROLL).
@@ -108,7 +108,7 @@ private:
     // Control language (QA round 11): buttons act, toggles flip independent
     // options, segments pick one-of-N, dropdowns hold lists. Toggle labels are
     // sentence case; ALL-CAPS is for captions/titles/buttons.
-    juce::ToggleButton simplifyToggle { "Simplify" },
+    ui::AnimatedToggle simplifyToggle { "Simplify" },
                        susToggle { "Add sus" },
                        keyLockToggle { "Key lock" },
                        // Voicings (spec M5) live in LOOP - how it sounds, never what rolls.
@@ -139,6 +139,7 @@ private:
     bool lastPlaying = false;
     bool lastPending = false;
     bool lastAutoOn = false;
+    float rollLit = 0.0f;             // ROLL flashes lit on a roll (manual or auto)
     juce::uint64 lastSoundingHi = 0;
     juce::uint64 lastSounding = 0;
     int devicePollCountdown = 90;     // ~3s at 30 Hz: MIDI hotplug refresh
