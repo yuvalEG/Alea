@@ -105,7 +105,7 @@ namespace hw
     // the glyph shapes (the design's text-shadow: 0 0 Npx currentColor), then
     // crisp text on top so it stays readable. Uses the Graphics' current font.
     void glowText (juce::Graphics& g, const juce::String& text, juce::Rectangle<int> area,
-                   juce::Justification just, juce::Colour colour)
+                   juce::Justification just, juce::Colour colour, int blur)
     {
         const auto font = g.getCurrentFont();
         juce::GlyphArrangement ga;
@@ -125,7 +125,7 @@ namespace hw
             juce::Path p;
             ga.createPath (p);
             p.applyTransform (juce::AffineTransform::translation (x, baseline));
-            dropGlow (g, p, colour.withAlpha (0.60f), 7);
+            dropGlow (g, p, colour.withAlpha (0.60f), blur);
         }
         g.setColour (colour);
         g.drawText (text, area, just);
@@ -730,6 +730,15 @@ namespace hw
             g.strokePath (track, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
             juce::Path lit;
             lit.addCentredArc (c.x, c.y, arcMid, arcMid, 0.0f, bipolar ? amid : a0, av, true);
+            // The lit arc emits a tint of light (kept faint - it's a value
+            // readout, not a lamp).
+            if (std::abs (av - (bipolar ? amid : a0)) > 0.05f)
+            {
+                juce::Path glowSrc;
+                juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt)
+                    .createStrokedPath (glowSrc, lit);
+                dropGlow (g, glowSrc, accent.withAlpha (0.30f), 6);
+            }
             g.setColour (accent);
             g.strokePath (lit, juce::PathStrokeType (arcT, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
         }
@@ -1144,10 +1153,35 @@ namespace
             {
                 const auto r = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height);
                 hw::lcd (g, r, colors::green);
-                g.setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
-                hw::glowText (g, s.getTextFromValue (s.getValue()), r.toNearestInt(),
-                              juce::Justification::centred,
-                              colors::green.brighter (0.35f).withAlpha (s.isEnabled() ? 1.0f : 0.55f));
+
+                // Design TempoBox: big tabular value, small BPM unit on the
+                // same baseline, a green drag-position strip at the bottom.
+                const auto ink = colors::green.brighter (0.35f).withAlpha (s.isEnabled() ? 1.0f : 0.55f);
+                const auto full = s.getTextFromValue (s.getValue());
+                const auto value = full.upToFirstOccurrenceOf (" ", false, false);
+                const juce::Font valueFont { juce::Font (juce::FontOptions (16.0f)).boldened() };
+                const juce::Font unitFont  { juce::Font (juce::FontOptions (9.5f)).boldened() };
+                const float vw = juce::GlyphArrangement::getStringWidth (valueFont, value);
+                const float uw = juce::GlyphArrangement::getStringWidth (unitFont, "BPM");
+                const int x0 = (int) (r.getCentreX() - (vw + 4.0f + uw) * 0.5f);
+                const auto textArea = r.toNearestInt().withTrimmedBottom (4);
+                g.setFont (valueFont);
+                hw::glowText (g, value, textArea.withX (x0).withWidth ((int) vw + 2),
+                              juce::Justification::centredLeft, ink, 4);
+                g.setFont (unitFont);
+                g.setColour (ink.withMultipliedAlpha (0.8f));
+                g.drawText ("BPM", textArea.withX (x0 + (int) vw + 4).withWidth ((int) uw + 2)
+                                           .withTrimmedBottom (1),
+                            juce::Justification::bottomLeft);
+
+                const auto track = juce::Rectangle<float> (r.getX() + 5.0f, r.getBottom() - 5.0f,
+                                                           r.getWidth() - 10.0f, 2.0f);
+                g.setColour (juce::Colours::black.withAlpha (0.45f));
+                g.fillRoundedRectangle (track, 1.0f);
+                const float t = (float) ((s.getValue() - s.getMinimum())
+                                         / juce::jmax (1.0, s.getMaximum() - s.getMinimum()));
+                g.setColour (ink);
+                g.fillRoundedRectangle (track.withWidth (juce::jmax (2.0f, track.getWidth() * t)), 1.0f);
                 return;
             }
             // MiniSlider: recessed track, accent fill with a soft glow, round

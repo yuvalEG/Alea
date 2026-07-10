@@ -113,7 +113,7 @@ namespace hw
     // Phosphor-glow text: a real Gaussian halo of the glyphs, then crisp text.
     // Set the font on the Graphics BEFORE calling (the halo uses it).
     void glowText (juce::Graphics&, const juce::String& text, juce::Rectangle<int> area,
-                   juce::Justification, juce::Colour colour);
+                   juce::Justification, juce::Colour colour, int blur = 7);
 
     // The LED bloom behind a lit key, drawn by the key's PARENT (a component's
     // own paint is clipped to its bounds, so an outer glow drawn inside reads

@@ -176,6 +176,9 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
 
     setupSlider (internalTempo, "internalTempo", colors::green);
     internalTempo.setComponentID ("bpm"); // drawn as a glass green BPM LCD
+    // The LCD paints its own value + unit; the LinearBar's built-in text box
+    // would double-print over it.
+    internalTempo.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     internalTempo.textFromValueFunction = [] (double v)
     { return juce::String ((int) std::lround (v)) + " BPM"; };
     internalTempo.updateText();
@@ -342,6 +345,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         auto b = std::make_unique<ui::AnimatedButton> (juce::String::fromUTF8 (presets::factory()[i].name));
         b->setColour (juce::TextButton::buttonColourId, colors::control);
         b->setColour (juce::TextButton::buttonOnColourId, colors::text); // white --sel
+        b->onLitChange = [this, btn = b.get()] { content.repaint (btn->getBounds().expanded (18)); };
         b->setColour (juce::TextButton::textColourOffId, juce::Colour (0xffc0c4d0));
         b->setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
         const int idx = (int) i;
@@ -836,6 +840,8 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     ui::hw::keyBloom (g, autoSweep, colors::amber, ui::hw::litAmount (autoSweep));
     if (playButton.isVisible())
         ui::hw::keyBloom (g, playButton, colors::playing, playButton.getToggleState() ? 1.0f : 0.0f);
+    for (auto& pb : presetBtns) // the lit preset bubble blooms white
+        ui::hw::keyBloom (g, *pb, colors::text, ui::hw::litAmount (*pb) * 0.8f);
     // Header disclosure is purely additive as the window widens - nothing ever
     // appears, disappears, then reappears. The status LED sits right after the
     // logo and is ALWAYS shown; the subtitle adds next, then the status word.
