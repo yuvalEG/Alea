@@ -402,6 +402,219 @@ namespace hw
         }
     }
 
+    void keybed (juce::Graphics& g, juce::Rectangle<float> bed, int lowNote, int highNote,
+                 const std::function<float (int)>& lit, juce::Colour accent)
+    {
+        auto isBlack = [] (int n) { const int pc = ((n % 12) + 12) % 12;
+                                    return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
+
+        // The recessed bed (.hw-keybed): dark vertical base, top inner shadow.
+        {
+            juce::ColourGradient grad (juce::Colour (0xff0c0d10), bed.getX(), bed.getY(),
+                                       juce::Colour (0xff16171b), bed.getX(), bed.getBottom(), false);
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (bed, 8.0f);
+            g.setColour (juce::Colours::black.withAlpha (0.6f));
+            g.drawLine (bed.getX() + 8.0f, bed.getY() + 1.0f, bed.getRight() - 8.0f, bed.getY() + 1.0f, 2.0f);
+            g.setColour (juce::Colours::white.withAlpha (0.04f));
+            g.drawLine (bed.getX() + 8.0f, bed.getBottom() - 1.0f, bed.getRight() - 8.0f, bed.getBottom() - 1.0f, 1.0f);
+        }
+
+        const auto keys = bed.reduced (4.0f);
+        int nWhites = 0;
+        for (int n = lowNote; n <= highNote; ++n)
+            if (! isBlack (n)) ++nWhites;
+        if (nWhites <= 0 || keys.getWidth() <= 0.0f)
+            return;
+        const float pitch = keys.getWidth() / (float) nWhites;
+
+        auto whiteRect = [&] (int idx)
+        { return juce::Rectangle<float> (keys.getX() + pitch * (float) idx, keys.getY(), pitch - 1.0f, keys.getHeight()); };
+        auto blackRect = [&] (int whitesBefore)
+        {
+            const float bw = pitch * 0.62f;
+            return juce::Rectangle<float> (keys.getX() + pitch * (float) whitesBefore - bw * 0.5f,
+                                           keys.getY(), bw, keys.getHeight() * 0.58f);
+        };
+        auto keyPath = [] (juce::Rectangle<float> k, float r)
+        {
+            juce::Path p;
+            p.addRoundedRectangle (k.getX(), k.getY(), k.getWidth(), k.getHeight(), r, r, false, false, true, true);
+            return p;
+        };
+
+        auto whiteFace = [&] (juce::Rectangle<float> k, float amt)
+        {
+            const auto path = keyPath (k, 2.0f);
+            if (amt >= 0.999f)
+            {
+                // Fully lit: the whole key face is the accent (design .on).
+                juce::ColourGradient lg (accent.brighter (0.10f), k.getX(), k.getY(),
+                                         accent.darker (0.08f), k.getX(), k.getBottom(), false);
+                g.setGradientFill (lg);
+                g.fillPath (path);
+                g.setColour (juce::Colours::white.withAlpha (0.7f));
+                g.drawLine (k.getX() + 1.0f, k.getY() + 0.8f, k.getRight() - 1.0f, k.getY() + 0.8f, 1.2f);
+                return;
+            }
+            // Pale silver key (design: #cfd2dc -> #a9adbb 68% -> #8b8f9e).
+            juce::ColourGradient grad (juce::Colour (0xffcfd2dc), k.getX(), k.getY(),
+                                       juce::Colour (0xff8b8f9e), k.getX(), k.getBottom(), false);
+            grad.addColour (0.68, juce::Colour (0xffa9adbb));
+            g.setGradientFill (grad);
+            g.fillPath (path);
+            if (amt > 0.0f)
+            {
+                // Velocity slice rising from the bottom, dissolving upward
+                // (the family VU-in-key, kept from the flat design).
+                juce::Graphics::ScopedSaveState ss (g);
+                g.reduceClipRegion (path);
+                const float h = k.getHeight() * juce::jmax (0.15f, amt);
+                const auto fill = k.withTop (k.getBottom() - h);
+                juce::ColourGradient lg (accent.withAlpha (0.0f), fill.getX(), fill.getY(),
+                                         accent, fill.getX(), fill.getBottom(), false);
+                lg.addColour (0.40, accent.withAlpha (0.85f));
+                g.setGradientFill (lg);
+                g.fillRect (fill);
+            }
+            // Top highlight + the worn bottom lip (inset 0 -3px 4px black .28).
+            g.setColour (juce::Colours::white.withAlpha (0.6f));
+            g.drawLine (k.getX() + 1.0f, k.getY() + 0.8f, k.getRight() - 1.0f, k.getY() + 0.8f, 1.0f);
+            juce::Graphics::ScopedSaveState ss (g);
+            g.reduceClipRegion (path);
+            juce::ColourGradient lip (juce::Colours::transparentBlack, k.getX(), k.getBottom() - 5.0f,
+                                      juce::Colours::black.withAlpha (0.28f), k.getX(), k.getBottom(), false);
+            g.setGradientFill (lip);
+            g.fillRect (k.withTop (k.getBottom() - 5.0f));
+        };
+
+        auto blackFace = [&] (juce::Rectangle<float> k, float amt)
+        {
+            const auto path = keyPath (k, 2.0f);
+            if (amt >= 0.999f)
+            {
+                juce::ColourGradient lg (accent.brighter (0.15f), k.getX(), k.getY(),
+                                         accent.darker (0.05f), k.getX(), k.getBottom(), false);
+                g.setGradientFill (lg);
+                g.fillPath (path);
+                g.setColour (juce::Colours::white.withAlpha (0.6f));
+                g.drawLine (k.getX() + 1.0f, k.getY() + 0.8f, k.getRight() - 1.0f, k.getY() + 0.8f, 1.0f);
+                return;
+            }
+            juce::ColourGradient dg (juce::Colour (0xff26282d), k.getX(), k.getY(),
+                                     juce::Colour (0xff0c0d10), k.getX(), k.getBottom(), false);
+            g.setGradientFill (dg);
+            g.fillPath (path);
+            if (amt > 0.0f)
+            {
+                juce::Graphics::ScopedSaveState ss (g);
+                g.reduceClipRegion (path);
+                const float h = k.getHeight() * juce::jmax (0.15f, amt);
+                const auto fill = k.withTop (k.getBottom() - h);
+                juce::ColourGradient lg (accent.withAlpha (0.0f), fill.getX(), fill.getY(),
+                                         accent, fill.getX(), fill.getBottom(), false);
+                g.setGradientFill (lg);
+                g.fillRect (fill);
+            }
+            g.setColour (juce::Colours::white.withAlpha (0.14f));
+            g.drawLine (k.getX() + 1.0f, k.getY() + 0.8f, k.getRight() - 1.0f, k.getY() + 0.8f, 1.0f);
+        };
+
+        // Layered like the design: whites, the lit whites' bloom (spilling over
+        // their neighbours), crisp lit faces re-drawn over the bloom, then the
+        // black keys floating on a soft drop shadow, and their bloom on top.
+        const auto local = keys.getSmallestIntegerContainer().expanded (16);
+        auto maskOf = [&] (const std::function<void (juce::Graphics&)>& fill)
+        {
+            juce::Image mask (juce::Image::ARGB, local.getWidth(), local.getHeight(), true);
+            juce::Graphics mg (mask);
+            mg.addTransform (juce::AffineTransform::translation ((float) -local.getX(), (float) -local.getY()));
+            mg.setColour (juce::Colours::white);
+            fill (mg);
+            return mask;
+        };
+        auto bloom = [&] (const juce::Image& mask)
+        {
+            juce::Graphics::ScopedSaveState ss (g);
+            g.addTransform (juce::AffineTransform::translation ((float) local.getX(), (float) local.getY()));
+            juce::DropShadow (accent.withAlpha (0.85f), 12, {}).drawForImage (g, mask);
+        };
+
+        int white = 0;
+        bool anyLitWhite = false, anyLitBlack = false, anyBlack = false;
+        for (int n = lowNote; n <= highNote; ++n)
+        {
+            if (isBlack (n)) { anyBlack = true; if (lit (n) > 0.0f) anyLitBlack = true; continue; }
+            whiteFace (whiteRect (white), lit (n));
+            if (lit (n) > 0.0f) anyLitWhite = true;
+            ++white;
+        }
+
+        if (anyLitWhite)
+        {
+            bloom (maskOf ([&] (juce::Graphics& mg)
+            {
+                int w = 0;
+                for (int n = lowNote; n <= highNote; ++n)
+                {
+                    if (isBlack (n)) continue;
+                    if (lit (n) > 0.0f) mg.fillPath (keyPath (whiteRect (w), 2.0f));
+                    ++w;
+                }
+            }));
+            int w = 0;
+            for (int n = lowNote; n <= highNote; ++n) // crisp faces back over the bloom
+            {
+                if (isBlack (n)) { continue; }
+                if (lit (n) > 0.0f) whiteFace (whiteRect (w), lit (n));
+                ++w;
+            }
+        }
+
+        if (anyBlack)
+        {
+            // One soft drop shadow under ALL black keys (design 0 2px 3px).
+            juce::Image mask = maskOf ([&] (juce::Graphics& mg)
+            {
+                int w = 0;
+                for (int n = lowNote; n <= highNote; ++n)
+                {
+                    if (! isBlack (n)) { ++w; continue; }
+                    mg.fillPath (keyPath (blackRect (w), 2.0f));
+                }
+            });
+            juce::Graphics::ScopedSaveState ss (g);
+            g.addTransform (juce::AffineTransform::translation ((float) local.getX(), (float) local.getY()));
+            juce::DropShadow (juce::Colours::black.withAlpha (0.7f), 3, { 0, 2 }).drawForImage (g, mask);
+        }
+
+        white = 0;
+        for (int n = lowNote; n <= highNote; ++n)
+        {
+            if (! isBlack (n)) { ++white; continue; }
+            blackFace (blackRect (white), lit (n));
+        }
+
+        if (anyLitBlack)
+        {
+            bloom (maskOf ([&] (juce::Graphics& mg)
+            {
+                int w = 0;
+                for (int n = lowNote; n <= highNote; ++n)
+                {
+                    if (! isBlack (n)) { ++w; continue; }
+                    if (lit (n) > 0.0f) mg.fillPath (keyPath (blackRect (w), 2.0f));
+                }
+            }));
+            int w = 0;
+            for (int n = lowNote; n <= highNote; ++n)
+            {
+                if (! isBlack (n)) { ++w; continue; }
+                if (lit (n) > 0.0f) blackFace (blackRect (w), lit (n));
+            }
+        }
+    }
+
     juce::Colour button (juce::Graphics& g, juce::Rectangle<float> r, float lit,
                          juce::Colour ledColour, bool over, bool down)
     {

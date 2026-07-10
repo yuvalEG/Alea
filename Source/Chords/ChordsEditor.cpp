@@ -162,112 +162,47 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
         lit[n + 64] = ((hi >> n) & 1) != 0;
     }
 
-    auto isBlack = [] (int n) { const int pc = n % 12; return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
-
-    // The monitor is a purple glass LCD holding a real mini keybed; the
-    // sounding notes light purple and read as behind the screen glass.
-    hw::lcd (g, b, colors::purple);
-    const auto bed = b.reduced (7.0f);
-    hw::insetWell (g, bed, 6.0f);
-    const auto keys = bed.reduced (4.0f);
+    // The monitor screen (design LCD): near-black purple glass - radial
+    // #140f1e at the top centre sinking to #0a070f - with a faint inner
+    // phosphor wash, a diagonal gloss and a dark bezel.
+    {
+        juce::ColourGradient glass (juce::Colour (0xff140f1e), b.getCentreX(), b.getY(),
+                                    juce::Colour (0xff0a070f), b.getCentreX(), b.getBottom(), false);
+        g.setGradientFill (glass);
+        g.fillRoundedRectangle (b, 8.0f);
+        g.setColour (colors::purple.withAlpha (0.05f));
+        g.fillRoundedRectangle (b.reduced (2.0f), 6.0f);
+        juce::Path clip;
+        clip.addRoundedRectangle (b, 8.0f);
+        g.saveState();
+        g.reduceClipRegion (clip);
+        juce::ColourGradient gloss (juce::Colours::white.withAlpha (0.08f), b.getX(), b.getY(),
+                                    juce::Colours::transparentWhite,
+                                    b.getX() + b.getWidth() * 0.45f, b.getY() + b.getHeight() * 0.75f, false);
+        g.setGradientFill (gloss);
+        g.fillRect (b);
+        g.restoreState();
+        g.setColour (juce::Colours::black.withAlpha (0.7f));
+        g.drawRoundedRectangle (b.reduced (0.5f), 8.0f, 1.0f);
+    }
 
     // C1 (24) to C7 (96): the voicing options stretched the reach (QA,
     // July 8) - the bass bottoms out at C1, open voicings at octave 4 top
-    // out near A6. 43 white keys, blacks drawn over the gaps.
+    // out near A6. The shared family keybed does the drawing.
     constexpr int low = 24, high = 96;
-    const float ww = keys.getWidth() / 43.0f;
-
-    auto whiteRect = [&] (int white) {
-        return juce::Rectangle<float> (keys.getX() + (float) white * ww, keys.getY(), ww - 1.0f, keys.getHeight());
-    };
-    auto blackRect = [&] (int white) {
-        const float bw = ww * 0.62f;
-        return juce::Rectangle<float> (keys.getX() + (float) white * ww - bw / 2.0f, keys.getY(), bw, keys.getHeight() * 0.58f);
-    };
-    auto keyPath = [] (juce::Rectangle<float> k, float r)
-    {
-        juce::Path p;
-        p.addRoundedRectangle (k.getX(), k.getY(), k.getWidth(), k.getHeight(), r, r, false, false, true, true);
-        return p;
-    };
-
-    // Purple bloom behind every lit key (the real Gaussian glow pass).
-    {
-        juce::Image mask (juce::Image::ARGB, getWidth(), getHeight(), true);
-        bool any = false;
-        {
-            juce::Graphics mg (mask);
-            mg.setColour (juce::Colours::white);
-            int white = 0;
-            for (int n = low; n <= high; ++n)
-            {
-                if (isBlack (n)) { if (lit[n]) { mg.fillPath (keyPath (blackRect (white), 1.5f)); any = true; } }
-                else             { if (lit[n]) { mg.fillPath (keyPath (whiteRect (white), 2.0f)); any = true; } ++white; }
-            }
-        }
-        if (any)
-        {
-            // A wide soft aura plus a tight full-strength core - the same
-            // two-layer bloom the Scale Shifter keyboards wear.
-            juce::DropShadow (colors::purple.withAlpha (0.40f), 22, {}).drawForImage (g, mask);
-            juce::DropShadow (colors::purple,                  12, {}).drawForImage (g, mask);
-        }
-    }
-
-    // White keys: pale worn metal, purple when sounding.
-    int white = 0;
-    for (int n = low; n <= high; ++n)
-    {
-        if (isBlack (n)) continue;
-        const auto k = whiteRect (white);
-        const auto path = keyPath (k, 2.0f);
-        if (lit[n])
-        {
-            juce::ColourGradient grad (colors::purple.brighter (0.30f), k.getX(), k.getY(),
-                                       colors::purple.darker (0.10f), k.getX(), k.getBottom(), false);
-            g.setGradientFill (grad);
-        }
-        else
-        {
-            juce::ColourGradient grad (juce::Colour (0xffcfd2dc), k.getX(), k.getY(),
-                                       juce::Colour (0xff8b8f9e), k.getX(), k.getBottom(), false);
-            grad.addColour (0.68, juce::Colour (0xffa9adbb));
-            g.setGradientFill (grad);
-        }
-        g.fillPath (path);
-        g.setColour (juce::Colours::white.withAlpha (lit[n] ? 0.7f : 0.6f));
-        g.drawLine (k.getX() + 1.0f, k.getY() + 0.8f, k.getRight() - 1.0f, k.getY() + 0.8f, 1.0f);
-        ++white;
-    }
-
-    // Black keys sit over the gaps, with a dark halo lifting them off.
-    white = 0;
-    for (int n = low; n <= high; ++n)
-    {
-        if (! isBlack (n)) { ++white; continue; }
-        const auto k = blackRect (white);
-        g.setColour (juce::Colours::black.withAlpha (0.75f));
-        g.fillPath (keyPath (k.expanded (1.0f, 0.0f).withHeight (k.getHeight() + 1.5f), 2.0f));
-        if (lit[n])
-            g.setGradientFill (juce::ColourGradient (colors::purple.brighter (0.35f), k.getX(), k.getY(),
-                                                     colors::purple.darker (0.05f), k.getX(), k.getBottom(), false));
-        else
-            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff26282d), k.getX(), k.getY(),
-                                                     juce::Colour (0xff0c0d10), k.getX(), k.getBottom(), false));
-        g.fillPath (keyPath (k, 1.5f));
-        g.setColour (juce::Colours::white.withAlpha (lit[n] ? 0.6f : 0.14f));
-        g.drawLine (k.getX() + 1.0f, k.getY() + 0.8f, k.getRight() - 1.0f, k.getY() + 0.8f, 1.0f);
-    }
+    const auto bed = b.reduced (8.0f);
+    hw::keybed (g, bed, low, high,
+                [&lit] (int n) { return lit[n] ? 1.0f : 0.0f; }, colors::purple);
 
     // Notes beyond the strip get a small edge arrow - the family idiom.
     // C1-C7 covers everything reachable today; this is the safety net.
     bool below = false, above = false;
     for (int n = 0; n < low; ++n)        below = below || lit[n];
     for (int n = high + 1; n < 128; ++n) above = above || lit[n];
-    auto arrow = [&g, &keys] (bool left)
+    auto arrow = [&g, &bed] (bool left)
     {
-        const float cy = keys.getCentreY();
-        const float x = left ? keys.getX() + 3.0f : keys.getRight() - 3.0f;
+        const float cy = bed.getCentreY();
+        const float x = left ? bed.getX() + 3.0f : bed.getRight() - 3.0f;
         const float back = left ? 9.0f : -9.0f;
         juce::Path p;
         p.addTriangle (x, cy, x + back, cy - 7.0f, x + back, cy + 7.0f);
@@ -276,9 +211,6 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
     };
     if (below) arrow (true);
     if (above) arrow (false);
-
-    // (No CRT scanlines here - that texture belongs to the Scale Shifter
-    // monitor for now, per Yuval July 10.)
 }
 
 //==============================================================================

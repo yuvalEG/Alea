@@ -77,6 +77,15 @@ namespace hw
     // Segmented vertical output meter (12 cells bottom-up; amber near top, red at clip).
     void meter (juce::Graphics&, juce::Rectangle<float> r, float level01);
 
+    // The monitor keybed (design Monitor88): a recessed dark bed holding pale
+    // silver white keys (1px gaps, worn bottom lip) and stubby floating black
+    // keys with a soft drop shadow. lit(note) returns 0..1: 0 = unlit, 1 = the
+    // whole key face lights in the accent (with a 12px bloom spilling over its
+    // neighbours), in between = a velocity slice rising from the key's bottom.
+    // Identical in both products - only range, accent and lit() differ.
+    void keybed (juce::Graphics&, juce::Rectangle<float> bed, int lowNote, int highNote,
+                 const std::function<float (int)>& lit, juce::Colour accent);
+
     // A backlit push-button face. lit = the coloured/LED state (black legend);
     // returns the colour the caller should draw the legend in.
     juce::Colour button (juce::Graphics&, juce::Rectangle<float> r, float lit,

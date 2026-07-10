@@ -764,44 +764,15 @@ void OutputPanel::paint (juce::Graphics& g)
         return;
 
     // 88-key monitor (A0-C8): the sounding note lights in its source
-    // scale's color. Rests deliberately don't show here - silence has no
-    // key; the LED going dark and the history ticker cover it.
+    // scale's color, its velocity as the lit slice's height. Rests
+    // deliberately don't show here - silence has no key; the LED going dark
+    // and the history ticker cover it. Drawn by the shared family keybed
+    // (design Monitor88 - pale silver keys, floating blacks).
     {
         const auto strip = area.removeFromTop (38).toFloat();
-        const float ww = strip.getWidth() / 52.0f;
-        auto isBlack = [] (int note) { const int pc = note % 12; return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10; };
-
-        int whiteIndex = 0;
-        for (int note = 21; note <= 108; ++note)
-        {
-            if (isBlack (note))
-                continue;
-            const auto key = juce::Rectangle<float> (strip.getX() + ww * (float) whiteIndex, strip.getY(), ww, strip.getHeight());
-            g.setColour (colors::text.withAlpha (0.14f));
-            g.fillRect (key.reduced (0.5f, 0.0f));
-            if (note == active) // velocity fills the key bottom-up, full color
-            {
-                const float vh = key.getHeight() * juce::jmax (0.15f, (float) alea.activeVelocity.load() / 127.0f);
-                g.setColour (srcColour);
-                g.fillRect (key.reduced (0.5f, 0.0f).withTop (key.getBottom() - vh));
-            }
-            ++whiteIndex;
-        }
-
-        whiteIndex = 0;
-        for (int note = 21; note <= 108; ++note)
-        {
-            if (! isBlack (note))
-            {
-                ++whiteIndex;
-                continue;
-            }
-            const float bw = ww * 0.7f;
-            const auto key = juce::Rectangle<float> (strip.getX() + ww * (float) whiteIndex - bw * 0.5f,
-                                                     strip.getY(), bw, strip.getHeight() * 0.62f);
-            g.setColour (note == active ? srcColour : colors::background);
-            g.fillRect (key);
-        }
+        const float velAmt = juce::jmin (0.999f, juce::jmax (0.15f, (float) alea.activeVelocity.load() / 127.0f));
+        hw::keybed (g, strip, 21, 108,
+                    [&] (int n) { return n == active ? velAmt : 0.0f; }, srcColour);
 
         // Octave extremes and transpose can push notes past the 88 keys -
         // a small arrow at the edge shows where the sound went.
@@ -810,9 +781,9 @@ void OutputPanel::paint (juce::Graphics& g)
             juce::Path arrow;
             const float cy = strip.getCentreY();
             if (active < 21)
-                arrow.addTriangle (strip.getX() + 1.0f, cy, strip.getX() + 9.0f, cy - 7.0f, strip.getX() + 9.0f, cy + 7.0f);
+                arrow.addTriangle (strip.getX() + 3.0f, cy, strip.getX() + 11.0f, cy - 7.0f, strip.getX() + 11.0f, cy + 7.0f);
             else
-                arrow.addTriangle (strip.getRight() - 1.0f, cy, strip.getRight() - 9.0f, cy - 7.0f, strip.getRight() - 9.0f, cy + 7.0f);
+                arrow.addTriangle (strip.getRight() - 3.0f, cy, strip.getRight() - 11.0f, cy - 7.0f, strip.getRight() - 11.0f, cy + 7.0f);
             g.setColour (srcColour);
             g.fillPath (arrow);
         }
