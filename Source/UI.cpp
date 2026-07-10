@@ -170,8 +170,12 @@ void PianoKeyboard::paint (juce::Graphics& g)
     // away, so the face FORESHORTENS from the bottom and the key's dark front
     // side becomes visible beneath it. (Translating the key down + a top
     // shadow looked like it was pressed from the other side - QA round 8.)
-    auto pressedRect = [] (juce::Rectangle<float> k, bool pressed)
-    { return pressed ? k.withTrimmedBottom (3.5f) : k; };
+    auto pressedRect = [] (juce::Rectangle<float> k, bool pressed, bool isWhite)
+    {
+        if (! pressed) return k;
+        return isWhite ? k.withTrimmedBottom (3.5f)   // front edge tilts away
+                       : k.translated (0.0f, 3.0f);   // the raised key drops
+    };
 
     auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key, float radius)
     {
@@ -196,10 +200,10 @@ void PianoKeyboard::paint (juce::Graphics& g)
     // with an inset top highlight and a shaded bottom lip (the 3D light).
     auto face = [&] (juce::Rectangle<float> key, float radius, bool isSel, bool pressed, bool isWhite)
     {
-        const auto k = pressedRect (key, pressed);
+        const auto k = pressedRect (key, pressed, isWhite);
         const auto path = keyPath (k, radius);
         const float dim = pressed ? 0.90f : 1.0f;
-        if (pressed)
+        if (pressed && isWhite)
         {
             // The key's front side, caught in shadow under the tilted face.
             juce::Path front;
@@ -295,15 +299,26 @@ void PianoKeyboard::paint (juce::Graphics& g)
             continue;
         const auto key = whiteKeyRect (whiteSlotCounter++);
         const bool isPlayingKey = mine && i == activePc;
+        const auto pr = pressedRect (key, isPlayingKey, true);
+        if (isPlayingKey) // its green light, cast under the black keys
+        {
+            juce::Image mask (juce::Image::ARGB, getWidth(), getHeight(), true);
+            {
+                juce::Graphics mg (mask);
+                mg.setColour (juce::Colours::white);
+                mg.fillPath (keyPath (pr, 4.0f));
+            }
+            juce::DropShadow (colors::playing.withAlpha (0.85f), 18, {}).drawForImage (g, mask);
+        }
         face (key, 4.0f, selected[i], isPlayingKey, true);
         if (isPlayingKey)
-            velocityFill (pressedRect (key, true), 4.0f);
+            velocityFill (pr, 4.0f);
 
         g.setColour (selected[i] || isPlayingKey ? juce::Colours::black.withAlpha (0.72f)
                                                  : juce::Colour (0xff7a7f90));
         g.setFont (juce::FontOptions (14.0f));
         g.drawText (params::pitchClassNames[pc],
-                    pressedRect (key, isPlayingKey).withTop (key.getBottom() - 18.0f).toNearestInt(),
+                    pr.withTop (pr.getBottom() - 18.0f).toNearestInt(),
                     juce::Justification::centred);
     }
 
@@ -358,29 +373,27 @@ void PianoKeyboard::paint (juce::Graphics& g)
         const bool isPlayingKey = mine && i == activePc;
         face (key, 3.0f, selected[i], isPlayingKey, false);
         if (isPlayingKey)
-            velocityFill (pressedRect (key, true), 3.0f);
+            velocityFill (pressedRect (key, true, false), 3.0f);
     }
 
-    // The sounding key casts its own green light (design: 0 0 26px 5px
-    // playing-green) - drawn last so it spills over the neighbouring keys,
-    // then the face goes back on top so it stays crisp.
-    if (mine && activePc >= 0 && getWidth() > 0)
+    // A played BLACK key casts its green light last (black keys are the top
+    // layer, so glow + a crisp face redraw are safe here; a played WHITE key
+    // got its light in the whites pass, underneath the blacks - round 9's bug
+    // was this pass painting a white key over them).
+    if (mine && activePc >= 0 && getWidth() > 0 && blackPc[(root + activePc) % 12])
     {
         juce::Rectangle<float> keyR;
-        float radius = 4.0f;
-        bool isWhite = true, found = false;
-        int whiteSlot = 0, whitesSeen = 0;
+        bool found = false;
+        int whitesSeen = 0;
         for (int i = 0; i < 12; ++i)
         {
             const int pc = (root + i) % 12;
             if (blackPc[pc])
             {
-                if (i == activePc) { keyR = blackKeyBounds (whitesSeen); radius = 3.0f; isWhite = false; found = true; }
+                if (i == activePc) { keyR = blackKeyBounds (whitesSeen); found = true; }
             }
             else
             {
-                if (i == activePc) { keyR = whiteKeyRect (whiteSlot); found = true; }
-                ++whiteSlot;
                 ++whitesSeen;
             }
         }
@@ -390,11 +403,11 @@ void PianoKeyboard::paint (juce::Graphics& g)
             {
                 juce::Graphics mg (mask);
                 mg.setColour (juce::Colours::white);
-                mg.fillPath (keyPath (pressedRect (keyR, true), radius));
+                mg.fillPath (keyPath (pressedRect (keyR, true, false), 3.0f));
             }
             juce::DropShadow (colors::playing.withAlpha (0.85f), 18, {}).drawForImage (g, mask);
-            face (keyR, radius, selected[activePc], true, isWhite);
-            velocityFill (pressedRect (keyR, true), radius);
+            face (keyR, 3.0f, selected[activePc], true, false);
+            velocityFill (pressedRect (keyR, true, false), 3.0f);
         }
     }
 }
