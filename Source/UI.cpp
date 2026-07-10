@@ -199,11 +199,14 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
         if (isSel)
         {
-            juce::ColourGradient grad (accent.interpolatedWith (juce::Colours::white, 0.08f)
+            // Near-flat vivid accent (the QA-settled look): a whisper of
+            // top-lighting only - the design's darker 3-stop bottom read as a
+            // rendering bug on the lit keys (July 10 QA).
+            juce::ColourGradient grad (accent.interpolatedWith (juce::Colours::white, 0.06f)
                                             .withMultipliedBrightness (dim), k.getX(), k.getY(),
-                                       accent.interpolatedWith (juce::Colours::black, 0.32f)
+                                       accent.interpolatedWith (juce::Colours::black, 0.12f)
                                             .withMultipliedBrightness (dim), k.getX(), k.getBottom(), false);
-            grad.addColour (0.55, accent.withMultipliedBrightness (dim));
+            grad.addColour (0.5, accent.withMultipliedBrightness (dim));
             g.setGradientFill (grad);
             g.fillPath (path);
         }
@@ -230,16 +233,21 @@ void PianoKeyboard::paint (juce::Graphics& g)
         }
         else
         {
-            g.setColour (juce::Colours::white.withAlpha (isSel ? 0.5f : (isWhite ? 0.08f : 0.10f)));
+            g.setColour (juce::Colours::white.withAlpha (isSel ? 0.7f : (isWhite ? 0.08f : 0.10f)));
             g.drawLine (k.getX() + 2.0f, k.getY() + 1.0f, k.getRight() - 2.0f, k.getY() + 1.0f,
                         isSel ? 1.4f : 1.0f);
         }
         // Shaded bottom lip (inset 0 -6px 10px) - the key's 3D front edge.
-        const float lip = juce::jmin (10.0f, k.getHeight() * 0.16f);
-        juce::ColourGradient lipG (juce::Colours::transparentBlack, k.getX(), k.getBottom() - lip,
-                                   juce::Colours::black.withAlpha (isSel ? 0.25f : 0.5f), k.getX(), k.getBottom(), false);
-        g.setGradientFill (lipG);
-        g.fillRect (k.withTop (k.getBottom() - lip));
+        // UNSELECTED keys only: on the lit accent it dirtied the colour and
+        // read as a bug (July 10 QA).
+        if (! isSel)
+        {
+            const float lip = juce::jmin (10.0f, k.getHeight() * 0.16f);
+            juce::ColourGradient lipG (juce::Colours::transparentBlack, k.getX(), k.getBottom() - lip,
+                                       juce::Colours::black.withAlpha (0.5f), k.getX(), k.getBottom(), false);
+            g.setGradientFill (lipG);
+            g.fillRect (k.withTop (k.getBottom() - lip));
+        }
     };
 
     // Soft accent bloom behind the SELECTED keys - a real Gaussian glow.

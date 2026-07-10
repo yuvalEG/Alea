@@ -186,7 +186,7 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
         // brighter while notes are lit, a faint idle phosphor otherwise.
         bool anyLit = false;
         for (int n = 0; n < 128; ++n) anyLit = anyLit || lit[n];
-        hw::lcdAmbience (g, b, colors::purple, anyLit ? 1.25f : 0.6f);
+        hw::lcdAmbience (g, b, colors::purple, anyLit ? 1.0f : 0.5f);
         g.setColour (juce::Colours::black.withAlpha (0.7f));
         g.drawRoundedRectangle (b.reduced (0.5f), 8.0f, 1.0f);
     }

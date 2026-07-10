@@ -344,11 +344,13 @@ namespace hw
         clip.addRoundedRectangle (r, 8.0f);
         juce::Graphics::ScopedSaveState ss (g);
         g.reduceClipRegion (clip);
-        const float steps[4][2] = { { 2.0f, 0.16f }, { 5.0f, 0.10f }, { 10.0f, 0.065f }, { 16.0f, 0.04f } };
+        // Kept WELL below the design's nominal 25% - at full strength the
+        // glass read as a glowing frame and drowned the content (July 10 QA).
+        const float steps[3][2] = { { 3.0f, 0.07f }, { 8.0f, 0.045f }, { 14.0f, 0.025f } };
         for (auto& s : steps)
         {
-            g.setColour (colour.withAlpha (s[1] * strength * kGlow));
-            g.drawRoundedRectangle (r.reduced (s[0]), 8.0f, s[0] * 1.6f);
+            g.setColour (colour.withAlpha (s[1] * strength));
+            g.drawRoundedRectangle (r.reduced (s[0]), 8.0f, s[0] * 1.4f);
         }
     }
 
@@ -359,9 +361,11 @@ namespace hw
                                  r.getCentreX(), r.getBottom(), false);
         g.setGradientFill (bg);
         g.fillRoundedRectangle (r, 8.0f);
-        // The phosphor glows off the glass edges (kept moderate so an idle
-        // screen still reads dark rather than lit).
-        lcdAmbience (g, r, phosphor, 0.8f);
+        // Faint inner phosphor wash (kept low so an idle screen reads dark,
+        // not lit; a stronger edge ambience here made the BPM LCD look wrong -
+        // July 10 QA. Big monitor screens add lcdAmbience themselves).
+        g.setColour (phosphor.withAlpha (0.05f));
+        g.fillRoundedRectangle (r.reduced (2.0f), 6.0f);
         // Corner gloss (under the readout).
         juce::Path clip;
         clip.addRoundedRectangle (r, 8.0f);
