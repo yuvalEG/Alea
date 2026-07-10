@@ -52,8 +52,10 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
       keyboardB (p, 'b', 1, colors::cyan),
       restsA (p, 'a', 0, colors::purple),
       restsB (p, 'b', 1, colors::cyan),
-      intervalMode (*p.apvts.getParameter ("intervalMode"), params::timingModes, ui::hw::led),
-      lengthMode   (*p.apvts.getParameter ("lengthMode"),   params::timingModes, ui::hw::led),
+      // Lit selections are WHITE (the handoff bakes --sel #e8e8f0 in both
+      // windows; emerald stays reserved for synth chrome + transport).
+      intervalMode (*p.apvts.getParameter ("intervalMode"), params::timingModes, colors::text),
+      lengthMode   (*p.apvts.getParameter ("lengthMode"),   params::timingModes, colors::text),
       morphBar (p),
       // Morph controls light amber (the panel accent) - gated to grey by Auto-Sweep.
       morphDurMode (*p.apvts.getParameter ("morphDurMode"), params::morphDurModes, colors::amber),
@@ -66,7 +68,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                                      "Loop: travel to B, jump back to A, repeat",
                                      "Bounce: back and forth between A and B" }),
       morphCurve (*p.apvts.getParameter ("morphCurve"), colors::amber),
-      tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, ui::hw::led),
+      tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, colors::text),
       standalone (p.wrapperType == juce::AudioProcessor::wrapperType_Standalone),
       output (p)
 {
@@ -118,7 +120,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         s->setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
                                 juce::MathConstants<float>::pi * 2.75f, true);
         s->setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-        s->setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
+        s->setColour (juce::Slider::rotarySliderFillColourId, colors::text.withAlpha (0.9f));
         // The value text ("0.5 s") is painted in the content layer, so it must
         // repaint when the knob turns.
         s->onValueChange = [this] { content.repaint (timingPanel); };
@@ -193,7 +195,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
         slider->setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
                                      juce::MathConstants<float>::pi * 2.75f, true);
         slider->setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-        slider->setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
+        slider->setColour (juce::Slider::rotarySliderFillColourId, colors::text.withAlpha (0.9f));
         slider->onValueChange = [this] { content.repaint (timingPanel); }; // painted value follows the knob
         content.addAndMakeVisible (*slider);
         sliderAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -339,7 +341,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     {
         auto b = std::make_unique<ui::AnimatedButton> (juce::String::fromUTF8 (presets::factory()[i].name));
         b->setColour (juce::TextButton::buttonColourId, colors::control);
-        b->setColour (juce::TextButton::buttonOnColourId, ui::hw::led);
+        b->setColour (juce::TextButton::buttonOnColourId, colors::text); // white --sel
         b->setColour (juce::TextButton::textColourOffId, juce::Colour (0xffc0c4d0));
         b->setColour (juce::TextButton::textColourOnId, juce::Colour (0xff07120d));
         const int idx = (int) i;
@@ -937,7 +939,7 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
             // just a live status readout (dimmed to read as read-only).
             const int n = params::randomPoolNames.size();
             const float pos = randomPick >= 0 ? (float) randomPick / (float) (n - 1) : 0.0f;
-            ui::hw::knob (g, kb.toFloat(), pos, colors::green.withAlpha (0.55f), false);
+            ui::hw::knob (g, kb.toFloat(), pos, colors::text.withAlpha (0.45f), false);
             g.setColour (colors::secondary);
             g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
             g.drawText ("NOW", cx - 60, below + 2, 120, 14, juce::Justification::centred);

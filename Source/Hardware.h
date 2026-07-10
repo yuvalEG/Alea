@@ -68,6 +68,11 @@ namespace hw
     // knob and crossfades the accent-lit track.
     void toggleSwitch (juce::Graphics&, juce::Rectangle<float> r, float amt01, juce::Colour accent);
 
+    // The ambient glow the glass catches from its lit content (design: an
+    // inset phosphor bloom hugging the screen edges). lcd() calls it; screens
+    // that draw their own glass call it directly.
+    void lcdAmbience (juce::Graphics&, juce::Rectangle<float> r, juce::Colour, float strength);
+
     // Glass LCD screen base: dark phosphor glass + inner wash + gloss + bezel.
     // Draw the glowing content on top, THEN call lcdScanlines so the horizontal
     // CRT lines sit above the readout (the readout reads as behind the glass).

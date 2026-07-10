@@ -182,6 +182,11 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
         g.setGradientFill (gloss);
         g.fillRect (b);
         g.restoreState();
+        // The glass catches the purple light of whatever is sounding -
+        // brighter while notes are lit, a faint idle phosphor otherwise.
+        bool anyLit = false;
+        for (int n = 0; n < 128; ++n) anyLit = anyLit || lit[n];
+        hw::lcdAmbience (g, b, colors::purple, anyLit ? 1.25f : 0.6f);
         g.setColour (juce::Colours::black.withAlpha (0.7f));
         g.drawRoundedRectangle (b.reduced (0.5f), 8.0f, 1.0f);
     }

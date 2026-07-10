@@ -139,7 +139,10 @@ namespace hw
             return;
         juce::Path p;
         p.addRoundedRectangle (key.getBounds().toFloat(), radius);
-        dropGlow (g, p, colour.withAlpha (0.75f * amount), (int) (8.0f * kGlow));
+        // Two passes read like the design's bloom: a broad soft spread
+        // (11px x glow-mul at ~50%) plus a tight bright hug at the edge.
+        dropGlow (g, p, colour.withAlpha (0.50f * amount), (int) (11.0f * kGlow));
+        dropGlow (g, p, colour.withAlpha (0.45f * amount), 6);
     }
 
     float litAmount (const juce::Button& b)
@@ -332,6 +335,23 @@ namespace hw
         g.drawLine (knobR.getX() + kd * 0.25f, knobR.getY() + 1.0f, knobR.getRight() - kd * 0.25f, knobR.getY() + 1.0f, 1.0f);
     }
 
+    void lcdAmbience (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour colour, float strength)
+    {
+        // The glass glows from the light inside it (design: inset 0 0 22px
+        // phosphor at ~25%): layered inner strokes, clipped to the pane, that
+        // fade toward the centre.
+        juce::Path clip;
+        clip.addRoundedRectangle (r, 8.0f);
+        juce::Graphics::ScopedSaveState ss (g);
+        g.reduceClipRegion (clip);
+        const float steps[4][2] = { { 2.0f, 0.16f }, { 5.0f, 0.10f }, { 10.0f, 0.065f }, { 16.0f, 0.04f } };
+        for (auto& s : steps)
+        {
+            g.setColour (colour.withAlpha (s[1] * strength * kGlow));
+            g.drawRoundedRectangle (r.reduced (s[0]), 8.0f, s[0] * 1.6f);
+        }
+    }
+
     void lcd (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour phosphor)
     {
         juce::ColourGradient bg (phosphor.withMultipliedBrightness (0.16f).withMultipliedSaturation (1.4f), r.getCentreX(), r.getY(),
@@ -339,9 +359,9 @@ namespace hw
                                  r.getCentreX(), r.getBottom(), false);
         g.setGradientFill (bg);
         g.fillRoundedRectangle (r, 8.0f);
-        // Faint inner phosphor wash (kept low so an idle screen reads dark, not lit).
-        g.setColour (phosphor.withAlpha (0.05f));
-        g.fillRoundedRectangle (r.reduced (2.0f), 6.0f);
+        // The phosphor glows off the glass edges (kept moderate so an idle
+        // screen still reads dark rather than lit).
+        lcdAmbience (g, r, phosphor, 0.8f);
         // Corner gloss (under the readout).
         juce::Path clip;
         clip.addRoundedRectangle (r, 8.0f);
@@ -951,7 +971,8 @@ void SegmentedSelector::paint (juce::Graphics& g)
         {
             juce::Path p;
             p.addRoundedRectangle (seg, 4.0f);
-            hw::dropGlow (g, p, accent.withAlpha (0.8f * lit), 6);
+            hw::dropGlow (g, p, accent.withAlpha (0.45f * lit), 11);
+            hw::dropGlow (g, p, accent.withAlpha (0.50f * lit), 5);
         }
         const auto legend = hw::button (g, seg, lit, accent, false, false);
         g.setColour (legend);
