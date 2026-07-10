@@ -166,16 +166,11 @@ void PianoKeyboard::paint (juce::Graphics& g)
 
     auto whiteKeyRect = [&] (int slot) { return whiteKeyBounds (slot).reduced (1.0f); };
 
-    // The sounding key physically DEPRESSES: its front (bottom) edge tilts
-    // away, so the face FORESHORTENS from the bottom and the key's dark front
-    // side becomes visible beneath it. (Translating the key down + a top
-    // shadow looked like it was pressed from the other side - QA round 8.)
-    auto pressedRect = [] (juce::Rectangle<float> k, bool pressed, bool isWhite)
-    {
-        if (! pressed) return k;
-        return isWhite ? k.withTrimmedBottom (3.5f)   // front edge tilts away
-                       : k.translated (0.0f, 3.0f);   // the raised key drops
-    };
+    // The sounding key physically DEPRESSES: the whole key slides 3px down
+    // into the bed - white and black alike. (Two attempts at a front-edge
+    // tilt both read as pressed toward the player - QA rounds 8-10.)
+    auto pressedRect = [] (juce::Rectangle<float> k, bool pressed, bool)
+    { return pressed ? k.translated (0.0f, 3.0f) : k; };
 
     auto velocityFill = [&g, velNorm] (juce::Rectangle<float> key, float radius)
     {
@@ -203,17 +198,6 @@ void PianoKeyboard::paint (juce::Graphics& g)
         const auto k = pressedRect (key, pressed, isWhite);
         const auto path = keyPath (k, radius);
         const float dim = pressed ? 0.90f : 1.0f;
-        if (pressed && isWhite)
-        {
-            // The key's front side, caught in shadow under the tilted face.
-            juce::Path front;
-            front.addRoundedRectangle (key.getX(), k.getBottom() - radius, key.getWidth(),
-                                       (key.getBottom() - k.getBottom()) + radius,
-                                       radius, radius, false, false, true, true);
-            g.setColour ((isSel ? accent.interpolatedWith (juce::Colours::black, 0.65f)
-                                : juce::Colour (0xff0a0b0e)).withAlpha (0.95f));
-            g.fillPath (front);
-        }
 
         if (isSel)
         {

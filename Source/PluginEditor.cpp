@@ -845,20 +845,25 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     // Header disclosure is purely additive as the window widens - nothing ever
     // appears, disappears, then reappears. The status LED sits right after the
     // logo and is ALWAYS shown; the subtitle adds next, then the status word.
+    // Updated design order: wordmark - subtitle - LED + PLAYING word. The LED
+    // is always shown; it slides left when the subtitle hides on narrow windows.
     const bool playing = alea.hostIsPlaying.load();
     const int fx = freezeButton.getX();
-    ui::hw::ledDot (g, { 124.0f, 28.0f }, playing ? 1.0f : 0.0f, colors::playing, 12.0f); // 1) LED - always
-    if (fx >= 300)                               // 2) + subtitle
+    const bool subtitleShown = fx >= 300;
+    if (subtitleShown)
     {
         g.setColour (colors::secondary);
         g.setFont (juce::FontOptions (14.0f));
-        g.drawText ("Aleatoric Scale Shifter", 140, 16, 158, 28, juce::Justification::centredLeft);
+        g.drawText ("Aleatoric Scale Shifter", 118, 16, 168, 28, juce::Justification::centredLeft);
     }
-    if (fx >= 378)                               // 3) + status word
+    const float ledX = subtitleShown ? 302.0f : 124.0f;
+    ui::hw::ledDot (g, { ledX, 30.0f }, playing ? 1.0f : 0.0f, colors::playing, 10.0f);
+    if (fx >= 378)
     {
-        g.setColour (colors::secondary);
-        g.setFont (juce::FontOptions (14.0f));
-        g.drawText (playing ? "playing" : "stopped", 302, 14, 74, 28, juce::Justification::centredLeft);
+        g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+        ui::hw::engraved (g, playing ? "PLAYING" : "STOPPED",
+                          { (int) ledX + 11, 16, 90, 28 }, juce::Justification::centredLeft,
+                          playing ? juce::Colour (0xff9fe6b6) : juce::Colour (0xff7f8496));
     }
 
     // (The tempo bar reads "120 BPM" itself; the word "TEMPO" was dropped in
@@ -928,8 +933,8 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     g.setColour (colors::secondary);
 
     g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened()); // sub-labels: smaller than the panel title
-    g.drawText ("NOTE RATE",   timingPanel.getX() + 12, timingPanel.getY() + 40,  120, 14, juce::Justification::centredLeft);
-    g.drawText ("NOTE LENGTH", timingPanel.getX() + 12, timingPanel.getY() + 172, 120, 14, juce::Justification::centredLeft);
+    g.drawText ("RATE MODE",   timingPanel.getX() + 12, timingPanel.getY() + 40,  120, 14, juce::Justification::centredLeft);
+    g.drawText ("LENGTH MODE", timingPanel.getX() + 12, timingPanel.getY() + 172, 120, 14, juce::Justification::centredLeft);
 
     // Under each knob: a caption then the value ("DIVISION" / "1/4 note"),
     // centred on the knob. Random mode shows the last dice roll instead.
@@ -958,7 +963,7 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
         }
         g.setColour (colors::secondary);
         g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
-        g.drawText (mode == params::sync ? "DIVISION" : freeCaption, cx - 60, below + 2, 120, 14, juce::Justification::centred);
+        g.drawText (freeCaption, cx - 60, below + 2, 120, 14, juce::Justification::centred);
         // Sync value is painted here; the free value is an editable field.
         if (mode == params::sync)
         {
@@ -970,8 +975,8 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
     };
     const int iMode = (int) alea.apvts.getRawParameterValue ("intervalMode")->load();
     const int lMode = (int) alea.apvts.getRawParameterValue ("lengthMode")->load();
-    timingKnobLabel (intervalSync, intervalFree, iMode, "RATE",   alea.lastRandomInterval.load());
-    timingKnobLabel (lengthSync,   lengthFree,   lMode, "LENGTH", alea.lastRandomLength.load());
+    timingKnobLabel (intervalSync, intervalFree, iMode, "NOTE RATE",   alea.lastRandomInterval.load());
+    timingKnobLabel (lengthSync,   lengthFree,   lMode, "NOTE LENGTH", alea.lastRandomLength.load());
     // DURATION knob caption + value (the visible knob: bars in Sync, seconds
     // in Free), painted below it.
     {
@@ -980,7 +985,7 @@ void AleaAudioProcessorEditor::paintMain (juce::Graphics& g)
         const auto kb = durK.getBounds();
         g.setColour (colors::secondary);
         g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
-        g.drawText ("DURATION", kb.getX() - 24, kb.getBottom() - 2, kb.getWidth() + 48, 13, juce::Justification::centred);
+        g.drawText ("SWEEP DURATION", kb.getX() - 40, kb.getBottom() - 2, kb.getWidth() + 80, 13, juce::Justification::centred);
         // Sync (bars) value painted here; the free (seconds) value is a field.
         if (sync)
         {
