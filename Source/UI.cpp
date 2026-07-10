@@ -584,7 +584,7 @@ void MorphBar::paint (juce::Graphics& g)
         g.setColour (juce::Colours::white);
         g.drawText (t, a, just);
     };
-    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+    g.setFont (juce::FontOptions (17.0f, juce::Font::bold));
     shadowed (juce::String (pct, 1) + "%", bounds, juce::Justification::centred);
     g.setFont (juce::FontOptions (20.0f, juce::Font::bold));
     shadowed ("A", bounds.reduced (10.0f, 0.0f), juce::Justification::centredLeft);

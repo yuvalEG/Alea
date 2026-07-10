@@ -30,7 +30,9 @@ void drawWordmark (juce::Graphics& g, const juce::Image& logo, juce::Rectangle<i
         baked = juce::Image (juce::Image::ARGB, lwS + 2 * m, lhS + 2 * m, true);
         { juce::Graphics og (baked);
           og.setOrigin (m, m);
-          juce::DropShadow (juce::Colours::black.withAlpha (0.6f), 3 * ss, { ss, 3 * ss }).drawForImage (og, glyphs); }
+          // A whisper of a shadow (dialed down July 10 - the heavier one read
+          // as the wordmark floating off the metal).
+          juce::DropShadow (juce::Colours::black.withAlpha (0.35f), 2 * ss, { ss, 2 * ss }).drawForImage (og, glyphs); }
 
         // Punch the glyph footprint out of the shadow so nothing shadows the
         // letters, then lay the bright wordmark on top.
