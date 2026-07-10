@@ -152,48 +152,134 @@ namespace hw
         return (float) b.getProperties().getWithDefault ("litAmt", b.getToggleState() ? 1.0f : 0.0f);
     }
 
+    // The fine spun-metal micro-grain (--grain): hairline strokes that catch
+    // light, baked once into a tiny tile and tiled across the metal.
+    static const juce::Image& grainTile (bool isPlate)
+    {
+        static juce::Image face, plate;
+        auto& img = isPlate ? plate : face;
+        if (! img.isValid())
+        {
+            const float wA = isPlate ? 0.0064f : 0.0088f;   // white stroke alpha
+            const float bA = isPlate ? 0.0088f : 0.012f;    // dark stroke alpha
+            img = juce::Image (juce::Image::ARGB, 4, 3, true);
+            juce::Graphics ig (img);
+            ig.setColour (juce::Colours::white.withAlpha (wA * 3.0f)); // 3x: the tile rows are 1px, the CSS strokes 0.5px
+            ig.fillRect (0, 0, 4, 1);
+            ig.setColour (juce::Colours::black.withAlpha (bA * 3.0f));
+            ig.fillRect (0, 1, 4, 1);
+        }
+        return img;
+    }
+
     void brushedMetal (juce::Graphics& g, juce::Rectangle<float> r, float radius, bool isPlate)
     {
+        // The July 10 handoff's BAKED matte finish: metal-l 0.5 (a 35% black
+        // overlay, premultiplied into every stop below), sheen 0.1 (near-
+        // matte), grain 0.4 (fine spun metal), reflect 0.2 (a whisper of
+        // clearcoat environment light). Copied stop-for-stop.
+        juce::Path clip;
+        clip.addRoundedRectangle (r, radius);
+
         if (isPlate)
         {
-            // Flat satin vertical base (hsl(220 12% 17->12%)), hairline seam,
-            // top inner highlight - no grain.
-            juce::ColourGradient grad (juce::Colour (0xff262a31), r.getX(), r.getY(),
-                                       juce::Colour (0xff1b1e22), r.getX(), r.getBottom(), false);
+            // Plate: vertical hsl(220 13% 18 -> 12% 11) x0.65.
+            juce::ColourGradient grad (juce::Colour (0xff1a1d22), r.getX(), r.getY(),
+                                       juce::Colour (0xff101214), r.getX(), r.getBottom(), false);
+            grad.addColour (0.46, juce::Colour (0xff14161a));
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, radius);
-            // A whisper of top-lit shading (~2%) - just enough to read as a
-            // slightly raised, convex plate rather than a flat fill.
-            juce::ColourGradient depth (juce::Colours::white.withAlpha (0.022f), r.getX(), r.getY(),
-                                        juce::Colours::black.withAlpha (0.022f), r.getX(), r.getBottom(), false);
-            depth.addColour (0.5, juce::Colours::transparentBlack);
-            g.setGradientFill (depth);
-            g.fillRoundedRectangle (r, radius);
+        }
+        if (isPlate)
+        {
+            juce::Graphics::ScopedSaveState ss (g);
+            g.reduceClipRegion (clip);
+            g.setTiledImageFill (grainTile (true), 0, 0, 1.0f);
+            g.fillRect (r);
+            // Soft top-lit reflection (178deg, reflect 0.2).
+            juce::ColourGradient refl (juce::Colours::white.withAlpha (0.010f), r.getX(), r.getY(),
+                                       juce::Colours::transparentWhite, r.getX(), r.getY() + r.getHeight() * 0.30f, false);
+            g.setGradientFill (refl);
+            g.fillRect (r.withHeight (r.getHeight() * 0.30f));
+        }
+        if (isPlate)
+        {
             g.setColour (metalLine);
             g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
             g.setColour (juce::Colours::white.withAlpha (0.11f));
             g.drawLine (r.getX() + radius, r.getY() + 1.0f, r.getRight() - radius, r.getY() + 1.0f, 1.0f);
+            g.setColour (juce::Colours::black.withAlpha (0.5f));
+            g.drawLine (r.getX() + radius, r.getBottom() - 1.0f, r.getRight() - radius, r.getBottom() - 1.0f, 1.0f);
         }
         else
         {
-            // Raised slab: the 97deg anisotropic sheen sweep, stops copied
-            // 1:1 from the handoff (hsl 220-hue bands 11%..27% lightness).
-            juce::ColourGradient grad (juce::Colour (0xff1a1b1e), r.getX(), r.getY(),
-                                       juce::Colour (0xff1a1b1d), r.getRight(), r.getY() + r.getHeight() * 0.12f, false);
-            grad.addColour (0.18, juce::Colour (0xff2d2f34));
-            grad.addColour (0.34, juce::Colour (0xff3d424c)); // sheen peak
-            grad.addColour (0.50, juce::Colour (0xff25272c));
-            grad.addColour (0.68, juce::Colour (0xff383c44));
-            grad.addColour (0.84, juce::Colour (0xff212327));
+            // Faceplate: the 97deg anisotropic sweep, nine stops.
+            juce::ColourGradient grad (juce::Colour (0xff0d0e10), r.getX(), r.getY(),
+                                       juce::Colour (0xff0f1012), r.getRight(), r.getY() + r.getHeight() * 0.12f, false);
+            grad.addColour (0.13, juce::Colour (0xff191b1f));
+            grad.addColour (0.27, juce::Colour (0xff262b33));
+            grad.addColour (0.39, juce::Colour (0xff2f3542));
+            grad.addColour (0.51, juce::Colour (0xff191b1f));
+            grad.addColour (0.64, juce::Colour (0xff272b33));
+            grad.addColour (0.75, juce::Colour (0xff2a2f39));
+            grad.addColour (0.89, juce::Colour (0xff17181b));
             g.setGradientFill (grad);
             g.fillRoundedRectangle (r, radius);
-            // Specular: radial-gradient(120% 75% at 30% -15%, white .16*sheen, transparent 42%).
-            juce::ColourGradient spec (juce::Colours::white.withAlpha (0.16f * kSheen),
+        }
+        if (! isPlate)
+        {
+            juce::Graphics::ScopedSaveState ss (g);
+            g.reduceClipRegion (clip);
+            g.setTiledImageFill (grainTile (false), 0, 0, 1.0f);
+            g.fillRect (r);
+
+            // Specular (sheen 0.1 - nearly matte): a faint top-left radial.
+            juce::ColourGradient spec (juce::Colours::white.withAlpha (0.016f),
                                        r.getX() + r.getWidth() * 0.30f, r.getY() - r.getHeight() * 0.15f,
                                        juce::Colours::transparentWhite,
-                                       r.getX() + r.getWidth() * 0.30f + r.getWidth() * 0.50f, r.getY() - r.getHeight() * 0.15f, true);
+                                       r.getX() + r.getWidth() * 0.80f, r.getY() - r.getHeight() * 0.15f, true);
             g.setGradientFill (spec);
-            g.fillRoundedRectangle (r, radius);
+            g.fillRect (r);
+
+            // Clearcoat environment reflection (reflect 0.2) - a second cool
+            // light source, additive-quiet:
+            //   cool fill bouncing up from bottom-right
+            juce::ColourGradient cool (juce::Colour (0xffb0c6ec).withAlpha (0.018f),
+                                       r.getX() + r.getWidth() * 0.88f, r.getY() + r.getHeight() * 1.18f,
+                                       juce::Colours::transparentWhite,
+                                       r.getX() + r.getWidth() * 0.30f, r.getY() + r.getHeight() * 0.55f, true);
+            g.setGradientFill (cool);
+            g.fillRect (r);
+            //   top-right corner glint
+            juce::ColourGradient glint (juce::Colours::white.withAlpha (0.020f),
+                                        r.getRight(), r.getY() - r.getHeight() * 0.08f,
+                                        juce::Colours::transparentWhite,
+                                        r.getX() + r.getWidth() * 0.55f, r.getY() + r.getHeight() * 0.30f, true);
+            g.setGradientFill (glint);
+            g.fillRect (r);
+            //   broad clearcoat wash along the sweep
+            juce::ColourGradient wash (juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.30f, r.getY(),
+                                       juce::Colours::transparentWhite, r.getX() + r.getWidth() * 0.90f, r.getY(), false);
+            wash.addColour (0.42, juce::Colours::white.withAlpha (0.010f));
+            wash.addColour (0.70, juce::Colours::white.withAlpha (0.004f));
+            g.setGradientFill (wash);
+            g.fillRect (r);
+            //   vertical: bright sky at the top, faint ground bounce below
+            juce::ColourGradient sky (juce::Colours::white.withAlpha (0.011f), r.getX(), r.getY(),
+                                      juce::Colour (0xffced8ee).withAlpha (0.0044f), r.getX(), r.getBottom(), false);
+            sky.addColour (0.20, juce::Colours::transparentWhite);
+            sky.addColour (0.80, juce::Colours::transparentWhite);
+            g.setGradientFill (sky);
+            g.fillRect (r);
+
+            // Bottom inner shadow (inset 0 -3px 10px black .75).
+            juce::ColourGradient bot (juce::Colours::transparentBlack, r.getX(), r.getBottom() - 10.0f,
+                                      juce::Colours::black.withAlpha (0.40f), r.getX(), r.getBottom(), false);
+            g.setGradientFill (bot);
+            g.fillRect (r.withTop (r.getBottom() - 10.0f));
+        }
+        if (! isPlate)
+        {
             // Raised edge: bright top seam, dark seam all round.
             g.setColour (juce::Colours::white.withAlpha (0.14f));
             g.drawLine (r.getX() + radius, r.getY() + 1.5f, r.getRight() - radius, r.getY() + 1.5f, 2.0f);
