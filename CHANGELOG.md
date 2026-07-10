@@ -2,6 +2,29 @@
 
 (Chord Randomizer's changelog lives in [CHANGELOG-chords.md](CHANGELOG-chords.md).)
 
+## v0.3.2 - 2026-07-11
+
+The hardware faceplate update. The whole window is now a brushed metal
+panel you could imagine bolting into a rack.
+
+- Every panel is an engraved module plate with corner screws. Buttons are
+  backlit keys. Knobs are physical, with a knurled grip, a lit value arc
+  and a pointer that catches the light.
+- Selected buttons light up white. Green now belongs to the transport and
+  the synth chrome, amber to the morph section, purple and cyan to the
+  scales, as always.
+- The morph bar is a proper fader. Its fill carries the whole purple to
+  cyan blend under a glossy sheen, with a glowing amber position cap.
+- The note screen is green glass that takes on the colour of the sounding
+  side. The BPM readout is a small glass display with a drag strip.
+- The keyboards feel alive. The played key presses into the bed and casts
+  green light, and how hard it was hit sets how far the light reaches.
+- The 88 key monitor is a real miniature keyboard now, and the lit note
+  glows through the glass.
+- Clearer names in TIMING: the knobs read NOTE RATE and NOTE LENGTH, and
+  the morph knob reads SWEEP DURATION.
+- The window opens a little smaller and tighter.
+
 ## v0.3.1 - 2026-07-08
 
 - The transport is a drawn play/stop button, a design shared with the new

@@ -2,6 +2,25 @@
 
 (Scale Shifter's changelog lives in [CHANGELOG.md](CHANGELOG.md).)
 
+## chords-v0.4.0 - 2026-07-11
+
+The hardware faceplate update, shared with Alea Scale Shifter. Same
+loop, whole new body.
+
+- The chords sit on backlit glass pads. The sounding chord glows purple
+  with its progress strip, and incoming chords glow cyan while a switch
+  is pending.
+- ROLL flashes when the dice actually roll, whether you pressed it, hit
+  R, or AUTO rolled for you. AUTO is now a lit key under ROLL with an
+  EVERY selector for its cadence of 1, 2 or 4 loops.
+- Checkboxes became physical toggle switches that slide when flipped.
+- The BPM readout is a small glass display. Drag it to set the tempo.
+- MONITOR is a purple glass screen holding a real miniature keyboard.
+  The sounding notes light up behind the glass.
+- HISTORY is engraved into its panel, with metal page keys at the edges.
+- The window opens at a slightly smaller size, matched in width to the
+  Scale Shifter.
+
 ## chords-v0.3.0 - 2026-07-08
 
 Voicings. How the printed chord becomes sounding notes, all in the new
