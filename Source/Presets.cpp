@@ -35,22 +35,26 @@ const std::vector<Factory>& factory()
             { "Static", "Dice Roll",
               wholeTone, chromatic, m ({ 3 }), 0,  3, 5, 3, 5,  50, 120, 50, 120,
               2, 5,  2, 5,  0, 0, 3, 30.0f, 0, 0, 0 },
-            { "Sweeps", "Pentatonic Drift",
+            { "Sweeps", "Pentatonic Drift", // Bounce so it truly drifts there and back (Yuval, July 11)
               majPent, minPent, 0, 0,  3, 5, 4, 6,  70, 100, 70, 100,
-              0, 5,  0, 6,  1, 0, 4, 30.0f, 0, 1, 2 },
-            { "Sweeps", "Octave Climb", // octave-only sweep: nothing else moves
+              0, 5,  0, 6,  1, 0, 4, 30.0f, 0, 2, 2 },
+            { "Sweeps", "Octave Climb", // octave-only sweep: nothing else moves.
+              // Loop = endless ascent (climb, snap to the basement, climb again);
+              // it also keeps Loop mode represented after Drift moved to Bounce.
               triad, triad, 0, 0,  1, 2, 6, 7,  80, 110, 80, 110,
-              0, 5,  0, 6,  1, 0, 5, 30.0f, 0, 2, 3 },
+              0, 5,  0, 6,  1, 0, 5, 30.0f, 0, 1, 3 },
             { "Sweeps", "Hexatonic Pole", // C major <-> Ab minor,
               // maximally smooth voice leading, zero common tones - the classic
               // "beautiful but wrong" progression of late-Romantic and film music
               triad, m ({ 0, 3, 7 }), 0, 0,  3, 4, 3, 4,  65, 100, 65, 100, // minor shape rooted at Ab
               0, 4,  0, 4,  1, 0, 3, 30.0f, 0, 2, 0, 0, 8 },
 
-            { "Sweeps", "Soft \xe2\x86\x92 Loud", // velocity-only sweep
+            { "Sweeps", "Soft \xe2\x86\x94 Loud", // velocity-only sweep; 4-bar swell
+              // (2 bars pumped like an LFO - Yuval's call, July 11). The bouncing
+              // presets say <-> in their names; one-way journeys keep ->.
               major, major, 0, 0,  3, 5, 3, 5,  25, 45, 105, 127,
-              0, 6,  0, 6,  1, 0, 1, 30.0f, 0, 2, 2 },
-            { "Sweeps", "Major \xe2\x86\x92 Minor",
+              0, 6,  0, 6,  1, 0, 2, 30.0f, 0, 2, 2 },
+            { "Sweeps", "Major \xe2\x86\x94 Minor",
               major, minor, 0, 0,  3, 5, 3, 5,  80, 110, 80, 110,
               0, 4,  0, 5,  1, 0, 3, 30.0f, 0, 2, 0 },
             { "Sweeps", "Sparse \xe2\x86\x92 Dense",
