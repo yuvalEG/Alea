@@ -886,12 +886,13 @@ void ChordsEditor::timerCallback()
         repaint (0, 0, getWidth(), 56); // status word
     }
 
-    // The ROLL flash decays fast (~0.3s - a press, not a glow; QA July 11).
+    // The ROLL flash decays over ~0.45s - Yuval tuned it twice: ~1s read
+    // as a glow, ~0.3s as too curt.
     {
         const float shown = (float) rollButton.getProperties().getWithDefault ("litAmt", 0.0f);
         if (std::abs (rollLit - shown) > 0.004f || (rollLit > 0.004f))
         {
-            rollLit *= 0.55f;
+            rollLit *= 0.68f;
             if (rollLit < 0.004f) rollLit = 0.0f;
             rollButton.getProperties().set ("litAmt", rollLit);
             rollButton.repaint();
