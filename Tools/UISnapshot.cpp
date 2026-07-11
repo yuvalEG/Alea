@@ -76,6 +76,137 @@ static int morphSwitchTest()
     return failures == 0 ? 0 : 3;
 }
 
+// Regression check for two QA July 11 bugs. (1) Free timing is SECONDS: a
+// note every 1.0 s must stay 1.0 s apart - and a free-duration sweep must
+// hold its position - through a mid-play tempo change (the beat-domain
+// schedule used to warp the pending gap and teleport the sweep). (2) The
+// lit key slot must be root-relative to the ATTRIBUTED scale: a shared
+// note picked from one pool but attributed to the other used to light the
+// wrong key whenever the roots differed.
+static int freeTempoTest()
+{
+    AleaAudioProcessor processor;
+    processor.setPlayConfigDetails (0, 2, 44100.0, 512);
+    processor.prepareToPlay (44100.0, 512);
+
+    struct TempoPlayHead : juce::AudioPlayHead
+    {
+        double ppq = 0.0, bpm = 120.0;
+        juce::Optional<PositionInfo> getPosition() const override
+        {
+            PositionInfo p;
+            p.setIsPlaying (true);
+            p.setBpm (bpm);
+            p.setPpqPosition (ppq);
+            return p;
+        }
+    };
+    TempoPlayHead playHead;
+    processor.setPlayHead (&playHead);
+
+    auto set = [&] (const juce::String& id, float v)
+    {
+        auto* p = processor.apvts.getParameter (id);
+        p->setValueNotifyingHost (p->convertTo0to1 (v));
+    };
+
+    // --- Part 1: free timing through a tempo slam (120 -> 30 mid-play) ---
+    set ("intervalMode", (float) params::free);
+    set ("intervalFree", 1.0f);
+    set ("lengthMode", (float) params::free);
+    set ("lengthFree", 0.4f);
+    set ("autoSweep", 1.0f);
+    set ("morphDurMode", 1.0f); // Free (seconds)
+    set ("morphDurFree", 60.0f);
+    set ("morphMode", (float) params::oneShot);
+    set ("morphCurve", (float) params::linear);
+    for (int r = 0; r < params::numRests; ++r) // rests are bar-based and would
+    {                                          // legitimately stretch the gaps
+        set (params::restId ('a', r), 0.0f);
+        set (params::restId ('b', r), 0.0f);
+    }
+
+    juce::AudioBuffer<float> buffer (2, 512);
+    juce::MidiBuffer midi;
+    juce::int64 samples = 0;
+    std::vector<double> onsets;
+    auto pump = [&] (int blocks)
+    {
+        for (int i = 0; i < blocks; ++i)
+        {
+            processor.processBlock (buffer, midi);
+            for (const auto meta : midi)
+                if (meta.getMessage().isNoteOn())
+                    onsets.push_back ((double) (samples + meta.samplePosition) / 44100.0);
+            midi.clear();
+            samples += 512;
+            playHead.ppq += 512.0 / 44100.0 * (playHead.bpm / 60.0);
+        }
+    };
+
+    pump (430); // ~5 s at 120 BPM
+    const double morphBefore = processor.morphPercent.load();
+    playHead.bpm = 30.0;
+    pump (1);
+    const double morphAfter = processor.morphPercent.load();
+    pump (430); // ~5 s more at 30 BPM
+
+    int failures = 0;
+    for (size_t i = 1; i < onsets.size(); ++i)
+        if (std::abs (onsets[i] - onsets[i - 1] - 1.0) > 0.05)
+        {
+            std::cout << "onset gap " << onsets[i] - onsets[i - 1] << " s before note "
+                      << i << " <-- WARPED BY TEMPO\n";
+            ++failures;
+        }
+    std::cout << onsets.size() << " onsets across the tempo change, gaps checked ~1.0 s\n";
+
+    const bool jumped = std::abs (morphAfter - morphBefore) > 1.5;
+    std::cout << "free 60 s sweep across the change: " << morphBefore << "% -> "
+              << morphAfter << "% " << (jumped ? "<-- JUMPED" : "OK") << "\n";
+    failures += jumped ? 1 : 0;
+
+    // --- Part 2: attributed-scale key slot with differing roots ---
+    // A = Am pentatonic shapes rooted at A, B = just C rooted at C; at 60%
+    // morph a C drawn from A's pool attributes to B and must light B's C
+    // key (slot 0), never A's interval slot 3.
+    set ("autoSweep", 0.0f);
+    set ("morphPos", 60.0f);
+    set ("intervalMode", (float) params::sync);
+    set ("intervalSync", 6.0f); // 1/16 notes - lots of draws
+    set ("lengthMode", (float) params::sync);
+    set ("lengthSync", 6.0f);
+    const bool amPent[12] = { true, false, false, true, false, true, false, true, false, false, true, false };
+    for (int i = 0; i < 12; ++i)
+    {
+        set (params::noteId ('a', i), amPent[i] ? 1.0f : 0.0f);
+        set (params::noteId ('b', i), i == 0 ? 1.0f : 0.0f);
+    }
+    set ("aRoot", 9.0f); // A
+    set ("bRoot", 0.0f); // C
+
+    int checked = 0, wrong = 0;
+    for (int block = 0; block < 2000; ++block)
+    {
+        pump (1);
+        const int note = processor.activeNote.load();
+        if (note < 0)
+            continue;
+        const int source = processor.activeSource.load();
+        const int slot = processor.activeSourcePc.load();
+        const int root = source == 0 ? 9 : 0;
+        ++checked;
+        if ((slot + root) % 12 != note % 12)
+            ++wrong;
+    }
+    std::cout << "lit-key slot vs sounding note: " << checked << " checks, "
+              << wrong << " wrong keys" << (wrong > 0 ? " <-- UI LIED" : " OK") << "\n";
+    failures += wrong > 0 ? 1 : 0;
+
+    processor.setPlayHead (nullptr);
+    return failures == 0 ? 0 : 4;
+}
+
 // Renders the real OUT ComboBox popup (grouped SYNTH / INSTRUMENT sections)
 // to a PNG so the section-header styling can be eyeballed without opening the
 // app and clicking the menu.
@@ -207,6 +338,8 @@ int main (int argc, char* argv[])
 
     if (argc > 1 && juce::String (argv[1]) == "--morphtest")
         return morphSwitchTest();
+    if (argc > 1 && juce::String (argv[1]) == "--freetempotest")
+        return freeTempoTest();
     if (argc > 2 && juce::String (argv[1]) == "--gallery")
         return galleryShot (argv[2]);
     if (argc > 2 && juce::String (argv[1]) == "--menushot")

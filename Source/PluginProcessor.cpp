@@ -406,6 +406,27 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
     lastPpqEnd = ppqEnd;
     hostPpq.store (ppqStart);
 
+    // Free-mode quantities are SECONDS riding the beat timeline, so a tempo
+    // change used to reinterpret everything in flight: the pending note gap
+    // stretched or shrank, and the already-elapsed part of a free-duration
+    // sweep re-read at the new tempo made the journey position JUMP
+    // (120 -> 30 halfway through teleported it 4x forward - QA July 11).
+    // Rescale the in-flight beat distances so their remaining REAL time is
+    // preserved. Sync and Random quantities are genuinely musical (a
+    // 1/4-note gap must stay a 1/4 note) and are left alone; rests too
+    // (their durations are notated bars).
+    if (lastBlockBpm > 0.0 && bpm != lastBlockBpm)
+    {
+        const double scale = bpm / lastBlockBpm;
+        if ((int) pIntervalMode->load() == params::free && nextEventPpq > ppqStart)
+            nextEventPpq = ppqStart + (nextEventPpq - ppqStart) * scale;
+        if ((int) pLengthMode->load() == params::free && currentNote >= 0 && noteOffPpq > ppqStart)
+            noteOffPpq = ppqStart + (noteOffPpq - ppqStart) * scale;
+        if ((int) pMorphDurMode->load() == 1 && pAutoSweep->load() > 0.5f)
+            sweepAnchorPpq = ppqStart - (ppqStart - sweepAnchorPpq) * scale;
+    }
+    lastBlockBpm = bpm;
+
     // Engaging auto-sweep mid-play resumes the journey from wherever the
     // morph currently sits (inverse-curve anchoring, same math as scrubbing).
     // Disengaging parks the morph where the sweep left it - toggling the
@@ -576,6 +597,18 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         const int source = inBoth ? (m < 0.5 ? 0 : 1) : (&src == &snapA ? 0 : 1);
         const int channel = source == 1 ? channelB : channelA;
 
+        // The lit key slot must be root-relative to the ATTRIBUTED scale: a
+        // shared note picked from one pool but attributed to the other kept
+        // the picking scale's interval slot, lighting the wrong key whenever
+        // the two roots differed (QA July 11: C drawn from A-rooted Am pent,
+        // attributed to C-rooted Scale B, lit B's D# key while C4 sounded).
+        int sourcePc = pc;
+        const ScaleSnapshot& attributed = source == 0 ? snapA : snapB;
+        if (&attributed != &src)
+            for (int i = 0; i < attributed.numPitchClasses; ++i)
+                if ((attributed.pitchClasses[i] + attributed.root) % 12 == actualPc)
+                    { sourcePc = attributed.pitchClasses[i]; break; }
+
         if (currentNote >= 0) // monophonic: off before on (spec principle 4)
             midi.addEvent (juce::MidiMessage::noteOff (currentNoteChannel, currentNote), offset);
 
@@ -589,7 +622,7 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         lastNote.store (note);
         activeSource.store (source);
         activeNote.store (note);
-        activeSourcePc.store (pc); // the interval slot to light on the scale keyboards
+        activeSourcePc.store (sourcePc); // the interval slot to light on the scale keyboards
         activeVelocity.store ((int) velocity);
         activeRest.store (-1);
         history[(size_t) (historyCount.load() % historyCapacity)].store (note | (source << 8) | ((int) velocity << 10));

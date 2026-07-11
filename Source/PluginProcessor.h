@@ -147,6 +147,8 @@ private:
     bool wasFrozen = false;
     double sweepAnchorPpq = 0.0; // beat position auto-sweep measures from
     bool lastSweepOn = false;
+    double lastBlockBpm = -1.0;  // previous playing block's tempo, for the
+                                 // free-mode (seconds) rescale on tempo change
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AleaAudioProcessor)
 };
