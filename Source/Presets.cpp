@@ -60,9 +60,14 @@ const std::vector<Factory>& factory()
             { "Sweeps", "Sparse \xe2\x86\x92 Dense",
               m ({ 0, 7 }), chromatic, m ({ 1, 2, 3 }), 0,  2, 4, 3, 6,  60, 90, 90, 120,
               0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 1 },
-            { "Sweeps", "Five \xe2\x86\x92 One", // A minor pentatonic collapsing to a single C
-              m ({ 0, 3, 5, 7, 10 }), m ({ 0 }), 0, 0,  3, 3, 3, 3,  70, 100, 70, 100,
-              0, 5,  0, 5,  1, 0, 4, 30.0f, 0, 0, 0, 9, 0 },
+            { "Sweeps", "Five \xe2\x86\x92 One", // a dark five (hirajoshi in A) collapsing
+              // to a single low tolling A. The free-timing showcase: a note every
+              // 1.2s ringing ~0.8s, unsynced from tempo; the collapse narrows the
+              // octave range and dims the velocity; exponential = the five-note
+              // world holds, then implodes near the end (redesign, July 11 - the
+              // old Am-pent-to-eighth-note-Cs ending hammered an inert pulse).
+              m ({ 0, 2, 3, 7, 8 }), m ({ 0 }), 0, 0,  2, 4, 2, 2,  60, 100, 35, 55,
+              1, 5,  1, 5,  1, 1, 4, 60.0f, 0, 0, 1, 9, 9, 1.2f, 0.8f },
             { "Sweeps", "Order \xe2\x86\x92 Chaos", // 3-minute journey, 2-bar drones + 2-bar rests, octave 2
               m ({ 0, 2, 4, 5, 7 }), chromatic, m ({ 0 }), m ({ 0 }),  2, 2, 2, 2,  75, 105, 60, 120,
               0, 1,  0, 1,  1, 1, 5, 180.0f, 0, 0, 0 }, // durFree now in seconds (3 min)
@@ -111,8 +116,10 @@ void apply (juce::AudioProcessorValueTreeState& apvts, const Factory& f)
 
     set ("intervalMode", (float) f.intervalMode);
     set ("intervalSync", (float) f.intervalSyncIdx);
+    set ("intervalFree", f.intervalFree);
     set ("lengthMode",   (float) f.lengthMode);
     set ("lengthSync",   (float) f.lengthSyncIdx);
+    set ("lengthFree",   f.lengthFree);
     set ("morphDurMode", (float) f.durMode);
     set ("morphDurBars", (float) f.durBarsIdx);
     set ("morphDurFree", f.durFree);

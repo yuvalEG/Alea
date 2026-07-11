@@ -221,9 +221,16 @@ int main (int argc, char* argv[])
     if (argc > 2 && juce::String (argv[2]) == "synth")
         processor.setStandaloneOutput ("synth");
 
-    // Major -> Minor, sweep off, morph posed by hand.
-    presets::apply (processor.apvts, presets::factory()[6]);
-    processor.currentPreset.store (6); // keep its bubble lit
+    // Major <-> Minor by default, sweep off, morph posed by hand. A bare
+    // number anywhere in the args poses another preset by index instead
+    // (dev calibration: verify a preset edit on the real UI).
+    int presetIdx = 6;
+    for (int i = 2; i < argc; ++i)
+        if (juce::String (argv[i]).isNotEmpty() && juce::String (argv[i]).containsOnly ("0123456789"))
+            presetIdx = juce::jlimit (0, (int) presets::factory().size() - 1,
+                                      juce::String (argv[i]).getIntValue());
+    presets::apply (processor.apvts, presets::factory()[(size_t) presetIdx]);
+    processor.currentPreset.store (presetIdx); // keep its bubble lit
     if (auto* sweep = processor.apvts.getParameter ("autoSweep"))
         sweep->setValueNotifyingHost (0.0f);
     auto* morph = processor.apvts.getParameter ("morphPos");

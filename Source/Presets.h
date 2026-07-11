@@ -24,6 +24,8 @@ namespace presets
         int durUnit;                          // 0 seconds / 1 minutes
         int morphMode, morphCurve;
         int aRoot = 0, bRoot = 0;             // octave anchors (0 = C); trailing so old rows default
+        float intervalFree = 0.5f;            // free-mode timing values (trailing so old
+        float lengthFree = 0.25f;             // rows default); only used when mode = free
     };
 
     const std::vector<Factory>& factory();
