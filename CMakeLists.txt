@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Alea VERSION 0.3.2)
+project(Alea VERSION 0.3.3)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -118,7 +118,7 @@ clap_juce_extensions_plugin(TARGET Alea
 # ---------------------------------------------------------------------------
 # Alea Chord Randomizer: the second Alea product. Versioned independently of
 # Scale Shifter; its release tags use the "chords-v" prefix.
-set(CHORDS_VERSION 0.4.0)
+set(CHORDS_VERSION 0.4.1)
 
 set(CHORDS_ICON_ARGS "")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon-chords.png")

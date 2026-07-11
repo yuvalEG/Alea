@@ -2,6 +2,15 @@
 
 (Scale Shifter's changelog lives in [CHANGELOG.md](CHANGELOG.md).)
 
+## chords-v0.4.1 - 2026-07-11
+
+A small flash fix.
+
+- ROLL now flashes on every roll, including auto rolls on short loops
+  that used to slip between screen updates. The flash presses when the
+  dice roll, lights again as the new chords land, and fades in about
+  half a second.
+
 ## chords-v0.4.0 - 2026-07-11
 
 The hardware faceplate update, shared with Alea Scale Shifter. Same

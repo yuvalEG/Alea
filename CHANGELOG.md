@@ -2,6 +2,26 @@
 
 (Chord Randomizer's changelog lives in [CHANGELOG-chords.md](CHANGELOG-chords.md).)
 
+## v0.3.3 - 2026-07-11
+
+A preset polish pass and two timing fixes.
+
+- Five → One is reborn. A dark five-note Japanese scale collapses over
+  one minute into a single low tolling A. It is the first preset built
+  on free timing, so it drifts at its own pace no matter the tempo.
+- Soft ↔ Loud now swells over 4 bars instead of pumping every 2. The
+  presets that travel back and forth say so in their names with a
+  two-way arrow. One-way journeys keep the one-way arrow.
+- Pentatonic Drift now drifts there and back instead of snapping to the
+  start. Octave Climb became an endless ascent that climbs, returns to
+  the basement and climbs again.
+- Fixed: with two scales in different keys sharing a note, the keyboard
+  could light a key outside the scale while the right note sounded. The
+  highlight now always agrees with your ears.
+- Fixed: free timing reacted to tempo changes. Notes set in seconds and
+  sweeps set in seconds now keep their real pace when the tempo moves
+  under them. Musical divisions still follow the tempo, as they should.
+
 ## v0.3.2 - 2026-07-11
 
 The hardware faceplate update. The whole window is now a brushed metal
