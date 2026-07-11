@@ -40,6 +40,11 @@ public:
     // (state can arrive from the wrapper before or after the editor exists).
     int revision = 0;
 
+    // Bumped on every roll, manual or AUTO. A counter, not a flag: the editor
+    // polls at 30Hz and a flag that flips and flips back between polls would
+    // lose flashes (it did - QA July 11, auto roll on short loops).
+    std::atomic<int> rollSerial { 0 };
+
     // Window size is deliberately NOT persisted (family behavior - Scale
     // Shifter opens at its default too): every launch is 900x680 with the
     // full MONITOR visible; tucking it is a per-session gesture. Decided

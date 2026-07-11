@@ -62,6 +62,7 @@ void ChordsProcessor::markSeriesChange()
 
 void ChordsProcessor::rollSeries()
 {
+    rollSerial.fetch_add (1); // every roll presses the ROLL key in the UI
     markSeriesChange();
 
     if (! series.empty())

@@ -140,6 +140,7 @@ private:
     bool lastPending = false;
     bool lastAutoOn = false;
     float rollLit = 0.0f;             // ROLL flashes lit on a roll (manual or auto)
+    int seenRollSerial = 0;           // last processor roll the key flashed for
     juce::uint64 lastSoundingHi = 0;
     juce::uint64 lastSounding = 0;
     int devicePollCountdown = 90;     // ~3s at 30 Hz: MIDI hotplug refresh

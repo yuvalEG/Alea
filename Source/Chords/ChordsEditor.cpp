@@ -716,6 +716,7 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     for (auto* b : { &autoButton, &freezeButton, &clickButton })
         b->onLitChange = [this, b] { repaint (b->getBounds().expanded (18)); };
 
+    seenRollSerial = chordsProc.rollSerial.load(); // no flash for pre-open rolls
     refresh();
     applyAutoGate();
     startTimerHz (30); // fast enough for the bar-progress strip and meter
@@ -865,24 +866,32 @@ void ChordsEditor::timerCallback()
         applyAutoGate();
     }
 
+    // Every roll flashes the ROLL key - manual or AUTO's. The counter never
+    // misses one, unlike the pending flag a 30Hz poll can skip (QA July 11).
+    if (const int rs = chordsProc.rollSerial.load(); rs != seenRollSerial)
+    {
+        seenRollSerial = rs;
+        rollLit = 1.0f;
+    }
+
     // Pending swap: the sounding card stays lit with the old chord, all
-    // other cards preview the incoming series in cyan. A swap appearing also
-    // means a roll just fired (AUTO's included) - flash the ROLL key.
+    // other cards preview the incoming series in cyan. When the swap LANDS
+    // the cards flip - the key flashes again with the change it delivers.
     if (pendingNow != lastPending)
     {
-        if (pendingNow)
+        if (! pendingNow)
             rollLit = 1.0f;
         lastPending = pendingNow;
         refresh();
         repaint (0, 0, getWidth(), 56); // status word
     }
 
-    // The ROLL flash decays over ~a quarter second.
+    // The ROLL flash decays fast (~0.3s - a press, not a glow; QA July 11).
     {
         const float shown = (float) rollButton.getProperties().getWithDefault ("litAmt", 0.0f);
         if (std::abs (rollLit - shown) > 0.004f || (rollLit > 0.004f))
         {
-            rollLit *= 0.84f;
+            rollLit *= 0.55f;
             if (rollLit < 0.004f) rollLit = 0.0f;
             rollButton.getProperties().set ("litAmt", rollLit);
             rollButton.repaint();
