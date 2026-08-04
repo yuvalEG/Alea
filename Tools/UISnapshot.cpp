@@ -166,10 +166,10 @@ static int freeTempoTest()
               << morphAfter << "% " << (jumped ? "<-- JUMPED" : "OK") << "\n";
     failures += jumped ? 1 : 0;
 
-    // --- Part 2: attributed-scale key slot with differing roots ---
-    // A = Am pentatonic shapes rooted at A, B = just C rooted at C; at 60%
-    // morph a C drawn from A's pool attributes to B and must light B's C
-    // key (slot 0), never A's interval slot 3.
+    // --- Part 2: lit key slot agrees with the sounding pitch ---
+    // A = Am pentatonic shapes rooted at A, B = just C rooted at C, so the
+    // two roots differ and a slot read against the wrong root shows up at
+    // once: the lit key plus its scale's root must equal the note sounding.
     set ("autoSweep", 0.0f);
     set ("morphPos", 60.0f);
     set ("intervalMode", (float) params::sync);
@@ -202,6 +202,42 @@ static int freeTempoTest()
     std::cout << "lit-key slot vs sounding note: " << checked << " checks, "
               << wrong << " wrong keys" << (wrong > 0 ? " <-- UI LIED" : " OK") << "\n";
     failures += wrong > 0 ? 1 : 0;
+
+    // --- Part 3: notes report the pool that actually drew them (QA Aug 3) ---
+    // B's notes are a subset of A's here, so under the old "shared notes
+    // follow the morph" rule every B draw was stamped A and Scale B looked
+    // dead for the whole first half of a sweep. At 25% morph roughly a
+    // quarter of the draws come from B, and all of them must say so.
+    set ("morphPos", 25.0f);
+    set ("aRoot", 0.0f); // both scales in C, so every B note is shared with A
+    playHead.bpm = 120.0; // back up from the tempo slam, for draws to count
+    const bool pentachord[12] = { true, false, true, false, true, true, false, true, false, false, false, false };
+    for (int i = 0; i < 12; ++i)
+    {
+        set (params::noteId ('a', i), pentachord[i] ? 1.0f : 0.0f);
+        set (params::noteId ('b', i), i == 0 ? 1.0f : 0.0f);
+    }
+
+    int fromB = 0, total = 0, lastCount = processor.historyCount.load();
+    for (int block = 0; block < 4000; ++block)
+    {
+        pump (1);
+        const int now = processor.historyCount.load();
+        for (int i = lastCount; i < now; ++i)
+        {
+            const int entry = processor.history[(size_t) (i % AleaAudioProcessor::historyCapacity)].load();
+            ++total;
+            fromB += (entry >> 8) & 1;
+        }
+        lastCount = now;
+    }
+
+    // Sampling noise around the 25% coin flip, not a tolerance on the rule.
+    const double share = total > 0 ? 100.0 * fromB / total : 0.0;
+    const bool ok = total > 100 && share > 15.0 && share < 35.0;
+    std::cout << "shared notes attributed to B at 25% morph: " << fromB << "/" << total
+              << " (" << share << "%)" << (ok ? " OK" : " <-- B IS INVISIBLE") << "\n";
+    failures += ok ? 0 : 1;
 
     processor.setPlayHead (nullptr);
     return failures == 0 ? 0 : 4;

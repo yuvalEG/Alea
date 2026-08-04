@@ -582,32 +582,19 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
         if (note < 0 || note > 127) // out of range: drop, never wrap (spec 5.3)
             continue;
 
-        // Origin scale (spec 5.4): the pool it was drawn from, except shared
-        // notes follow morph position. "Shared" compares actual pitches -
-        // intervals only match across scales when their roots agree.
+        // Origin scale (spec 5.4): always the pool the coin flip actually drew
+        // from, including notes the two scales share. The old rule handed
+        // shared notes to whichever side the morph was nearer, which made a
+        // Scale B whose notes are all also in A read as pure A for the entire
+        // first half of a sweep (QA Aug 3: B = single C under A = C D E F G,
+        // no cyan at all until 50%). The UI reports the draw, not the odds.
         const int pc = src.pitchClasses[pick];
-        const int actualPc = (pc + src.root) % 12;
-        auto contains = [actualPc] (const ScaleSnapshot& s)
-        {
-            for (int i = 0; i < s.numPitchClasses; ++i)
-                if ((s.pitchClasses[i] + s.root) % 12 == actualPc) return true;
-            return false;
-        };
-        const bool inBoth = contains (snapA) && contains (snapB);
-        const int source = inBoth ? (m < 0.5 ? 0 : 1) : (&src == &snapA ? 0 : 1);
+        const int source = &src == &snapA ? 0 : 1;
         const int channel = source == 1 ? channelB : channelA;
 
-        // The lit key slot must be root-relative to the ATTRIBUTED scale: a
-        // shared note picked from one pool but attributed to the other kept
-        // the picking scale's interval slot, lighting the wrong key whenever
-        // the two roots differed (QA July 11: C drawn from A-rooted Am pent,
-        // attributed to C-rooted Scale B, lit B's D# key while C4 sounded).
-        int sourcePc = pc;
-        const ScaleSnapshot& attributed = source == 0 ? snapA : snapB;
-        if (&attributed != &src)
-            for (int i = 0; i < attributed.numPitchClasses; ++i)
-                if ((attributed.pitchClasses[i] + attributed.root) % 12 == actualPc)
-                    { sourcePc = attributed.pitchClasses[i]; break; }
+        // The lit key slot is root-relative to its own scale, so it needs no
+        // remapping now that attribution never crosses pools.
+        const int sourcePc = pc;
 
         if (currentNote >= 0) // monophonic: off before on (spec principle 4)
             midi.addEvent (juce::MidiMessage::noteOff (currentNoteChannel, currentNote), offset);
