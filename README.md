@@ -127,8 +127,8 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-One build makes both products. Installer scripts:
-`scripts/make_installer.sh` and `scripts/make_chords_installer.sh`.
+One build makes both products. macOS installers:
+`scripts/make_installer.sh shifter` and `scripts/make_installer.sh chords`.
 
 ## Feedback
 
