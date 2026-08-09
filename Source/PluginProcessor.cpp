@@ -29,7 +29,7 @@ AleaAudioProcessor::AleaAudioProcessor()
     currentPreset.store (0);
 
     // Standalone makes sound out of the box; plugins default to pure MIDI.
-    synthOn.store (wrapperType == wrapperType_Standalone);
+    synthOn.store (isStandaloneLike());
 }
 
 void AleaAudioProcessor::cacheScaleRefs (char scale, ScaleRefs& refs)
@@ -236,7 +236,7 @@ void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
         synthOn.store (false);
         // Device output only exists in the standalone; in a DAW the host
         // owns MIDI routing.
-        setMidiOutputDevice (wrapperType == wrapperType_Standalone ? choice : juce::String());
+        setMidiOutputDevice (isStandaloneLike() ? choice : juce::String());
     }
 }
 
@@ -259,7 +259,7 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
                       juce::Decibels::decibelsToGain (pSynthVol->load()));
         synthPeak.store (sound.lastPeak());
     }
-    else if (wrapperType == wrapperType_Standalone && ! midi.isEmpty())
+    else if (isStandaloneLike() && ! midi.isEmpty())
     {
         const juce::ScopedTryLock sl (midiOutLock);
         if (sl.isLocked() && midiOutput != nullptr)
@@ -296,6 +296,11 @@ void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::
 
     // Standalone has no host: PLAY/STOP drives the transport and the clock
     // is always the internal one (spec section 10).
+    //
+    // Deliberately the strict wrapper test, NOT isStandaloneLike(): this
+    // decides who owns the transport, and a processor built outside a host
+    // (the dev tools) is driven by an injected playhead. Treating that as
+    // standalone would ignore the playhead and leave the tests silent.
     const bool standalone = wrapperType == wrapperType_Standalone;
     const bool isPlaying = standalone ? standaloneTransport.load()
                                       : position.hasValue() && position->getIsPlaying();
@@ -654,7 +659,7 @@ void AleaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
             // message thread; skip anywhere else).
             if (juce::MessageManager::getInstance()->isThisTheMessageThread())
                 setStandaloneOutput (apvts.state.getProperty ("standaloneOutput",
-                    wrapperType == wrapperType_Standalone ? "synth" : "").toString());
+                    isStandaloneLike() ? "synth" : "").toString());
         }
 }
 

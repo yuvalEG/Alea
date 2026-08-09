@@ -69,7 +69,7 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
                                      "Bounce: back and forth between A and B" }),
       morphCurve (*p.apvts.getParameter ("morphCurve"), colors::amber),
       tempoSource  (*p.apvts.getParameter ("tempoSource"),  params::tempoSources, colors::text),
-      standalone (p.wrapperType == juce::AudioProcessor::wrapperType_Standalone),
+      standalone (p.isStandaloneLike()),
       output (p)
 {
     // The family LookAndFeel (Hardware.h): Space Grotesk, hardware chrome.
@@ -679,6 +679,7 @@ void AleaAudioProcessorEditor::timerCallback()
     restsB.repaint();
     morphBar.repaint();
     output.repaint();
+    output.pollDeviceChanges(); // MIDI hotplug: OUT follows devices coming and going
     content.repaint (0, 0, content.getWidth(), 60); // header status dot
 
     // Random-mode "current pick" readouts live in the timing panel

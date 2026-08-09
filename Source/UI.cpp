@@ -653,15 +653,12 @@ void MorphBar::mouseUp (const juce::MouseEvent&)
 }
 
 //==============================================================================
-OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
+// (Re)populate the OUT chooser. Rebuilt whenever the MIDI devices change, so
+// this has to restore the current selection rather than assume a fresh panel.
+// Mirrors ChordsEditor::buildOutputBox - the two products share the id scheme.
+void OutputPanel::buildOutputBox()
 {
-    const bool standalone = alea.wrapperType == juce::AudioProcessor::wrapperType_Standalone;
-
-    outputBox = std::make_unique<juce::ComboBox>();
-    outputBox->setColour (juce::ComboBox::backgroundColourId, colors::control);
-    outputBox->setColour (juce::ComboBox::textColourId, colors::text);
-    outputBox->setColour (juce::ComboBox::outlineColourId, colors::border);
-    outputBox->setColour (juce::ComboBox::arrowColourId, colors::secondary);
+    outputBox->clear (juce::dontSendNotification);
 
     const auto current = alea.getStandaloneOutput();
 
@@ -679,26 +676,25 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
                 outputBox->addItem (f.name, 1 + f.flavour);
     }
 
+    // Standalone: the internal sounds (Warm Pad default) or any MIDI device.
+    // Plugin: pure MIDI by default; the synth makes hosts that cannot route
+    // plugin MIDI (AU in Live/Logic) hear Alea directly.
+    devices.clear();
     if (standalone)
     {
-        // Standalone: the internal sounds (Warm Pad default) or any MIDI device.
         devices = juce::MidiOutput::getAvailableDevices();
         if (! devices.isEmpty())
             outputBox->addSectionHeading ("MIDI");
         for (int i = 0; i < devices.size(); ++i)
             outputBox->addItem (devices[i].name, 100 + i);
+    }
 
-        outputBox->setSelectedId (1 + alea::warmPad, juce::dontSendNotification);
-        for (int i = 0; i < devices.size(); ++i)
-            if (devices[i].identifier == current)
-                outputBox->setSelectedId (100 + i, juce::dontSendNotification);
-    }
-    else
-    {
-        // Plugin: pure MIDI by default; the synth makes hosts that can't
-        // route plugin MIDI (AU in Live/Logic) hear Alea directly.
-        outputBox->setSelectedId (50, juce::dontSendNotification);
-    }
+    outputBox->setSelectedId (standalone ? 1 + alea::warmPad : 50, juce::dontSendNotification);
+    if (const int flavour = alea::flavourFromChoice (current); flavour >= 0 && alea.synthOn.load())
+        outputBox->setSelectedId (1 + flavour, juce::dontSendNotification);
+    for (int i = 0; i < devices.size(); ++i)
+        if (devices[i].identifier == current)
+            outputBox->setSelectedId (100 + i, juce::dontSendNotification);
 
     outputBox->onChange = [this]
     {
@@ -710,10 +706,33 @@ OutputPanel::OutputPanel (AleaAudioProcessor& p) : alea (p)
         else if (id >= 100 && id - 100 < devices.size())
             alea.setStandaloneOutput (devices[id - 100].identifier);
     };
+}
 
-    if (const int flavour = alea::flavourFromChoice (current); flavour >= 0 && alea.synthOn.load())
-        outputBox->setSelectedId (1 + flavour, juce::dontSendNotification);
+void OutputPanel::pollDeviceChanges()
+{
+    if (! standalone || --devicePollCountdown > 0)
+        return;
 
+    devicePollCountdown = 45;
+    auto fresh = juce::MidiOutput::getAvailableDevices();
+    bool changed = fresh.size() != devices.size();
+    for (int i = 0; ! changed && i < fresh.size(); ++i)
+        changed = fresh[i].identifier != devices[i].identifier;
+    if (changed)
+        buildOutputBox();
+}
+
+//==============================================================================
+OutputPanel::OutputPanel (AleaAudioProcessor& p)
+    : alea (p), standalone (p.isStandaloneLike())
+{
+    outputBox = std::make_unique<juce::ComboBox>();
+    outputBox->setColour (juce::ComboBox::backgroundColourId, colors::control);
+    outputBox->setColour (juce::ComboBox::textColourId, colors::text);
+    outputBox->setColour (juce::ComboBox::outlineColourId, colors::border);
+    outputBox->setColour (juce::ComboBox::arrowColourId, colors::secondary);
+
+    buildOutputBox();
     addAndMakeVisible (*outputBox);
 
     // Synth volume knob + vertical meter sit beside the chooser when the

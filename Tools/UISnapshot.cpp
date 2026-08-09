@@ -459,6 +459,12 @@ int main (int argc, char* argv[])
     processor.setPlayConfigDetails (0, 2, 44100.0, 512);
     processor.prepareToPlay (44100.0, 512);
 
+    // The tool builds the processor outside any host, which now counts as
+    // standalone, so the shot wears the transport the app really shows. Arm
+    // it: notes are about to sound from the fake playhead below, and a PLAY
+    // button beside a sounding note would be the UI lying in the README.
+    processor.standaloneTransport.store (true);
+
     // Optional: pose with a synth output so the OUTPUT panel shows the
     // level meter + volume knob (dev-only calibration flag).
     if (argc > 2 && juce::String (argv[2]) == "synth")

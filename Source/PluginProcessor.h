@@ -59,6 +59,16 @@ public:
     // Output choice. Standalone: built-in synth (default) or a MIDI device.
     // Plugin: MIDI to the host (default) or the built-in synth - the synth
     // matters most for the AU, since Live and Logic can't route AU MIDI out.
+    // "Standalone" for UI and routing purposes. wrapperType_Undefined is a
+    // processor built outside any host, which is what the dev tools do, so
+    // counting it here is what lets AleaUISnapshot render the app the way
+    // users actually see it. Mirrors ChordsProcessor::isStandaloneLike so the
+    // two products answer this question the same way.
+    bool isStandaloneLike() const
+    {
+        return wrapperType == wrapperType_Standalone || wrapperType == wrapperType_Undefined;
+    }
+
     std::atomic<bool> standaloneTransport { false }; // standalone PLAY/STOP
     std::atomic<bool> synthOn { false };
     std::atomic<int>  synthVoice { 0 };              // alea::Flavour - the shared sound library

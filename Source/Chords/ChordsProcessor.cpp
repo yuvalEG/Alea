@@ -37,7 +37,11 @@ chords::Chord ChordsProcessor::rollOne()
 
 bool ChordsProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    // Same answer as Scale Shifter: mono is accepted as well as stereo, so a
+    // host offering a mono instrument slot can still load us. Both the shared
+    // sound engine and renderClicks handle a single channel.
+    const auto out = layouts.getMainOutputChannelSet();
+    return out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono();
 }
 
 //==============================================================================

@@ -117,10 +117,19 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    // MIDI hotplug. The editor ticks this; the OUT list rebuilds when devices
+    // appear or vanish, so a keyboard plugged in mid-session shows up without
+    // relaunching. Standalone only - in a plugin the host owns routing.
+    void pollDeviceChanges();
+
 private:
+    void buildOutputBox();   // (re)populate: sounds, then MIDI devices
+
     AleaAudioProcessor& alea;
+    const bool standalone;
     std::unique_ptr<juce::ComboBox> outputBox;
     juce::Array<juce::MidiDeviceInfo> devices;
+    int devicePollCountdown = 45;              // ~3 s at the editor's 15 Hz
     juce::Slider volSlider;                    // internal synth volume (dB)
     juce::Slider transposeSlider;              // global output transpose
     juce::Label transposeField;                // double-click-editable "N st" readout
