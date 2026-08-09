@@ -1,7 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
-#include "Hardware.h"
+#include "../Hardware.h"
 
 // Scale-Shifter-specific components. Everything family-shared (palette, the
 // hw:: faceplate drawing, LookAndFeel, transport, buttons, segments) lives in

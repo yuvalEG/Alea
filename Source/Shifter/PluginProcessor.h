@@ -2,8 +2,8 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "Params.h"
-#include "Sound.h"
-#include "MidiOut.h"
+#include "../Sound.h"
+#include "../MidiOut.h"
 
 // Alea: generates a random monophonic MIDI note stream from Scale A,
 // morphing toward Scale B (spec sections 5-8). Timing is driven by the host

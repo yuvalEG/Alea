@@ -4,8 +4,8 @@
 // The shot is posed mid-performance for the README: the Major -> Minor
 // preset, morph parked at 70%, a fake host playhead running long enough to
 // fill the history with notes from both scales, and a note sounding.
-#include "../Source/PluginEditor.h"
-#include "../Source/Presets.h"
+#include "../Source/Shifter/PluginEditor.h"
+#include "../Source/Shifter/Presets.h"
 #include <iostream>
 
 namespace

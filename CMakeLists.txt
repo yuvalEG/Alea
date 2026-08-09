@@ -110,11 +110,11 @@ target_sources(Alea PRIVATE
     Source/Hardware.cpp
     Source/Sound.cpp
     Source/MidiOut.cpp
-    Source/Params.cpp
-    Source/Presets.cpp
-    Source/PluginProcessor.cpp
-    Source/UI.cpp
-    Source/PluginEditor.cpp)
+    Source/Shifter/Params.cpp
+    Source/Shifter/Presets.cpp
+    Source/Shifter/PluginProcessor.cpp
+    Source/Shifter/UI.cpp
+    Source/Shifter/PluginEditor.cpp)
 
 alea_configure_plugin(Alea ALEA_VERSION="${PROJECT_VERSION}")
 
@@ -196,11 +196,11 @@ target_sources(AleaUISnapshot PRIVATE
     Source/Hardware.cpp
     Source/Sound.cpp
     Source/MidiOut.cpp
-    Source/Params.cpp
-    Source/Presets.cpp
-    Source/PluginProcessor.cpp
-    Source/UI.cpp
-    Source/PluginEditor.cpp)
+    Source/Shifter/Params.cpp
+    Source/Shifter/Presets.cpp
+    Source/Shifter/PluginProcessor.cpp
+    Source/Shifter/UI.cpp
+    Source/Shifter/PluginEditor.cpp)
 target_compile_definitions(AleaUISnapshot PRIVATE
     ALEA_VERSION="${PROJECT_VERSION}"
     JUCE_WEB_BROWSER=0
