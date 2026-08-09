@@ -88,6 +88,7 @@ juce_add_plugin(Alea
 target_sources(Alea PRIVATE
     Source/Hardware.cpp
     Source/Sound.cpp
+    Source/MidiOut.cpp
     Source/Params.cpp
     Source/Presets.cpp
     Source/PluginProcessor.cpp
@@ -155,6 +156,7 @@ juce_add_plugin(AleaChords
 target_sources(AleaChords PRIVATE
     Source/Hardware.cpp
     Source/Sound.cpp
+    Source/MidiOut.cpp
     Source/Chords/ChordEngine.cpp
     Source/Chords/ChordsProcessor.cpp
     Source/Chords/ChordsEditor.cpp)
@@ -186,6 +188,7 @@ target_sources(ChordsUISnapshot PRIVATE
     Tools/ChordsUISnapshot.cpp
     Source/Hardware.cpp
     Source/Sound.cpp
+    Source/MidiOut.cpp
     Source/Chords/ChordEngine.cpp
     Source/Chords/ChordsProcessor.cpp
     Source/Chords/ChordsEditor.cpp)
@@ -205,6 +208,7 @@ target_sources(AleaUISnapshot PRIVATE
     Tools/UISnapshot.cpp
     Source/Hardware.cpp
     Source/Sound.cpp
+    Source/MidiOut.cpp
     Source/Params.cpp
     Source/Presets.cpp
     Source/PluginProcessor.cpp

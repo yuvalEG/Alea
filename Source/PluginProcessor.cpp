@@ -203,47 +203,27 @@ double AleaAudioProcessor::lengthPpqAt (double bpm)
     }
 }
 
-void AleaAudioProcessor::setMidiOutputDevice (const juce::String& identifier)
-{
-    auto fresh = identifier.isEmpty() ? nullptr : juce::MidiOutput::openDevice (identifier);
-    if (fresh != nullptr)
-        fresh->startBackgroundThread();
-
-    const juce::ScopedLock sl (midiOutLock);
-    if (midiOutput != nullptr) // silence anything still ringing on the old device
-        for (int ch = 1; ch <= 16; ++ch)
-            midiOutput->sendMessageNow (juce::MidiMessage::allNotesOff (ch));
-    std::swap (midiOutput, fresh);
-    midiOutputId = midiOutput != nullptr ? identifier : juce::String();
-}
-
-juce::String AleaAudioProcessor::getMidiOutputId() const
-{
-    const juce::ScopedLock sl (midiOutLock);
-    return midiOutputId;
-}
-
 void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
 {
     if (const int flavour = alea::flavourFromChoice (choice); flavour >= 0)
     {
         synthVoice.store (flavour);
         synthOn.store (true);
-        setMidiOutputDevice ({});
+        midiOut.setDevice ({});
     }
     else
     {
         synthOn.store (false);
         // Device output only exists in the standalone; in a DAW the host
         // owns MIDI routing.
-        setMidiOutputDevice (isStandaloneLike() ? choice : juce::String());
+        midiOut.setDevice (isStandaloneLike() ? choice : juce::String());
     }
 }
 
 juce::String AleaAudioProcessor::getStandaloneOutput() const
 {
     return synthOn.load() ? alea::choiceForFlavour (synthVoice.load())
-                          : getMidiOutputId();
+                          : midiOut.deviceId();
 }
 
 void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -260,11 +240,7 @@ void AleaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         synthPeak.store (sound.lastPeak());
     }
     else if (isStandaloneLike() && ! midi.isEmpty())
-    {
-        const juce::ScopedTryLock sl (midiOutLock);
-        if (sl.isLocked() && midiOutput != nullptr)
-            midiOutput->sendBlockOfMessages (midi, juce::Time::getMillisecondCounter() + 1.0, getSampleRate());
-    }
+        midiOut.send (midi, getSampleRate());
 }
 
 void AleaAudioProcessor::generateBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)

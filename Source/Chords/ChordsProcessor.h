@@ -3,6 +3,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "ChordEngine.h"
 #include "../Sound.h"
+#include "../MidiOut.h"
 #include <deque>
 #include <vector>
 
@@ -196,11 +197,7 @@ private:
     void renderClicks (juce::AudioBuffer<float>&);
 
     // --- MIDI device output (standalone), as in Scale Shifter ---
-    void setMidiOutputDevice (const juce::String& identifier);
-    juce::String getMidiOutputId() const;
-    mutable juce::CriticalSection midiOutLock;
-    std::unique_ptr<juce::MidiOutput> midiOutput;
-    juce::String midiOutputId;
+    alea::MidiOutputTarget midiOut;   // shared standalone MIDI-device output
 
     // --- the shared Alea sound engine (Source/Sound.h) ---
     alea::SoundEngine sound;

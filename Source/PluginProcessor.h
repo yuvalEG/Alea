@@ -3,6 +3,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "Params.h"
 #include "Sound.h"
+#include "MidiOut.h"
 
 // Alea: generates a random monophonic MIDI note stream from Scale A,
 // morphing toward Scale B (spec sections 5-8). Timing is driven by the host
@@ -74,7 +75,6 @@ public:
     std::atomic<int>  synthVoice { 0 };              // alea::Flavour - the shared sound library
     void setStandaloneOutput (const juce::String& choice); // "synth", device identifier, or "" = MIDI to host; message thread only
     juce::String getStandaloneOutput() const;              // "synth", device identifier, or ""
-    juce::String getMidiOutputId() const;
     std::atomic<float>  scrubRequest { -1.0f };  // 0-100: re-anchor auto-sweep here
     std::atomic<bool>   ccLearnArmed { false };  // next incoming CC binds Morph Position
     std::atomic<int>    morphCC { -1 };          // learned controller number
@@ -115,10 +115,7 @@ private:
     void generateBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&);
 
     // Mirror of the produced MIDI to a hardware/virtual device (standalone).
-    void setMidiOutputDevice (const juce::String& identifier);
-    mutable juce::CriticalSection midiOutLock;
-    std::unique_ptr<juce::MidiOutput> midiOutput;
-    juce::String midiOutputId;
+    alea::MidiOutputTarget midiOut;   // shared standalone MIDI-device output
 
     // The shared Alea sound engine (Source/Sound.h): synth flavours plus
     // the sampled piano, identical in both products.

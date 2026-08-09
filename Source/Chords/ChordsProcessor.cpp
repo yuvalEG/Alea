@@ -464,9 +464,7 @@ void ChordsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     }
     else if (! hostMode && ! localMidi.isEmpty())
     {
-        const juce::ScopedTryLock sl (midiOutLock);
-        if (sl.isLocked() && midiOutput != nullptr)
-            midiOutput->sendBlockOfMessages (localMidi, juce::Time::getMillisecondCounter() + 1.0, sampleRate);
+        midiOut.send (localMidi, sampleRate);
     }
 
     // The click renders after the synth chain - a dry tick, no reverb tail.
@@ -577,46 +575,26 @@ void ChordsProcessor::renderClicks (juce::AudioBuffer<float>& buffer)
 //==============================================================================
 // Output routing (as in Scale Shifter's standalone OUT chooser)
 
-void ChordsProcessor::setMidiOutputDevice (const juce::String& identifier)
-{
-    auto fresh = identifier.isEmpty() ? nullptr : juce::MidiOutput::openDevice (identifier);
-    if (fresh != nullptr)
-        fresh->startBackgroundThread();
-
-    const juce::ScopedLock sl (midiOutLock);
-    if (midiOutput != nullptr) // silence anything still ringing on the old device
-        for (int ch = 1; ch <= 16; ++ch)
-            midiOutput->sendMessageNow (juce::MidiMessage::allNotesOff (ch));
-    std::swap (midiOutput, fresh);
-    midiOutputId = midiOutput != nullptr ? identifier : juce::String();
-}
-
-juce::String ChordsProcessor::getMidiOutputId() const
-{
-    const juce::ScopedLock sl (midiOutLock);
-    return midiOutputId;
-}
-
 void ChordsProcessor::setStandaloneOutput (const juce::String& choice)
 {
     if (const int flavour = alea::flavourFromChoice (choice); flavour >= 0)
     {
         synthVoice.store (flavour);
         synthOn.store (true);
-        setMidiOutputDevice ({});
+        midiOut.setDevice ({});
     }
     else
     {
         // Empty = MIDI to the DAW (plugin); a device id = standalone MIDI out.
         synthOn.store (false);
-        setMidiOutputDevice (isStandaloneLike() ? choice : juce::String());
+        midiOut.setDevice (isStandaloneLike() ? choice : juce::String());
     }
 }
 
 juce::String ChordsProcessor::getStandaloneOutput() const
 {
     return synthOn.load() ? alea::choiceForFlavour (synthVoice.load())
-                          : getMidiOutputId();
+                          : midiOut.deviceId();
 }
 
 //==============================================================================
