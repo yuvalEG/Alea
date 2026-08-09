@@ -243,6 +243,78 @@ static int freeTempoTest()
     return failures == 0 ? 0 : 4;
 }
 
+// Regression check for the update checker's tag selection (QA Aug 5, 2026).
+// One repo ships both products, so picking "the newest release" is a real
+// decision and it used to be got wrong: Scale Shifter read /releases/latest,
+// which returned the Chord Randomizer's chords-v0.4.1, and offered it as an
+// Alea update. This pins the selection rules without touching the network.
+static int updateTagTest (bool live)
+{
+    struct Case
+    {
+        const char* what;
+        const char* prefix;
+        const char* json;
+        const char* expected;
+    };
+
+    // The live repo's shape: two interleaved tag families, and note that
+    // GitHub's ordering is not reliably newest-first.
+    const char* bothFamilies = R"([
+        {"tag_name":"v0.3.2"},        {"tag_name":"chords-v0.4.1"},
+        {"tag_name":"v0.3.3"},        {"tag_name":"chords-v0.3.0"},
+        {"tag_name":"v0.2.0"},        {"tag_name":"chords-v0.4.0"}])";
+
+    const Case cases[] =
+    {
+        { "Scale Shifter ignores the chords family", "v", bothFamilies, "v0.3.3" },
+        { "Chord Randomizer ignores the plain family", "chords-v", bothFamilies, "chords-v0.4.1" },
+        { "highest version wins, not list position", "v",
+          R"([{"tag_name":"v0.2.0"},{"tag_name":"v0.9.1"},{"tag_name":"v0.3.3"}])", "v0.9.1" },
+        { "versions compare numerically, not as text", "v",
+          R"([{"tag_name":"v0.9.0"},{"tag_name":"v0.10.0"}])", "v0.10.0" },
+        { "a bare v prefix cannot claim another product's tag", "v",
+          R"([{"tag_name":"viola-v9.9.9"},{"tag_name":"v0.1.0"}])", "v0.1.0" },
+        { "no release of this product yet", "chords-v",
+          R"([{"tag_name":"v0.3.3"}])", "" },
+        { "empty release list", "v", "[]", "" },
+        { "unreachable GitHub (empty body)", "v", "", "" },
+        { "reply that will not parse", "v", "<html>502 Bad Gateway</html>", "" },
+    };
+
+    int failures = 0;
+    for (const auto& c : cases)
+    {
+        const auto got = ui::newestReleaseTag (c.json, c.prefix);
+        const bool ok = got == juce::String (c.expected);
+        std::cout << (ok ? "OK   " : "FAIL ") << c.what
+                  << ": prefix \"" << c.prefix << "\" -> \""
+                  << got << "\" (expected \"" << c.expected << "\")\n";
+        failures += ok ? 0 : 1;
+    }
+
+    std::cout << (failures == 0 ? "update tag selection OK\n"
+                                : "update tag selection BROKEN\n");
+
+    // "--updatetest live" additionally asks the real GitHub what each product
+    // would be told right now. Informational only: it never moves the exit
+    // code, so the check stays deterministic and offline by default.
+    if (live)
+    {
+        const auto json = juce::URL ("https://api.github.com/repos/yuvalEG/Alea/releases?per_page=30")
+                              .readEntireTextStream();
+        std::cout << "\nlive GitHub reply: " << json.length() << " bytes\n";
+        for (const auto* prefix : { "v", "chords-v" })
+        {
+            const auto tag = ui::newestReleaseTag (json, prefix);
+            std::cout << "  prefix \"" << prefix << "\" -> "
+                      << (tag.isEmpty() ? juce::String ("(none)") : tag) << "\n";
+        }
+    }
+
+    return failures == 0 ? 0 : 5;
+}
+
 // Renders the real OUT ComboBox popup (grouped SYNTH / INSTRUMENT sections)
 // to a PNG so the section-header styling can be eyeballed without opening the
 // app and clicking the menu.
@@ -374,6 +446,8 @@ int main (int argc, char* argv[])
 
     if (argc > 1 && juce::String (argv[1]) == "--morphtest")
         return morphSwitchTest();
+    if (argc > 1 && juce::String (argv[1]) == "--updatetest")
+        return updateTagTest (argc > 2 && juce::String (argv[2]) == "live");
     if (argc > 1 && juce::String (argv[1]) == "--freetempotest")
         return freeTempoTest();
     if (argc > 2 && juce::String (argv[1]) == "--gallery")

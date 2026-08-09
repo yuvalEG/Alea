@@ -1057,61 +1057,11 @@ bool ChordsEditor::keyPressed (const juce::KeyPress& key)
 void ChordsEditor::showMenu()
 {
     juce::PopupMenu m;
+    // Chord Randomizer releases are tagged "chords-vX.Y.Z"; Scale Shifter owns
+    // the plain "vX.Y.Z" tags. The shared checker keeps the families apart.
     m.addItem ("Check for Updates...", []
     {
-        juce::Thread::launch ([]
-        {
-            // Chord Randomizer releases are tagged "chords-vX.Y.Z" (Scale
-            // Shifter owns the plain "vX.Y.Z" tags), so scan the list for
-            // the newest chords tag rather than hitting /latest.
-            const auto response = juce::URL ("https://api.github.com/repos/yuvalEG/Alea/releases?per_page=30")
-                                      .readEntireTextStream();
-            juce::String latest;
-            if (const auto* releases = juce::JSON::parse (response).getArray())
-                for (const auto& release : *releases)
-                {
-                    const auto tag = release.getProperty ("tag_name", juce::String()).toString();
-                    if (tag.startsWith ("chords-v"))
-                    {
-                        latest = tag.fromFirstOccurrenceOf ("chords-v", false, false);
-                        break;
-                    }
-                }
-
-            juce::MessageManager::callAsync ([response, latest]
-            {
-                const juce::String current (CHORDS_VERSION);
-                if (response.isEmpty())
-                {
-                    juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::WarningIcon,
-                        "Check for Updates",
-                        "Couldn't reach GitHub. Open the releases page instead?",
-                        "Open", "Close", nullptr,
-                        juce::ModalCallbackFunction::create ([] (int r)
-                        {
-                            if (r == 1)
-                                juce::URL ("https://github.com/yuvalEG/Alea/releases").launchInDefaultBrowser();
-                        }));
-                }
-                else if (latest.isEmpty() || latest == current)
-                {
-                    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
-                        "Check for Updates", "You're up to date. Chord Randomizer " + current + ".");
-                }
-                else
-                {
-                    juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::InfoIcon,
-                        "Update Available",
-                        "Chord Randomizer " + latest + " is available (you have " + current + ").",
-                        "Get It", "Later", nullptr,
-                        juce::ModalCallbackFunction::create ([] (int r)
-                        {
-                            if (r == 1)
-                                juce::URL ("https://github.com/yuvalEG/Alea/releases").launchInDefaultBrowser();
-                        }));
-                }
-            });
-        });
+        ui::checkForUpdates ("chords-v", "Alea Chord Randomizer", CHORDS_VERSION);
     });
     m.addSeparator();
     m.addItem ("About Alea Chord Randomizer...", []

@@ -1332,6 +1332,127 @@ namespace
     };
 }
 
+//==============================================================================
+// Update check (shared: both products ask the same repo about different tags)
+
+namespace
+{
+    const char* releasesApi = "https://api.github.com/repos/yuvalEG/Alea/releases?per_page=30";
+    const char* releasesPage = "https://github.com/yuvalEG/Alea/releases";
+
+    juce::Array<int> versionParts (const juce::String& v)
+    {
+        juce::Array<int> parts;
+        for (const auto& piece : juce::StringArray::fromTokens (v, ".", {}))
+            parts.add (piece.getIntValue());
+        return parts;
+    }
+
+    // Numeric compare, so 0.10.0 correctly beats 0.9.0 (a string compare
+    // would not) and a missing component reads as zero.
+    bool isNewer (const juce::String& a, const juce::String& b)
+    {
+        const auto pa = versionParts (a), pb = versionParts (b);
+        for (int i = 0; i < juce::jmax (pa.size(), pb.size()); ++i)
+        {
+            const int x = i < pa.size() ? pa[i] : 0;
+            const int y = i < pb.size() ? pb[i] : 0;
+            if (x != y)
+                return x > y;
+        }
+        return false;
+    }
+}
+
+juce::String newestReleaseTag (const juce::String& releasesJson, const juce::String& prefix)
+{
+    juce::String best, bestVersion;
+
+    // Keep the parsed var alive in a named local: getArray() hands back a
+    // pointer INTO it, so calling it straight on the temporary that parse()
+    // returns leaves the loop walking freed memory.
+    const auto parsed = juce::JSON::parse (releasesJson);
+
+    if (const auto* releases = parsed.getArray())
+        for (const auto& release : *releases)
+        {
+            const auto tag = release.getProperty ("tag_name", juce::String()).toString();
+            if (! tag.startsWith (prefix))
+                continue;
+
+            // What follows the prefix has to look like a version. Without
+            // this, the bare "v" family would also swallow a sibling product
+            // tagged "viola-v1.2.3" the day one exists.
+            const auto version = tag.substring (prefix.length());
+            if (version.isEmpty() || ! juce::CharacterFunctions::isDigit (version[0]))
+                continue;
+
+            if (best.isEmpty() || isNewer (version, bestVersion))
+            {
+                best = tag;
+                bestVersion = version;
+            }
+        }
+
+    return best;
+}
+
+void checkForUpdates (const juce::String& tagPrefix, const juce::String& productName,
+                      const juce::String& currentVersion)
+{
+    juce::Thread::launch ([tagPrefix, productName, currentVersion]
+    {
+        // Deliberately NOT /releases/latest. One repo ships both products, so
+        // that endpoint answers "newest release of anything" - it handed Scale
+        // Shifter the Chord Randomizer's tag and offered it as an update
+        // (fixed Aug 5, 2026). Scan the list and keep only this tag family.
+        const auto response = juce::URL (releasesApi).readEntireTextStream();
+        const auto tag = newestReleaseTag (response, tagPrefix);
+
+        juce::MessageManager::callAsync ([tag, tagPrefix, productName, currentVersion]
+        {
+            // No tag means the fetch failed or the reply did not parse. It
+            // must not read as "up to date", which is a silent lie the day
+            // the API shape changes.
+            if (tag.isEmpty())
+            {
+                juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::WarningIcon,
+                    "Check for Updates",
+                    "Couldn't reach GitHub. Open the releases page instead?",
+                    "Open", "Close", nullptr,
+                    juce::ModalCallbackFunction::create ([] (int r)
+                    {
+                        if (r == 1)
+                            juce::URL (releasesPage).launchInDefaultBrowser();
+                    }));
+                return;
+            }
+
+            const auto latest = tag.substring (tagPrefix.length());
+
+            if (! isNewer (latest, currentVersion))
+            {
+                juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
+                    "Check for Updates",
+                    "You're up to date. " + productName + " " + currentVersion + ".");
+                return;
+            }
+
+            juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::InfoIcon,
+                "Update Available",
+                productName + " " + latest + " is available (you have " + currentVersion + ").",
+                "Get It", "Later", nullptr,
+                juce::ModalCallbackFunction::create ([tag] (int r)
+                {
+                    // Straight to this product's own release, never the
+                    // repo's newest, which may belong to the other product.
+                    if (r == 1)
+                        juce::URL (juce::String (releasesPage) + "/tag/" + tag).launchInDefaultBrowser();
+                }));
+        });
+    });
+}
+
 void showAboutDialog (const juce::String& title, const juce::String& body,
                       float fontSize, int width, int height)
 {

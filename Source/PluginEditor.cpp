@@ -221,49 +221,11 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
     menuButton.onClick = [this]
     {
         juce::PopupMenu m;
+        // Scale Shifter owns the plain "vX.Y.Z" tags; the Chord Randomizer's
+        // are "chords-vX.Y.Z". The shared checker keeps the families apart.
         m.addItem ("Check for Updates...", []
         {
-            juce::Thread::launch ([]
-            {
-                const auto response = juce::URL ("https://api.github.com/repos/yuvalEG/Alea/releases/latest")
-                                          .readEntireTextStream();
-                auto latest = juce::JSON::parse (response)
-                                  .getProperty ("tag_name", juce::String()).toString()
-                                  .trimCharactersAtStart ("v");
-                juce::MessageManager::callAsync ([latest]
-                {
-                    const juce::String current (ALEA_VERSION);
-                    if (latest.isEmpty())
-                    {
-                        juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::WarningIcon,
-                            "Check for Updates",
-                            "Couldn't reach GitHub. Open the releases page instead?",
-                            "Open", "Close", nullptr,
-                            juce::ModalCallbackFunction::create ([] (int r)
-                            {
-                                if (r == 1)
-                                    juce::URL ("https://github.com/yuvalEG/Alea/releases").launchInDefaultBrowser();
-                            }));
-                    }
-                    else if (latest == current)
-                    {
-                        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
-                            "Check for Updates", "You're up to date. Alea " + current + ".");
-                    }
-                    else
-                    {
-                        juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::InfoIcon,
-                            "Update Available",
-                            "Alea " + latest + " is available (you have " + current + ").",
-                            "Get It", "Later", nullptr,
-                            juce::ModalCallbackFunction::create ([] (int r)
-                            {
-                                if (r == 1)
-                                    juce::URL ("https://github.com/yuvalEG/Alea/releases/latest").launchInDefaultBrowser();
-                            }));
-                    }
-                });
-            });
+            ui::checkForUpdates ("v", "Alea Scale Shifter", ALEA_VERSION);
         });
         m.addSeparator();
         m.addItem ("About Alea...", []

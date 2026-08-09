@@ -287,4 +287,23 @@ private:
 void showAboutDialog (const juce::String& title, const juce::String& body,
                       float fontSize, int width, int height);
 
+// Picks the newest release tag carrying `prefix` out of a GitHub /releases
+// JSON array, or an empty string if the list holds none (or will not parse).
+// "Newest" is decided by comparing the version numbers, not by trusting the
+// order GitHub happens to return.
+//
+// Declared here rather than buried inside checkForUpdates because selection is
+// the part that goes wrong: one repo ships both products, so "the latest
+// release" is never the answer to "the latest Scale Shifter". It is covered by
+// AleaUISnapshot --updatetest.
+juce::String newestReleaseTag (const juce::String& releasesJson, const juce::String& prefix);
+
+// The family update check, shared so the two products cannot drift apart.
+// tagPrefix selects the product's release family ("v" for Scale Shifter,
+// "chords-v" for the Chord Randomizer) and currentVersion is the compiled-in
+// version to compare against. Runs the fetch off the message thread and
+// reports the outcome in a dialog.
+void checkForUpdates (const juce::String& tagPrefix, const juce::String& productName,
+                      const juce::String& currentVersion);
+
 } // namespace ui
