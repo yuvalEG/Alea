@@ -326,13 +326,11 @@ static int menuShot (const juce::String& path)
 
     juce::ComboBox box;
     box.setLookAndFeel (&editor->getLookAndFeel());
-    for (int group : { alea::groupSynth, alea::groupInstrument })
-    {
-        box.addSectionHeading (alea::groupName (group));
-        for (const auto& f : alea::flavourTable())
-            if (f.group == group)
-                box.addItem (f.name, 1 + f.flavour);
-    }
+    // Built by the shared chooser, so this shot shows the real menu rather
+    // than a third copy of the population loop that could drift from it.
+    // Posed as a plugin: no device list, so the shot is the same everywhere.
+    juce::Array<juce::MidiDeviceInfo> devices;
+    ui::buildOutputChooser (box, false, false, {}, devices);
 
     auto& menu = *box.getRootMenu();
     juce::Image image (juce::Image::ARGB, 300, 460, true);

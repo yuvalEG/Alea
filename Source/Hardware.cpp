@@ -1,5 +1,6 @@
 #include "Hardware.h"
 #include "BinaryData.h"
+#include "Sound.h"   // the flavour table the OUT chooser lists
 
 namespace ui
 {
@@ -1330,6 +1331,66 @@ namespace
         juce::Image logo;
         juce::TextEditor text;
     };
+}
+
+//==============================================================================
+// The OUT chooser (shared: same menu, same id scheme, in both products)
+
+void buildOutputChooser (juce::ComboBox& box, bool standalone, bool synthOn,
+                         const juce::String& current,
+                         juce::Array<juce::MidiDeviceInfo>& devices)
+{
+    box.clear (juce::dontSendNotification);
+
+    if (! standalone)
+        box.addItem ("MIDI to DAW", 50); // plugin default, listed first
+
+    for (int group : { alea::groupSynth, alea::groupInstrument })
+    {
+        box.addSectionHeading (alea::groupName (group));
+        for (const auto& f : alea::flavourTable())
+            if (f.group == group)
+                box.addItem (f.name, 1 + f.flavour);
+    }
+
+    devices.clear();
+    if (standalone)
+    {
+        devices = juce::MidiOutput::getAvailableDevices();
+        if (! devices.isEmpty())
+            box.addSectionHeading ("MIDI");
+        for (int i = 0; i < devices.size(); ++i)
+            box.addItem (devices[i].name, 100 + i);
+    }
+
+    // Default first, then let whatever is actually selected win. Standalone
+    // makes sound out of the box; a plugin sends MIDI to the host.
+    box.setSelectedId (standalone ? 1 + alea::warmPad : 50, juce::dontSendNotification);
+    if (const int flavour = alea::flavourFromChoice (current); flavour >= 0 && synthOn)
+        box.setSelectedId (1 + flavour, juce::dontSendNotification);
+    for (int i = 0; i < devices.size(); ++i)
+        if (devices[i].identifier == current)
+            box.setSelectedId (100 + i, juce::dontSendNotification);
+}
+
+juce::String outputChoiceForId (int id, const juce::Array<juce::MidiDeviceInfo>& devices)
+{
+    if (id >= 1 && id <= alea::numFlavours)
+        return alea::choiceForFlavour (id - 1);
+    if (id >= 100 && id - 100 < devices.size())
+        return devices[id - 100].identifier;
+    return {}; // 50, or anything unrecognised: MIDI to the host
+}
+
+bool midiDevicesChanged (const juce::Array<juce::MidiDeviceInfo>& known)
+{
+    const auto fresh = juce::MidiOutput::getAvailableDevices();
+    if (fresh.size() != known.size())
+        return true;
+    for (int i = 0; i < fresh.size(); ++i)
+        if (fresh[i].identifier != known[i].identifier)
+            return true;
+    return false;
 }
 
 //==============================================================================

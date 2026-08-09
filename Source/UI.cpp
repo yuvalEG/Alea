@@ -658,53 +658,15 @@ void MorphBar::mouseUp (const juce::MouseEvent&)
 // Mirrors ChordsEditor::buildOutputBox - the two products share the id scheme.
 void OutputPanel::buildOutputBox()
 {
-    outputBox->clear (juce::dontSendNotification);
-
-    const auto current = alea.getStandaloneOutput();
-
-    // The sound list comes from the shared flavour table (Source/Sound.h),
-    // grouped by section: SYNTH / INSTRUMENT, then MIDI. Flavour ids are
-    // 1 + alea::Flavour; "MIDI to DAW" is 50; devices from 100.
-    if (! standalone)
-        outputBox->addItem ("MIDI to DAW", 50); // plugin default, listed first
-
-    for (int group : { alea::groupSynth, alea::groupInstrument })
-    {
-        outputBox->addSectionHeading (alea::groupName (group));
-        for (const auto& f : alea::flavourTable())
-            if (f.group == group)
-                outputBox->addItem (f.name, 1 + f.flavour);
-    }
-
-    // Standalone: the internal sounds (Warm Pad default) or any MIDI device.
-    // Plugin: pure MIDI by default; the synth makes hosts that cannot route
-    // plugin MIDI (AU in Live/Logic) hear Alea directly.
-    devices.clear();
-    if (standalone)
-    {
-        devices = juce::MidiOutput::getAvailableDevices();
-        if (! devices.isEmpty())
-            outputBox->addSectionHeading ("MIDI");
-        for (int i = 0; i < devices.size(); ++i)
-            outputBox->addItem (devices[i].name, 100 + i);
-    }
-
-    outputBox->setSelectedId (standalone ? 1 + alea::warmPad : 50, juce::dontSendNotification);
-    if (const int flavour = alea::flavourFromChoice (current); flavour >= 0 && alea.synthOn.load())
-        outputBox->setSelectedId (1 + flavour, juce::dontSendNotification);
-    for (int i = 0; i < devices.size(); ++i)
-        if (devices[i].identifier == current)
-            outputBox->setSelectedId (100 + i, juce::dontSendNotification);
+    // Shared with the Chord Randomizer (ui::buildOutputChooser): same grouped
+    // menu, same id scheme, one implementation. Rebuilt on hotplug, so it has
+    // to restore the current selection rather than assume a fresh panel.
+    ui::buildOutputChooser (*outputBox, standalone, alea.synthOn.load(),
+                            alea.getStandaloneOutput(), devices);
 
     outputBox->onChange = [this]
     {
-        const int id = outputBox->getSelectedId();
-        if (id >= 1 && id <= alea::numFlavours)
-            alea.setStandaloneOutput (alea::choiceForFlavour (id - 1));
-        else if (id == 50)
-            alea.setStandaloneOutput ({});
-        else if (id >= 100 && id - 100 < devices.size())
-            alea.setStandaloneOutput (devices[id - 100].identifier);
+        alea.setStandaloneOutput (ui::outputChoiceForId (outputBox->getSelectedId(), devices));
     };
 }
 
@@ -713,12 +675,8 @@ void OutputPanel::pollDeviceChanges()
     if (! standalone || --devicePollCountdown > 0)
         return;
 
-    devicePollCountdown = 45;
-    auto fresh = juce::MidiOutput::getAvailableDevices();
-    bool changed = fresh.size() != devices.size();
-    for (int i = 0; ! changed && i < fresh.size(); ++i)
-        changed = fresh[i].identifier != devices[i].identifier;
-    if (changed)
+    devicePollCountdown = 45; // ~3 s at the editor's 15 Hz
+    if (ui::midiDevicesChanged (devices))
         buildOutputBox();
 }
 

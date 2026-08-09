@@ -282,6 +282,35 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SegmentedSelector)
 };
 
+//==============================================================================
+// The OUT chooser, shared by both products.
+//
+// The menu ids are a contract, and they used to be hard-coded in both editors
+// with the same explanatory comment pasted twice:
+//
+//   1 + alea::Flavour   an internal sound
+//   50                  "MIDI to DAW" (plugin only)
+//   100 + index         a MIDI output device (standalone only)
+//
+// Keeping the building and the decoding together is the point: a new id range
+// cannot now be added to one product and forgotten in the other.
+
+// Fills the box with the grouped sound list and, in standalone, the current
+// MIDI devices, then selects whatever `current` names. `devices` is filled in
+// with the device list the ids refer to, and the caller keeps it to decode
+// selections and to detect hotplugs. Does not touch onChange.
+void buildOutputChooser (juce::ComboBox&, bool standalone, bool synthOn,
+                         const juce::String& current,
+                         juce::Array<juce::MidiDeviceInfo>& devices);
+
+// Turns a selected id back into the output choice string the processors take
+// ("synth"/"piano"/..., a device identifier, or "" for MIDI to the host).
+juce::String outputChoiceForId (int id, const juce::Array<juce::MidiDeviceInfo>& devices);
+
+// True when the available MIDI devices differ from `known` - the hotplug test
+// both editors poll with, so a device appearing mid-session is never missed.
+bool midiDevicesChanged (const juce::Array<juce::MidiDeviceInfo>& known);
+
 // The family About dialog shell: wordmark over a subtle gradient, a divider in
 // the scale colours, the product's text below. Content comes from the caller.
 void showAboutDialog (const juce::String& title, const juce::String& body,
