@@ -21,6 +21,15 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      # The engine regression suites (see the add_test block in CMakeLists).
+      # Offline and deterministic, about a second in total, and they cover the
+      # things pluginval cannot see: morph anchoring across preset switches,
+      # free timing through a tempo change, which scale a note is credited to,
+      # update-tag selection, and the rule that a chord never sounds a pitch
+      # outside its printed name.
+      - name: Run regression checks
+        run: ctest --test-dir build -C Release --output-on-failure
+
       - name: Validate VST3 with pluginval
         shell: pwsh
         run: |

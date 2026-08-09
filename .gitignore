@@ -26,3 +26,7 @@ design_handoff_alea_hardware_suite/
 design_handoff_hardware_faceplate/
 Alea Handoff/
 .claude/
+
+# Working notes for AI assistants: names the private spec pages, the local-only
+# iOS branch and the release process, so it stays off the public repo
+CLAUDE.md

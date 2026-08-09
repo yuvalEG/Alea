@@ -219,3 +219,24 @@ target_compile_definitions(AleaUISnapshot PRIVATE
 target_link_libraries(AleaUISnapshot
     PRIVATE AleaAssets AleaPianoSamples juce::juce_audio_utils
     PUBLIC juce::juce_recommended_config_flags)
+
+# ---------------------------------------------------------------------------
+# Regression checks. Both dev tools carry real pass/fail suites behind flags -
+# easy to miss, since the tools are named for the screenshots they also take -
+# so ctest is the single command that runs every one of them, and CI fails the
+# build on a regression:
+#
+#   cmake --build build && ctest --test-dir build --output-on-failure
+#
+# All four are offline and deterministic. AleaUISnapshot --updatetest also
+# accepts a "live" argument that queries GitHub, deliberately NOT wired here:
+# a check that can fail because a network is down is not a regression check.
+enable_testing()
+
+add_test(NAME update_tag_selection    COMMAND AleaUISnapshot --updatetest)
+add_test(NAME preset_switch_morph     COMMAND AleaUISnapshot --morphtest)
+add_test(NAME free_timing_and_sources COMMAND AleaUISnapshot --freetempotest)
+add_test(NAME chord_vocabulary        COMMAND ChordsUISnapshot --vocab)
+
+# The chord audit walks ~250k voicings; the rest are quick.
+set_tests_properties(chord_vocabulary PROPERTIES TIMEOUT 900)
