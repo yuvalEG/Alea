@@ -58,6 +58,27 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png")
     set(ALEA_ICON_ARGS ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png")
 endif()
 
+# Everything both products configure the same way. Only the version define
+# differs, so it is the one argument: a change here reaches both plugins,
+# which is the whole point of them being one codebase.
+function(alea_configure_plugin target version_define)
+    target_compile_definitions(${target} PUBLIC
+        ${version_define}
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_VST3_CAN_REPLACE_VST2=0)
+
+    target_link_libraries(${target}
+        PRIVATE
+            AleaAssets
+            AleaPianoSamples
+            juce::juce_audio_utils
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_lto_flags
+            juce::juce_recommended_warning_flags)
+endfunction()
+
 # AU exists only on Apple platforms; plugin auto-copy needs admin rights on
 # Windows, so it stays a macOS convenience.
 if(APPLE)
@@ -95,21 +116,7 @@ target_sources(Alea PRIVATE
     Source/UI.cpp
     Source/PluginEditor.cpp)
 
-target_compile_definitions(Alea PUBLIC
-    ALEA_VERSION="${PROJECT_VERSION}"
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
-    JUCE_VST3_CAN_REPLACE_VST2=0)
-
-target_link_libraries(Alea
-    PRIVATE
-        AleaAssets
-        AleaPianoSamples
-        juce::juce_audio_utils
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
-        juce::juce_recommended_warning_flags)
+alea_configure_plugin(Alea ALEA_VERSION="${PROJECT_VERSION}")
 
 # CLAP build of the same plugin (for Bitwig, Reaper, and other CLAP hosts).
 clap_juce_extensions_plugin(TARGET Alea
@@ -127,14 +134,8 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon-chords.png")
 endif()
 
 # Same instrument-with-silent-output classification as Scale Shifter: hosts
-# have no universal slot for third-party MIDI effects.
-if(APPLE)
-    set(CHORDS_FORMATS VST3 AU Standalone)
-    set(CHORDS_COPY_AFTER_BUILD TRUE)
-else()
-    set(CHORDS_FORMATS VST3 Standalone)
-    set(CHORDS_COPY_AFTER_BUILD FALSE)
-endif()
+# have no universal slot for third-party MIDI effects, and the same
+# ALEA_FORMATS / ALEA_COPY_AFTER_BUILD computed once above.
 
 juce_add_plugin(AleaChords
     PRODUCT_NAME "Alea Chord Randomizer"
@@ -144,14 +145,14 @@ juce_add_plugin(AleaChords
     PLUGIN_MANUFACTURER_CODE Alau
     PLUGIN_CODE Achd
     ${CHORDS_ICON_ARGS}
-    FORMATS ${CHORDS_FORMATS}
+    FORMATS ${ALEA_FORMATS}
     IS_SYNTH TRUE
     IS_MIDI_EFFECT FALSE
     # MIDI input is declared (and ignored): Live refuses to open VST3
     # instruments that expose no MIDI-in bus.
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
-    COPY_PLUGIN_AFTER_BUILD ${CHORDS_COPY_AFTER_BUILD})
+    COPY_PLUGIN_AFTER_BUILD ${ALEA_COPY_AFTER_BUILD})
 
 target_sources(AleaChords PRIVATE
     Source/Hardware.cpp
@@ -161,21 +162,7 @@ target_sources(AleaChords PRIVATE
     Source/Chords/ChordsProcessor.cpp
     Source/Chords/ChordsEditor.cpp)
 
-target_compile_definitions(AleaChords PUBLIC
-    CHORDS_VERSION="${CHORDS_VERSION}"
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
-    JUCE_VST3_CAN_REPLACE_VST2=0)
-
-target_link_libraries(AleaChords
-    PRIVATE
-        AleaAssets
-        AleaPianoSamples
-        juce::juce_audio_utils
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
-        juce::juce_recommended_warning_flags)
+alea_configure_plugin(AleaChords CHORDS_VERSION="${CHORDS_VERSION}")
 
 # CLAP build of the Chord Randomizer (for Bitwig, Reaper, and other CLAP hosts).
 clap_juce_extensions_plugin(TARGET AleaChords
