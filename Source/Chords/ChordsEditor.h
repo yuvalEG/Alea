@@ -73,13 +73,6 @@ private:
         explicit HistoryTicker (ChordsProcessor& p) : proc (p) {}
         ChordsProcessor& proc;
         std::function<void (int)> onRecall;
-        // Ear workout: rolling mid-loop files the outgoing series into history
-        // while it is STILL SOUNDING, so that one entry is the answer to what
-        // you are hearing and stays hidden until the swap lands. It is NOT
-        // always the newest: roll twice before the boundary and the newest
-        // entry is a roll that never sounded, while the sounding one sits
-        // behind it. The editor works out which index that is.
-        int blindGroup = -1;    // history index to hide, -1 = none
 
         float scroll = 0.0f;        // 0 = pinned to the newest roll; grows into the past
         float maxScroll = 0.0f;     // measured during paint

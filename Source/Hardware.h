@@ -124,6 +124,12 @@ namespace hw
     // A button's current 0..1 backlight (AnimatedButton's crossfade, or the
     // plain toggle state) - what keyBloom wants as `amount`.
     float litAmount (const juce::Button&);
+
+    // "Deliberately hidden": the crossed-out eye everyone already knows from
+    // image editors. Drawn, never a font glyph, and used wherever the app is
+    // withholding something on purpose - so a dark monitor or a nameless card
+    // reads as a decision rather than a fault.
+    void eyeOff (juce::Graphics&, juce::Rectangle<float> area, juce::Colour, bool glow = false);
 }
 
 // Draw the ALEA wordmark, width-fit and vertically centred in `box`, with a

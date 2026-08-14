@@ -114,12 +114,12 @@ shapes.
 - **Two workouts**: tuck the keyboard away and find the chord's notes
   yourself, or hide the names and work out what you are hearing.
 
-### The ear workout
+### Ear workout mode
 
-Press E and the chord names, the previews and the keyboard all hide. The
-loop keeps playing and the sounding card still glows, so you know where you
-are without knowing what it is. Name the chord, then press the three dots on
-its card to check yourself.
+Press E and the chord names, the previews and the keyboard all hide behind a
+crossed-out eye. The loop keeps playing and the sounding card still glows, so
+you know where you are without knowing what it is. Name the chord, then click
+the eye on its card to check yourself.
 
 ![The Chord Randomizer's ear workout](docs/chords-ear-ui.png)
 

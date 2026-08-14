@@ -1394,6 +1394,59 @@ bool midiDevicesChanged (const juce::Array<juce::MidiDeviceInfo>& known)
 }
 
 //==============================================================================
+namespace hw
+{
+void eyeOff (juce::Graphics& g, juce::Rectangle<float> area, juce::Colour colour, bool glow)
+{
+    // Fit an eye of the classic 2:1 proportion inside whatever box we are
+    // given, so callers can hand over a rough area and get a correct shape.
+    const float w = juce::jmin (area.getWidth(), area.getHeight() * 2.0f);
+    const float h = w * 0.5f;
+    const auto c = area.getCentre();
+    const float x0 = c.x - w * 0.5f, x1 = c.x + w * 0.5f;
+    const float stroke = juce::jmax (1.4f, h * 0.13f);
+
+    // The lens: two arcs meeting at the corners.
+    juce::Path eye;
+    eye.startNewSubPath (x0, c.y);
+    eye.quadraticTo (c.x, c.y - h * 0.95f, x1, c.y);
+    eye.quadraticTo (c.x, c.y + h * 0.95f, x0, c.y);
+    eye.closeSubPath();
+
+    juce::Path pupil;
+    const float pr = h * 0.34f;
+    pupil.addEllipse (c.x - pr, c.y - pr, pr * 2.0f, pr * 2.0f);
+
+    // The slash, corner to corner across the lens.
+    const float reach = w * 0.56f;
+    juce::Path slash;
+    slash.startNewSubPath (c.x - reach * 0.78f, c.y + reach * 0.46f);
+    slash.lineTo (c.x + reach * 0.78f, c.y - reach * 0.46f);
+
+    if (glow)
+    {
+        juce::Path lit (eye);
+        lit.addPath (pupil);
+        hw::dropGlow (g, lit, colour.withAlpha (0.45f), 7);
+    }
+
+    g.setColour (colour);
+    g.strokePath (eye, juce::PathStrokeType (stroke, juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
+    g.fillPath (pupil);
+
+    // A dark gap under the slash so it reads as ON TOP of the eye rather than
+    // as another line crossing it - the same trick the engraved text uses.
+    g.setColour (juce::Colours::black.withAlpha (0.75f));
+    g.strokePath (slash, juce::PathStrokeType (stroke * 2.6f, juce::PathStrokeType::curved,
+                                               juce::PathStrokeType::rounded));
+    g.setColour (colour);
+    g.strokePath (slash, juce::PathStrokeType (stroke, juce::PathStrokeType::curved,
+                                               juce::PathStrokeType::rounded));
+}
+} // namespace hw
+
+//==============================================================================
 juce::String screenshotPose()
 {
     auto* app = juce::JUCEApplicationBase::getInstance();

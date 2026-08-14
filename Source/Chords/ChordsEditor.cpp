@@ -31,10 +31,10 @@ namespace
         "MONITOR shows what is sounding. Make the window shorter to "
         "tuck it away and find the chord's notes yourself, a nice "
         "theory workout.\n\n"
-        "The EAR workout is its opposite (press E, or the top-right menu): "
-        "the chord names, the previews and the monitor all hide, and you "
-        "name what you hear. The three dots on a card reveal that one "
-        "chord, and they stay open until the next roll.\n\n"
+        "EAR WORKOUT MODE is its opposite (press E, or the top-right menu): "
+        "the chord names, the previews and the monitor all hide behind a "
+        "crossed-out eye, and you name what you hear. Click the eye on a "
+        "card to reveal that one chord; it stays open until the next roll.\n\n"
         "AUTO rolls for you every few loops (press A to flip it). "
         "Pin a chord (the little dot on its card) and it survives "
         "rolls. Keep what you love, reroll the rest.\n\n"
@@ -118,28 +118,14 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
     // fully lit with a glow while sounding (cyan when it is the incoming one).
     if (hidden)
     {
-        // Withheld, not empty: three drawn dots where the name belongs. They
-        // wear the card's own accent so a sounding card still reads as
-        // sounding, but dimmer than a name would be - the card is telling you
-        // it is holding something back (spec M6). Drawn, never a font glyph.
-        const float r = juce::jmax (3.0f, fontSize * 0.075f);
-        const float gap = r * 3.2f;
-        const auto c = getLocalBounds().toFloat().getCentre();
-        const auto dot = lit ? accent.brighter (0.15f).withAlpha (0.85f)
-                             : colors::purple.interpolatedWith (juce::Colour (0xff6b6f80), 0.45f)
-                                             .withAlpha (0.75f);
-        for (int i = -1; i <= 1; ++i)
-        {
-            const juce::Rectangle<float> d (c.x + (float) i * gap - r, c.y - r, r * 2.0f, r * 2.0f);
-            if (lit)
-            {
-                juce::Path p;
-                p.addEllipse (d);
-                hw::dropGlow (g, p, accent.withAlpha (0.55f), 6);
-            }
-            g.setColour (dot);
-            g.fillEllipse (d);
-        }
+        // Withheld, not empty. Three dots said "loading" more than "hidden"
+        // (Yuval, Aug 14), so the card wears the crossed-out eye everyone
+        // knows from image editors instead. It keeps the card's own accent,
+        // so a sounding card still reads as sounding.
+        const auto ink = lit ? accent.brighter (0.15f)
+                             : colors::purple.interpolatedWith (juce::Colour (0xff6b6f80), 0.45f);
+        hw::eyeOff (g, getLocalBounds().toFloat().withSizeKeepingCentre (fontSize * 0.92f, fontSize * 0.52f),
+                    ink.withAlpha (lit ? 0.92f : 0.78f), lit);
     }
     else
     {
@@ -204,7 +190,9 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
 
     // Ear workout: the keys are the answer written in notes, so they stay
     // dark until the sounding card is revealed (spec M6). The screen itself
-    // still glows - the monitor is present, just not telling.
+    // still glows, and it wears the crossed-out eye - without that, a dark
+    // keybed reads as a broken monitor rather than a deliberate one
+    // (Yuval, Aug 14).
     bool lit[128] = {};
     if (! suppressed)
     {
@@ -271,6 +259,19 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
     };
     if (below) arrow (true);
     if (above) arrow (false);
+
+    // The monitor says it is withholding, rather than just going quiet. A dark
+    // keybed with no explanation is indistinguishable from a broken one, and
+    // the app's own rule is that the UI never lies by omission either.
+    if (suppressed)
+    {
+        // Dim the keys behind it so the icon has something to sit on, then the
+        // same crossed-out eye the cards wear - one idiom for one meaning.
+        g.setColour (juce::Colours::black.withAlpha (0.62f));
+        g.fillRoundedRectangle (bed, 6.0f);
+        hw::eyeOff (g, bed.withSizeKeepingCentre (bed.getHeight() * 1.9f, bed.getHeight() * 0.95f),
+                    colors::purple.brighter (0.4f).withAlpha (0.95f), true);
+    }
 }
 
 //==============================================================================
@@ -291,28 +292,18 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
     const juce::Font font { juce::FontOptions (16.0f, juce::Font::bold) };
     constexpr float chordGap = 10.0f, groupGap = 24.0f;
 
-    // A hidden chord occupies a FIXED width, never its name's width. Sizing a
-    // blinded cell from the real text would let the spacing spell out how long
-    // the chord name is, which is most of the answer (QA Aug 14).
-    const float hiddenW = font.getHeight() * 2.2f;
-
     // Measure every group once: total content width bounds the scroll range.
-    // Blinded groups measure at the hidden width so the layout does not shift
-    // when a group hides or reveals.
     std::vector<float> groupWidths;
     groupWidths.reserve (proc.history.size());
     float contentW = 0.0f;
-    int measured = 0;
     for (const auto& roll : proc.history)
     {
-        const bool groupBlind = measured == blindGroup;
         float groupW = 0.0f;
         for (const auto& c : roll)
-            groupW += (groupBlind ? hiddenW : textWidth (font, c.text())) + chordGap;
+            groupW += textWidth (font, c.text()) + chordGap;
         groupW -= chordGap;
         groupWidths.push_back (groupW);
         contentW += groupW + groupGap;
-        ++measured;
     }
     contentW -= groupGap;
 
@@ -369,28 +360,13 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
                              .withAlpha (age == hoveredGroup ? 1.0f : alpha * (age == 0 ? 1.0f : 0.85f));
         g.setFont (font);
 
-        // Ear workout: everything in history is a roll you have already moved
-        // past, so it reads normally - EXCEPT the entry that is STILL
-        // SOUNDING, which a mid-loop roll files here before it stops playing.
-        // The editor supplies its index, because it is not always the newest.
-        const bool blind = age == blindGroup;
-
         float x = startX;
         for (const auto& c : roll)
         {
             const auto t = c.text();
-            const float w = blind ? hiddenW : textWidth (font, t);
+            const float w = textWidth (font, t);
             const auto cell = juce::Rectangle<float> (x, area.getY(), w + 2.0f, area.getHeight()).toNearestInt();
-            if (blind)
-            {
-                const float r = juce::jmax (1.5f, font.getHeight() * 0.09f);
-                const auto centre = cell.toFloat().getCentre();
-                g.setColour (ink);
-                for (int d = -1; d <= 1; ++d)
-                    g.fillEllipse (centre.x + (float) d * r * 3.2f - r, centre.y - r, r * 2.0f, r * 2.0f);
-            }
-            else
-                hw::engraved (g, t, cell, juce::Justification::centredLeft, ink);
+            hw::engraved (g, t, cell, juce::Justification::centredLeft, ink);
             x += w + chordGap;
         }
 
@@ -1050,10 +1026,6 @@ void ChordsEditor::refresh()
     monitor.suppressed = ear
                       && ! (sounding >= 0 && sounding < (int) revealed.size()
                             && revealed[(size_t) sounding]);
-    // The ear workout hides the history entry that is still sounding; the
-    // processor owns that lookup, so the rule is testable and lives once.
-    ticker.blindGroup = ear && pendingSwap ? chordsProc.soundingHistoryIndex() : -1;
-
     ticker.repaint();
     resized(); // card widths depend on how many are visible
     repaint(); // card blooms + gated captions live in the editor's layer
@@ -1148,7 +1120,7 @@ void ChordsEditor::showMenu()
     // SafePointer, not a raw this: the menu is shown asynchronously and a host
     // can close the editor while it is open, which would land this callback on
     // a destroyed component. The neighbouring items capture nothing at all.
-    m.addItem (juce::PopupMenu::Item ("Ear workout")
+    m.addItem (juce::PopupMenu::Item ("Toggle ear workout mode")
                    .setTicked (chordsProc.earMode.load())
                    .setAction ([safe = juce::Component::SafePointer<ChordsEditor> (this)]
                                {
