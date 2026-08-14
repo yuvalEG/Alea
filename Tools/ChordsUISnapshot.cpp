@@ -241,6 +241,48 @@ static int earHistoryTest()
     return failures == 0 ? 0 : 6;
 }
 
+// Store screenshots are posed by the app itself, from "--pose <name>", so the
+// pipeline survives relayout instead of depending on tapped coordinates. If a
+// pose stops setting what its shot is meant to show, the store quietly starts
+// advertising the wrong thing - so each one is asserted here.
+static int posesTest()
+{
+    int failures = 0;
+    auto check = [&failures] (const char* what, bool ok)
+    {
+        std::cout << (ok ? "OK   " : "FAIL ") << what << "\n";
+        failures += ok ? 0 : 1;
+    };
+
+    {   // every shot is mid-loop; a stopped app photographs as a mock-up
+        ChordsProcessor p;
+        p.applyScreenshotPose ("chords-01");
+        check ("chords-01 is playing", p.playing.load());
+        check ("chords-01 is not in the ear workout", ! p.earMode.load());
+    }
+    {   ChordsProcessor p;
+        p.applyScreenshotPose ("chords-02");
+        check ("chords-02 turns the ear workout on", p.earMode.load() && p.playing.load());
+    }
+    {   ChordsProcessor p;
+        p.applyScreenshotPose ("chords-03");
+        check ("chords-03 locks the key", p.keyLockOn && p.playing.load());
+    }
+    {   ChordsProcessor p;
+        p.applyScreenshotPose ("chords-04");
+        check ("chords-04 shows the voicing options",
+               p.openVoicing.load() && p.bassNote.load() && p.smoothVoicing.load());
+    }
+    {   ChordsProcessor p;
+        const bool wasPlaying = p.playing.load();
+        p.applyScreenshotPose ("");
+        check ("an empty pose changes nothing", p.playing.load() == wasPlaying);
+    }
+
+    std::cout << (failures == 0 ? "chords poses OK\n" : "chords poses BROKEN\n");
+    return failures == 0 ? 0 : 7;
+}
+
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -249,6 +291,8 @@ int main (int argc, char* argv[])
         return dumpVocabulary();
     if (argc > 1 && juce::String (argv[1]) == "--eartest")
         return earHistoryTest();
+    if (argc > 1 && juce::String (argv[1]) == "--posetest")
+        return posesTest();
 
     ChordsProcessor processor;
     processor.useSevenths = argc > 3 && juce::String (argv[3]).getIntValue() != 0;

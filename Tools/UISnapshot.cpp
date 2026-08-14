@@ -315,6 +315,53 @@ static int updateTagTest (bool live)
     return failures == 0 ? 0 : 5;
 }
 
+// The Scale Shifter half of the store poses (see ChordsUISnapshot --posetest).
+static int posesTest()
+{
+    int failures = 0;
+    auto check = [&failures] (const char* what, bool ok)
+    {
+        std::cout << (ok ? "OK   " : "FAIL ") << what << "\n";
+        failures += ok ? 0 : 1;
+    };
+    auto value = [] (AleaAudioProcessor& p, const char* id)
+    {
+        auto* raw = p.apvts.getRawParameterValue (id);
+        return raw != nullptr ? raw->load() : -1.0f;
+    };
+
+    for (const char* pose : { "shifter-01", "shifter-02", "shifter-03", "shifter-04" })
+    {
+        AleaAudioProcessor p;
+        p.applyScreenshotPose (pose);
+        check ((juce::String (pose) + " arms the transport").toRawUTF8(),
+               p.standaloneTransport.load());
+        check ((juce::String (pose) + " puts the synth in frame").toRawUTF8(),
+               p.synthOn.load());
+        check ((juce::String (pose) + " lights a preset bubble").toRawUTF8(),
+               p.currentPreset.load() >= 0);
+    }
+
+    {   AleaAudioProcessor p;
+        p.applyScreenshotPose ("shifter-02");
+        check ("shifter-02 is sweeping", value (p, "autoSweep") > 0.5f);
+    }
+    {   AleaAudioProcessor p;
+        p.applyScreenshotPose ("shifter-01");
+        const auto morph = value (p, "morphPos");
+        check ("shifter-01 is part-way across, not parked at either end",
+               morph > 5.0f && morph < 95.0f);
+    }
+    {   AleaAudioProcessor p;
+        const bool was = p.standaloneTransport.load();
+        p.applyScreenshotPose ("");
+        check ("an empty pose changes nothing", p.standaloneTransport.load() == was);
+    }
+
+    std::cout << (failures == 0 ? "shifter poses OK\n" : "shifter poses BROKEN\n");
+    return failures == 0 ? 0 : 7;
+}
+
 // Renders the real OUT ComboBox popup (grouped SYNTH / INSTRUMENT sections)
 // to a PNG so the section-header styling can be eyeballed without opening the
 // app and clicking the menu.
@@ -444,6 +491,8 @@ int main (int argc, char* argv[])
 
     if (argc > 1 && juce::String (argv[1]) == "--morphtest")
         return morphSwitchTest();
+    if (argc > 1 && juce::String (argv[1]) == "--posetest")
+        return posesTest();
     if (argc > 1 && juce::String (argv[1]) == "--updatetest")
         return updateTagTest (argc > 2 && juce::String (argv[2]) == "live");
     if (argc > 1 && juce::String (argv[1]) == "--freetempotest")

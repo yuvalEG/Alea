@@ -105,6 +105,10 @@ public:
     // Message thread only, like the rest of the series state.
     int soundingHistoryIndex() const;
 
+    // Put the app into a named state for a store screenshot (ui::screenshotPose).
+    // Standalone only, inert unless "--pose <name>" was passed.
+    void applyScreenshotPose (const juce::String& pose);
+
     // While a swap is pending, this is the series still sounding (message
     // thread only) - the UI prints the sounding chord from it.
     std::vector<chords::Chord> pendingOldSeries;

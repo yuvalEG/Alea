@@ -73,6 +73,10 @@ public:
     std::atomic<bool> standaloneTransport { false }; // standalone PLAY/STOP
     std::atomic<bool> synthOn { false };
     std::atomic<int>  synthVoice { 0 };              // alea::Flavour - the shared sound library
+    // Put the app into a named state for a store screenshot (ui::screenshotPose).
+    // Standalone only, inert unless "--pose <name>" was passed.
+    void applyScreenshotPose (const juce::String& pose);
+
     void setStandaloneOutput (const juce::String& choice); // "synth", device identifier, or "" = MIDI to host; message thread only
     juce::String getStandaloneOutput() const;              // "synth", device identifier, or ""
     std::atomic<float>  scrubRequest { -1.0f };  // 0-100: re-anchor auto-sweep here

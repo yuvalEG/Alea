@@ -311,6 +311,17 @@ juce::String outputChoiceForId (int id, const juce::Array<juce::MidiDeviceInfo>&
 // both editors poll with, so a device appearing mid-session is never missed.
 bool midiDevicesChanged (const juce::Array<juce::MidiDeviceInfo>& known);
 
+// The named screenshot pose asked for on the command line ("--pose <name>"),
+// or empty when none was. Standalone only - a plugin would be reading the
+// HOST's arguments, which are none of its business.
+//
+// Store screenshots have to show the app doing something: mid-loop, a mode on,
+// a panel open. Driving that by tapping coordinates breaks the first time a
+// control moves, and silently, which is the worst way for a screenshot
+// pipeline to fail. Naming the state instead means the app poses ITSELF and
+// the pipeline survives any amount of relayout.
+juce::String screenshotPose();
+
 // The family About dialog shell: wordmark over a subtle gradient, a divider in
 // the scale colours, the product's text below. Content comes from the caller.
 void showAboutDialog (const juce::String& title, const juce::String& body,

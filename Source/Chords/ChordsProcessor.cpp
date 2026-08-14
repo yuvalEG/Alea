@@ -1,4 +1,5 @@
 #include "ChordsProcessor.h"
+#include "../Hardware.h"
 #include "ChordsEditor.h"
 #include <algorithm>
 
@@ -10,6 +11,9 @@ ChordsProcessor::ChordsProcessor()
     synthOn.store (isStandaloneLike());
     rollSeries(); // never an empty screen: chords out of the box
     startTimer (50); // message-thread side of the auto-roll handshake
+
+    if (wrapperType == wrapperType_Standalone)
+        applyScreenshotPose (ui::screenshotPose());
 }
 
 void ChordsProcessor::timerCallback()
@@ -193,6 +197,29 @@ void ChordsProcessor::recallRoll (int index)
     trimHistory();
     updateLoop();
     ++revision;
+}
+
+void ChordsProcessor::applyScreenshotPose (const juce::String& pose)
+{
+    if (pose.isEmpty())
+        return;
+
+    // Every store shot is mid-loop: a stopped app photographs as a mock-up.
+    playing.store (true);
+
+    if (pose == "chords-02")            // the ear workout
+        earMode.store (true);
+    else if (pose == "chords-03")       // key lock, showing its key and scale
+        keyLockOn = true;
+    else if (pose == "chords-04")       // the LOOP panel doing something
+    {
+        openVoicing.store (true);
+        bassNote.store (true);
+        smoothVoicing.store (true);
+        octaveMask.store (0b110);
+    }
+
+    rollSeries();   // a fresh series under the pose, and re-voice for it
 }
 
 int ChordsProcessor::soundingHistoryIndex() const

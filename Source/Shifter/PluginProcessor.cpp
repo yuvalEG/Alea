@@ -30,6 +30,53 @@ AleaAudioProcessor::AleaAudioProcessor()
 
     // Standalone makes sound out of the box; plugins default to pure MIDI.
     synthOn.store (isStandaloneLike());
+
+    if (wrapperType == wrapperType_Standalone)
+        applyScreenshotPose (ui::screenshotPose());
+}
+
+void AleaAudioProcessor::applyScreenshotPose (const juce::String& pose)
+{
+    if (pose.isEmpty())
+        return;
+
+    auto set = [this] (const char* id, float v)
+    {
+        if (auto* p = apvts.getParameter (id))
+            p->setValueNotifyingHost (p->convertTo0to1 (v));
+    };
+
+    // Every store shot is mid-performance: a stopped app photographs as a
+    // mock-up. The transport is the standalone's, so arm it directly.
+    standaloneTransport.store (true);
+    setStandaloneOutput ("synth");   // the OUT chain, meter and all, in frame
+
+    if (pose == "shifter-01")        // a journey already under way
+    {
+        presets::apply (apvts, presets::factory()[6]); // Major <-> Minor
+        currentPreset.store (6);
+        set ("morphPos", 62.0f);
+    }
+    else if (pose == "shifter-02")   // travelling on its own, on a curve
+    {
+        presets::apply (apvts, presets::factory()[2]); // Pentatonic Drift
+        currentPreset.store (2);
+        set ("autoSweep", 1.0f);
+    }
+    else if (pose == "shifter-03")   // the presets row is the subject
+    {
+        presets::apply (apvts, presets::factory()[9]); // Order -> Chaos, the flagship
+        currentPreset.store (9);
+        set ("morphPos", 40.0f);
+    }
+    else if (pose == "shifter-04")   // monitoring: note, strip, history
+    {
+        presets::apply (apvts, presets::factory()[0]); // Just an Arp, busy and legible
+        currentPreset.store (0);
+        set ("morphPos", 30.0f);
+    }
+
+    presetReanchor.store (true);
 }
 
 void AleaAudioProcessor::cacheScaleRefs (char scale, ScaleRefs& refs)

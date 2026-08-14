@@ -1394,6 +1394,20 @@ bool midiDevicesChanged (const juce::Array<juce::MidiDeviceInfo>& known)
 }
 
 //==============================================================================
+juce::String screenshotPose()
+{
+    auto* app = juce::JUCEApplicationBase::getInstance();
+    if (app == nullptr)          // no app object = not the standalone
+        return {};
+
+    const auto args = app->getCommandLineParameterArray();
+    for (int i = 0; i < args.size() - 1; ++i)
+        if (args[i] == "--pose")
+            return args[i + 1];
+    return {};
+}
+
+//==============================================================================
 // Update check (shared: both products ask the same repo about different tags)
 
 namespace
