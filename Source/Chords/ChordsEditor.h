@@ -42,11 +42,16 @@ private:
         bool clickable = false;   // only while the loop plays
         bool incoming = false;    // pending swap: this chord arrives at the boundary (cyan)
         bool pinned = false;      // survives rolls
+        bool hidden = false;      // ear workout (M6): three dots instead of the name
         float progress = 0.0f;
-        std::function<void()> onPress, onPinToggle;
+        std::function<void()> onPress, onPinToggle, onReveal;
         void paint (juce::Graphics&) override;
         void mouseUp (const juce::MouseEvent&) override;
         juce::Rectangle<float> pinZone() const;
+        // The hidden indicator IS the reveal button, which is what lets the
+        // card body go on jumping the loop (spec M6). Three hit zones, one
+        // meaning each: pin dot, indicator, card body.
+        juce::Rectangle<float> revealZone() const;
     };
 
     // The monitor: a glass LCD holding a real mini keyboard - white keys in
@@ -55,6 +60,7 @@ private:
     {
         explicit MonitorStrip (ChordsProcessor& p) : proc (p) {}
         ChordsProcessor& proc;
+        bool suppressed = false;  // ear workout: keys stay dark until the sounding card is revealed
         void paint (juce::Graphics&) override;
     };
 
@@ -67,6 +73,10 @@ private:
         explicit HistoryTicker (ChordsProcessor& p) : proc (p) {}
         ChordsProcessor& proc;
         std::function<void (int)> onRecall;
+        // Ear workout: rolling mid-loop files the outgoing series into history
+        // while it is STILL SOUNDING, so that one entry is the answer to what
+        // you are hearing and stays hidden until the swap lands.
+        bool hideNewest = false;
 
         float scroll = 0.0f;        // 0 = pinned to the newest roll; grows into the past
         float maxScroll = 0.0f;     // measured during paint
@@ -131,6 +141,13 @@ private:
     HistoryTicker ticker;
     MonitorStrip monitor;
     juce::OwnedArray<ChordCard> cards;
+
+    // Ear workout (spec M6). Reveals live here, not in the processor: they are
+    // a property of what you are looking at, not of what is playing. They are
+    // dropped whenever the SERIES CONTENT changes, which seriesSerial reports.
+    std::array<bool, 8> revealed { };
+    int lastSeriesSerial = -1;
+    void setEarMode (bool on);
 
     juce::Rectangle<int> chordsPanel, loopPanel, monitorPanel, historyPanel; // module plates
     juce::Rectangle<int> meterRect;   // beside the knob when the synth is on

@@ -111,6 +111,17 @@ shapes.
 - **Practice flow**: auto roll every few loops, pin the chords you love,
   bring back any past roll.
 - Metronome, FREEZE, PANIC, and a keyboard that shows what is sounding.
+- **Two workouts**: tuck the keyboard away and find the chord's notes
+  yourself, or hide the names and work out what you are hearing.
+
+### The ear workout
+
+Press E and the chord names, the previews and the keyboard all hide. The
+loop keeps playing and the sounding card still glows, so you know where you
+are without knowing what it is. Name the chord, then press the three dots on
+its card to check yourself.
+
+![The Chord Randomizer's ear workout](docs/chords-ear-ui.png)
 
 Open the app, press ROLL, press play, and jam. Sound comes out of the box
 via the built-in synth. In a DAW it works like Scale Shifter: route its

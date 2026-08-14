@@ -31,6 +31,10 @@ namespace
         "MONITOR shows what is sounding. Make the window shorter to "
         "tuck it away and find the chord's notes yourself, a nice "
         "theory workout.\n\n"
+        "The EAR workout is its opposite (press E, or the top-right menu): "
+        "the chord names, the previews and the monitor all hide, and you "
+        "name what you hear. The three dots on a card reveal that one "
+        "chord, and they stay open until the next roll.\n\n"
         "AUTO rolls for you every few loops (press A to flip it). "
         "Pin a chord (the little dot on its card) and it survives "
         "rolls. Keep what you love, reroll the rest.\n\n"
@@ -50,6 +54,16 @@ namespace
 juce::Rectangle<float> ChordsEditor::ChordCard::pinZone() const
 {
     return { (float) getWidth() - 30.0f, 4.0f, 26.0f, 26.0f };
+}
+
+juce::Rectangle<float> ChordsEditor::ChordCard::revealZone() const
+{
+    // Centred on the dots, and generous: a comfortable target for touch as
+    // well as a mouse. It never reaches the pin dot in the corner.
+    const float w = juce::jmin ((float) getWidth() - 24.0f, fontSize * 3.2f);
+    const float h = juce::jmin ((float) getHeight() - 24.0f, fontSize * 1.6f);
+    return getLocalBounds().toFloat().withSizeKeepingCentre (juce::jmax (64.0f, w),
+                                                             juce::jmax (44.0f, h));
 }
 
 void ChordsEditor::ChordCard::paint (juce::Graphics& g)
@@ -102,13 +116,41 @@ void ChordsEditor::ChordCard::paint (juce::Graphics& g)
 
     // The chord name is phosphor behind the glass: dim scale-purple when idle,
     // fully lit with a glow while sounding (cyan when it is the incoming one).
-    g.setFont (juce::Font (juce::FontOptions (fontSize)).boldened());
-    if (lit)
-        hw::glowText (g, text, getLocalBounds(), juce::Justification::centred, accent.brighter (0.35f));
+    if (hidden)
+    {
+        // Withheld, not empty: three drawn dots where the name belongs. They
+        // wear the card's own accent so a sounding card still reads as
+        // sounding, but dimmer than a name would be - the card is telling you
+        // it is holding something back (spec M6). Drawn, never a font glyph.
+        const float r = juce::jmax (3.0f, fontSize * 0.075f);
+        const float gap = r * 3.2f;
+        const auto c = getLocalBounds().toFloat().getCentre();
+        const auto dot = lit ? accent.brighter (0.15f).withAlpha (0.85f)
+                             : colors::purple.interpolatedWith (juce::Colour (0xff6b6f80), 0.45f)
+                                             .withAlpha (0.75f);
+        for (int i = -1; i <= 1; ++i)
+        {
+            const juce::Rectangle<float> d (c.x + (float) i * gap - r, c.y - r, r * 2.0f, r * 2.0f);
+            if (lit)
+            {
+                juce::Path p;
+                p.addEllipse (d);
+                hw::dropGlow (g, p, accent.withAlpha (0.55f), 6);
+            }
+            g.setColour (dot);
+            g.fillEllipse (d);
+        }
+    }
     else
     {
-        g.setColour (colors::purple.interpolatedWith (juce::Colour (0xff6b6f80), 0.45f));
-        g.drawText (text, getLocalBounds(), juce::Justification::centred);
+        g.setFont (juce::Font (juce::FontOptions (fontSize)).boldened());
+        if (lit)
+            hw::glowText (g, text, getLocalBounds(), juce::Justification::centred, accent.brighter (0.35f));
+        else
+        {
+            g.setColour (colors::purple.interpolatedWith (juce::Colour (0xff6b6f80), 0.45f));
+            g.drawText (text, getLocalBounds(), juce::Justification::centred);
+        }
     }
 
     // The sounding chord fills a thin lit progress strip along its bottom edge.
@@ -144,6 +186,13 @@ void ChordsEditor::ChordCard::mouseUp (const juce::MouseEvent& e)
             onPinToggle();
         return;
     }
+    // The indicator reveals; the rest of the card body still jumps the loop.
+    if (hidden && revealZone().contains (e.position))
+    {
+        if (onReveal != nullptr)
+            onReveal();
+        return;
+    }
     if (clickable && onPress != nullptr)
         onPress();
 }
@@ -153,13 +202,19 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
 {
     const auto b = getLocalBounds().toFloat();
 
+    // Ear workout: the keys are the answer written in notes, so they stay
+    // dark until the sounding card is revealed (spec M6). The screen itself
+    // still glows - the monitor is present, just not telling.
     bool lit[128] = {};
-    const auto lo = proc.soundingBitsLo.load();
-    const auto hi = proc.soundingBitsHi.load();
-    for (int n = 0; n < 64; ++n)
+    if (! suppressed)
     {
-        lit[n] = ((lo >> n) & 1) != 0;
-        lit[n + 64] = ((hi >> n) & 1) != 0;
+        const auto lo = proc.soundingBitsLo.load();
+        const auto hi = proc.soundingBitsHi.load();
+        for (int n = 0; n < 64; ++n)
+        {
+            lit[n] = ((lo >> n) & 1) != 0;
+            lit[n + 64] = ((hi >> n) & 1) != 0;
+        }
     }
 
     // The monitor screen (design LCD): near-black purple glass - radial
@@ -304,13 +359,29 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
                              .withAlpha (age == hoveredGroup ? 1.0f : alpha * (age == 0 ? 1.0f : 0.85f));
         g.setFont (font);
 
+        // Ear workout: everything in history is a roll you have already moved
+        // past, so it reads normally - EXCEPT the newest entry while it is
+        // still sounding. Rolling mid-loop files the outgoing series here
+        // before it stops playing, and that one is the answer to what you are
+        // hearing, so it wears the same three dots as its card (spec M6).
+        const bool blind = hideNewest && age == 0;
+
         float x = startX;
         for (const auto& c : roll)
         {
             const auto t = c.text();
             const float w = textWidth (font, t);
             const auto cell = juce::Rectangle<float> (x, area.getY(), w + 2.0f, area.getHeight()).toNearestInt();
-            hw::engraved (g, t, cell, juce::Justification::centredLeft, ink);
+            if (blind)
+            {
+                const float r = juce::jmax (1.5f, font.getHeight() * 0.09f);
+                const auto centre = cell.toFloat().getCentre();
+                g.setColour (ink);
+                for (int d = -1; d <= 1; ++d)
+                    g.fillEllipse (centre.x + (float) d * r * 3.2f - r, centre.y - r, r * 2.0f, r * 2.0f);
+            }
+            else
+                hw::engraved (g, t, cell, juce::Justification::centredLeft, ink);
             x += w + chordGap;
         }
 
@@ -439,6 +510,7 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     {
         auto* card = cards.add (new ChordCard());
         card->onPress = [this, i] { chordsProc.jumpRequest.store (i); };
+        card->onReveal = [this, i] { revealed[(size_t) i] = true; refresh(); };
         card->onPinToggle = [this, i]
         {
             chordsProc.togglePin (i);
@@ -918,6 +990,17 @@ void ChordsEditor::refresh()
     // While a swap is pending: the SOUNDING card keeps its old chord (lit,
     // progress running), every other card previews the incoming series in
     // cyan - the "next" colour.
+    // Ear workout: a reveal survives until the SERIES CONTENT changes - a roll,
+    // an auto-roll landing, a recall, a length change. Pinning does not count,
+    // which is why this watches seriesSerial rather than the revision counter.
+    const bool ear = chordsProc.earMode.load();
+    const int serial = chordsProc.seriesSerial.load();
+    if (serial != lastSeriesSerial)
+    {
+        lastSeriesSerial = serial;
+        revealed.fill (false);
+    }
+
     const bool pendingSwap = chordsProc.playing.load() && chordsProc.swapPending()
                           && ! chordsProc.pendingOldSeries.empty();
     const int soundingIdx = pendingSwap
@@ -947,8 +1030,18 @@ void ChordsEditor::refresh()
                       && chordsProc.pendingOldSeries[(size_t) i] == chordsProc.series[(size_t) i]);
         }
         cards[i]->pinned = chordsProc.pinned[(size_t) i];
+        cards[i]->hidden = ear && ! revealed[(size_t) i];
         cards[i]->repaint();
     }
+
+    // The monitor is the answer in notes: dark until the SOUNDING card is
+    // revealed. The history entry filed by a mid-loop roll is the answer in
+    // writing while it is still playing, so it hides for exactly that long.
+    const int sounding = chordsProc.playingChord.load();
+    monitor.suppressed = ear
+                      && ! (sounding >= 0 && sounding < (int) revealed.size()
+                            && revealed[(size_t) sounding]);
+    ticker.hideNewest = ear && pendingSwap;
 
     ticker.repaint();
     resized(); // card widths depend on how many are visible
@@ -1003,6 +1096,13 @@ bool ChordsEditor::keyPressed (const juce::KeyPress& key)
         doRoll();
         return true;
     }
+    // E flips the ear workout. Hands are on the instrument, so the mode has to
+    // be reachable without pointing at anything (spec M6).
+    if (key.getTextCharacter() == 'e' || key.getTextCharacter() == 'E')
+    {
+        setEarMode (! chordsProc.earMode.load());
+        return true;
+    }
     // A flips AUTO - the one-key path to armed/disarmed.
     if (key.getTextCharacter() == 'a' || key.getTextCharacter() == 'A')
     {
@@ -1016,6 +1116,13 @@ bool ChordsEditor::keyPressed (const juce::KeyPress& key)
     return false;
 }
 
+void ChordsEditor::setEarMode (bool on)
+{
+    chordsProc.earMode.store (on);
+    revealed.fill (false);   // leaving and re-entering never keeps an old reveal
+    refresh();
+}
+
 void ChordsEditor::showMenu()
 {
     juce::PopupMenu m;
@@ -1025,6 +1132,11 @@ void ChordsEditor::showMenu()
     {
         ui::checkForUpdates ("chords-v", "Alea Chord Randomizer", CHORDS_VERSION);
     });
+    m.addSeparator();
+    // Ticked when on: the key is for practice, the menu is for finding it.
+    m.addItem (juce::PopupMenu::Item ("Ear workout")
+                   .setTicked (chordsProc.earMode.load())
+                   .setAction ([this] { setEarMode (! chordsProc.earMode.load()); }));
     m.addSeparator();
     m.addItem ("About Alea Chord Randomizer...", []
     {

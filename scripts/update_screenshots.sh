@@ -13,5 +13,8 @@ cd "$(dirname "$0")/.."
 # 3 pre-rolls (history filled), sevenths+simplify on, posed mid-playing,
 # at the default window size.
 ./build/ChordsUISnapshot_artefacts/Release/ChordsUISnapshot docs/chords-ui.png 3 1 1 1 920 726
+# The ear workout (spec M6), same pose with the mode on: every card showing
+# its three dots and the monitor dark.
+./build/ChordsUISnapshot_artefacts/Release/ChordsUISnapshot docs/chords-ear-ui.png 3 1 1 1 920 726 ear
 
-echo "Updated docs/ui.png and docs/chords-ui.png - review and commit them."
+echo "Updated docs/ui.png, docs/chords-ui.png and docs/chords-ear-ui.png - review and commit them."

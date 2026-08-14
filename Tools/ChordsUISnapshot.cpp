@@ -215,6 +215,16 @@ int main (int argc, char* argv[])
     // A "mid-playing" pose: run the loop offline into the second chord, then
     // leave the transport on so the editor paints the purple card, progress
     // strip and lit monitor keys.
+    // "ear" anywhere in the args poses the ear workout (spec M6): every card
+    // showing its three dots and the monitor dark, which is the mode as you
+    // actually meet it. Revealing is a per-card thing the editor owns, and
+    // posing one open would mean adding API for a screenshot.
+    bool earShot = false;
+    for (int i = 2; i < argc; ++i)
+        if (juce::String (argv[i]) == "ear")
+            earShot = true;
+    processor.earMode.store (earShot);
+
     const bool playingShot = argc > 5 && juce::String (argv[5]).getIntValue() != 0;
     if (playingShot)
     {

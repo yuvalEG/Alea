@@ -82,6 +82,7 @@ void ChordsProcessor::rollSeries()
                                                                        : rollOne());
     series = std::move (fresh);
     trimmedTail.clear();
+    seriesSerial.fetch_add (1);
 
     updateLoop();
     ++revision;
@@ -167,6 +168,7 @@ void ChordsProcessor::setSeriesLength (int newLength)
             series.push_back (rollOne());
     }
 
+    seriesSerial.fetch_add (1);
     updateLoop();
     ++revision;
 }
@@ -186,6 +188,7 @@ void ChordsProcessor::recallRoll (int index)
     series = std::move (recalled);
     seriesLength = juce::jlimit (1, 8, (int) series.size());
     pinned.fill (false); // a recalled roll starts unpinned
+    seriesSerial.fetch_add (1);
     trimmedTail.clear();
     trimHistory();
     updateLoop();
@@ -617,6 +620,7 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("smoothVoicing", smoothVoicing.load(), nullptr);
     state.setProperty ("openVoicing", openVoicing.load(), nullptr);
     state.setProperty ("bassNote", bassNote.load(), nullptr);
+    state.setProperty ("earMode", earMode.load(), nullptr);
     state.setProperty ("metronome", metronomeOn.load(), nullptr);
     state.setProperty ("clickVol", (double) clickVolDb.load(), nullptr);
     state.setProperty ("autoRoll", autoRollOn.load(), nullptr);
@@ -672,6 +676,7 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     openVoicing.store (state.getProperty ("openVoicing", false));
     bassNote.store (state.getProperty ("bassNote", false));
     metronomeOn.store (state.getProperty ("metronome", false));
+    earMode.store (state.getProperty ("earMode", false));
     clickVolDb.store (juce::jlimit (-12.0f, 12.0f, (float) (double) state.getProperty ("clickVol", 0.0)));
     autoRollOn.store (state.getProperty ("autoRoll", false));
     autoRollLoops.store (juce::jlimit (1, 8, (int) state.getProperty ("autoRollLoops", 2)));

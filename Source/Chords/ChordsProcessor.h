@@ -64,6 +64,16 @@ public:
     std::atomic<bool>  bassNote { false };            // root an octave below the lowest voiced note
     std::atomic<int>   playingChord { -1 };           // series index sounding now, -1 = none
     std::atomic<float> chordProgress { 0.0f };        // 0..1 through the current chord
+    // Ear workout (spec M6): card names, incoming previews and the MONITOR
+    // hide, so the chord has to be named by ear. Display only - nothing about
+    // what sounds changes.
+    std::atomic<bool>  earMode { false };
+
+    // Bumped whenever the SERIES CONTENT changes (roll, recall, length), so
+    // the editor can drop its reveals. Deliberately not `revision`, which also
+    // ticks on pinning - pinning a revealed card should not re-hide it.
+    std::atomic<int>   seriesSerial { 0 };
+
     std::atomic<bool>  metronomeOn { false };         // quarter-note click, accented on chord changes
     std::atomic<float> clickVolDb { 0.0f };           // -12..+12 dB on top of the base click level
 
