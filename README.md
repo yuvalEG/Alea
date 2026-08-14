@@ -148,6 +148,12 @@ either Alea. Open an issue here or write to yuvalprod@gmail.com.
 
 Made by Yuval Egozi.
 
+## Privacy
+
+Neither app collects anything: no accounts, no analytics, no tracking. The only
+time either touches the network is when you choose "Check for Updates" yourself.
+Full details in the [privacy policy](docs/PRIVACY.md).
+
 ## License
 
 Alea is open source under the [GPLv3](LICENSE) (it is built on
