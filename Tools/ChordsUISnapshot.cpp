@@ -199,12 +199,56 @@ static int dumpVocabulary()
     return auditVoicings();
 }
 
+// Regression check for the ear workout's history leak (QA Aug 14, 2026).
+// A mid-loop roll files the still-sounding series into history before it
+// stops playing, so THAT entry has to hide. The first version assumed it was
+// always the newest entry, which is wrong the moment you roll twice before
+// the boundary: the newest is then a roll that never sounded, and the one
+// that IS sounding sits behind it - fully readable, which is the answer.
+static int earHistoryTest()
+{
+    ChordsProcessor processor;
+    processor.setPlayConfigDetails (0, 2, 44100.0, 512);
+    processor.prepareToPlay (44100.0, 512);
+    processor.playing.store (true);
+
+    const auto sounding = processor.series;   // what the loop is on
+
+    processor.rollSeries();                   // roll 1: files the sounding series
+    processor.rollSeries();                   // roll 2, before any boundary
+
+    int failures = 0;
+    auto check = [&failures] (const char* what, bool ok)
+    {
+        std::cout << (ok ? "OK   " : "FAIL ") << what << "\n";
+        failures += ok ? 0 : 1;
+    };
+
+    check ("the sounding series is still the pending one",
+           processor.pendingOldSeries == sounding);
+    check ("history holds both rolls", processor.history.size() >= 2);
+
+    // The bug, stated as a test: the sounding series is NOT the newest entry.
+    check ("the newest history entry is NOT the sounding one",
+           ! processor.history.empty() && processor.history.front() != sounding);
+
+    // The behaviour the fix actually depends on, asserted where it lives.
+    const int found = processor.soundingHistoryIndex();
+    check ("soundingHistoryIndex points behind the newest entry", found == 1);
+    std::cout << "  (sounding series sits at history index " << found << ")\n";
+
+    std::cout << (failures == 0 ? "ear-workout history OK\n" : "ear-workout history BROKEN\n");
+    return failures == 0 ? 0 : 6;
+}
+
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     if (argc > 1 && juce::String (argv[1]) == "--vocab")
         return dumpVocabulary();
+    if (argc > 1 && juce::String (argv[1]) == "--eartest")
+        return earHistoryTest();
 
     ChordsProcessor processor;
     processor.useSevenths = argc > 3 && juce::String (argv[3]).getIntValue() != 0;

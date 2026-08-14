@@ -228,6 +228,7 @@ add_test(NAME update_tag_selection    COMMAND AleaUISnapshot --updatetest)
 add_test(NAME preset_switch_morph     COMMAND AleaUISnapshot --morphtest)
 add_test(NAME free_timing_and_sources COMMAND AleaUISnapshot --freetempotest)
 add_test(NAME chord_vocabulary        COMMAND ChordsUISnapshot --vocab)
+add_test(NAME ear_workout_history     COMMAND ChordsUISnapshot --eartest)
 
 # The chord audit walks ~250k voicings; the rest are quick.
 set_tests_properties(chord_vocabulary PROPERTIES TIMEOUT 900)

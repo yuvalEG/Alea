@@ -291,18 +291,28 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
     const juce::Font font { juce::FontOptions (16.0f, juce::Font::bold) };
     constexpr float chordGap = 10.0f, groupGap = 24.0f;
 
+    // A hidden chord occupies a FIXED width, never its name's width. Sizing a
+    // blinded cell from the real text would let the spacing spell out how long
+    // the chord name is, which is most of the answer (QA Aug 14).
+    const float hiddenW = font.getHeight() * 2.2f;
+
     // Measure every group once: total content width bounds the scroll range.
+    // Blinded groups measure at the hidden width so the layout does not shift
+    // when a group hides or reveals.
     std::vector<float> groupWidths;
     groupWidths.reserve (proc.history.size());
     float contentW = 0.0f;
+    int measured = 0;
     for (const auto& roll : proc.history)
     {
+        const bool groupBlind = measured == blindGroup;
         float groupW = 0.0f;
         for (const auto& c : roll)
-            groupW += textWidth (font, c.text()) + chordGap;
+            groupW += (groupBlind ? hiddenW : textWidth (font, c.text())) + chordGap;
         groupW -= chordGap;
         groupWidths.push_back (groupW);
         contentW += groupW + groupGap;
+        ++measured;
     }
     contentW -= groupGap;
 
@@ -360,17 +370,16 @@ void ChordsEditor::HistoryTicker::paint (juce::Graphics& g)
         g.setFont (font);
 
         // Ear workout: everything in history is a roll you have already moved
-        // past, so it reads normally - EXCEPT the newest entry while it is
-        // still sounding. Rolling mid-loop files the outgoing series here
-        // before it stops playing, and that one is the answer to what you are
-        // hearing, so it wears the same three dots as its card (spec M6).
-        const bool blind = hideNewest && age == 0;
+        // past, so it reads normally - EXCEPT the entry that is STILL
+        // SOUNDING, which a mid-loop roll files here before it stops playing.
+        // The editor supplies its index, because it is not always the newest.
+        const bool blind = age == blindGroup;
 
         float x = startX;
         for (const auto& c : roll)
         {
             const auto t = c.text();
-            const float w = textWidth (font, t);
+            const float w = blind ? hiddenW : textWidth (font, t);
             const auto cell = juce::Rectangle<float> (x, area.getY(), w + 2.0f, area.getHeight()).toNearestInt();
             if (blind)
             {
@@ -1041,7 +1050,9 @@ void ChordsEditor::refresh()
     monitor.suppressed = ear
                       && ! (sounding >= 0 && sounding < (int) revealed.size()
                             && revealed[(size_t) sounding]);
-    ticker.hideNewest = ear && pendingSwap;
+    // The ear workout hides the history entry that is still sounding; the
+    // processor owns that lookup, so the rule is testable and lives once.
+    ticker.blindGroup = ear && pendingSwap ? chordsProc.soundingHistoryIndex() : -1;
 
     ticker.repaint();
     resized(); // card widths depend on how many are visible
@@ -1134,9 +1145,16 @@ void ChordsEditor::showMenu()
     });
     m.addSeparator();
     // Ticked when on: the key is for practice, the menu is for finding it.
+    // SafePointer, not a raw this: the menu is shown asynchronously and a host
+    // can close the editor while it is open, which would land this callback on
+    // a destroyed component. The neighbouring items capture nothing at all.
     m.addItem (juce::PopupMenu::Item ("Ear workout")
                    .setTicked (chordsProc.earMode.load())
-                   .setAction ([this] { setEarMode (! chordsProc.earMode.load()); }));
+                   .setAction ([safe = juce::Component::SafePointer<ChordsEditor> (this)]
+                               {
+                                   if (auto* ed = safe.getComponent())
+                                       ed->setEarMode (! ed->chordsProc.earMode.load());
+                               }));
     m.addSeparator();
     m.addItem ("About Alea Chord Randomizer...", []
     {

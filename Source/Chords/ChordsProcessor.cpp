@@ -195,6 +195,21 @@ void ChordsProcessor::recallRoll (int index)
     ++revision;
 }
 
+int ChordsProcessor::soundingHistoryIndex() const
+{
+    if (! seriesSwapPending.load() || pendingOldSeries.empty())
+        return -1;
+
+    int idx = 0;
+    for (const auto& roll : history)
+    {
+        if (roll == pendingOldSeries)
+            return idx;
+        ++idx;
+    }
+    return -1;
+}
+
 void ChordsProcessor::trimHistory()
 {
     int total = 0;
