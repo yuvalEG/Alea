@@ -69,12 +69,6 @@ void AleaAudioProcessor::applyScreenshotPose (const juce::String& pose)
         currentPreset.store (9);
         set ("morphPos", 40.0f);
     }
-    else if (pose == "shifter-04")   // monitoring: note, strip, history
-    {
-        presets::apply (apvts, presets::factory()[0]); // Just an Arp, busy and legible
-        currentPreset.store (0);
-        set ("morphPos", 30.0f);
-    }
 
     presetReanchor.store (true);
 }

@@ -330,7 +330,7 @@ static int posesTest()
         return raw != nullptr ? raw->load() : -1.0f;
     };
 
-    for (const char* pose : { "shifter-01", "shifter-02", "shifter-03", "shifter-04" })
+    for (const char* pose : { "shifter-01", "shifter-02", "shifter-03" })
     {
         AleaAudioProcessor p;
         p.applyScreenshotPose (pose);
