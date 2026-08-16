@@ -264,6 +264,7 @@ static int posesTest()
     {   ChordsProcessor p;
         p.applyScreenshotPose ("chords-02");
         check ("chords-02 shows more than the default four chords", p.seriesLength > 4);
+        check ("chords-02 has auto roll switched on", p.autoRollOn.load());
     }
     {   ChordsProcessor p;
         p.applyScreenshotPose ("chords-03");

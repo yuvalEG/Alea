@@ -221,6 +221,7 @@ void ChordsProcessor::applyScreenshotPose (const juce::String& pose)
         barsPerChord.store (2);
         setStandaloneOutput ("synth:epiano");
         setSeriesLength (7);            // visibly past the default four
+        autoRollOn.store (true);        // AUTO lit, next to the loops it counts
     }
     else if (pose == "chords-03")       // the hard end of the vocabulary
     {
