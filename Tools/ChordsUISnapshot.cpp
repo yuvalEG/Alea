@@ -274,6 +274,11 @@ static int posesTest()
                p.openVoicing.load() && p.bassNote.load() && p.smoothVoicing.load());
     }
     {   ChordsProcessor p;
+        p.applyScreenshotPose ("chords-05");
+        check ("chords-05 rolls the hardest chords the app can",
+               ! p.simplify && p.useSevenths && p.ninthsOn && p.susOn);
+    }
+    {   ChordsProcessor p;
         const bool wasPlaying = p.playing.load();
         p.applyScreenshotPose ("");
         check ("an empty pose changes nothing", p.playing.load() == wasPlaying);

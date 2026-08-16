@@ -211,6 +211,13 @@ void ChordsProcessor::applyScreenshotPose (const juce::String& pose)
         earMode.store (true);
     else if (pose == "chords-03")       // key lock, showing its key and scale
         keyLockOn = true;
+    else if (pose == "chords-05")       // the dice at their most demanding
+    {
+        simplify = false;               // the full 21-root vocabulary
+        useSevenths = true;
+        ninthsOn = true;                // CHORD TYPE reads 9THS
+        susOn = true;
+    }
     else if (pose == "chords-04")       // the LOOP panel doing something
     {
         openVoicing.store (true);
