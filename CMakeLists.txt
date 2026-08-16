@@ -25,9 +25,9 @@ juce_add_binary_data(AleaAssets SOURCES
     Assets/logo.png
     Assets/fonts/SpaceGrotesk-Medium.ttf)
 
-# Embedded piano multisample (Assets/piano/p<midi>.ogg, mono, one velocity
-# layer every minor third): Salamander Grand Piano by Alexander Holm,
-# CC BY 3.0, trimmed by Tools/SamplePrep.cpp. Both products embed it.
+# Embedded piano multisample (Assets/piano/p<midi>_<soft|hard>.ogg, mono, two
+# velocity layers every minor third): Upright Piano KW, a Kawai upright,
+# CC0 public domain, prepared by Tools/SamplePrep.cpp. Both products embed it.
 file(GLOB ALEA_PIANO_SAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/Assets/piano/*.ogg")
 if(NOT ALEA_PIANO_SAMPLES)
     # Bootstrap: build SamplePrep, generate Assets/piano, re-configure. The
@@ -231,6 +231,7 @@ add_test(NAME chord_vocabulary        COMMAND ChordsUISnapshot --vocab)
 add_test(NAME ear_workout_history     COMMAND ChordsUISnapshot --eartest)
 add_test(NAME store_poses_chords      COMMAND ChordsUISnapshot --posetest)
 add_test(NAME store_poses_shifter     COMMAND AleaUISnapshot --posetest)
+add_test(NAME piano_velocity_layers  COMMAND AleaUISnapshot --pianotest)
 
 # The chord audit walks ~250k voicings; the rest are quick.
 set_tests_properties(chord_vocabulary PROPERTIES TIMEOUT 900)

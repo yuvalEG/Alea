@@ -50,17 +50,24 @@ juce::String choiceForFlavour (int flavour)
 }
 
 //==============================================================================
-// The sampled piano: Salamander Grand Piano by Alexander Holm (CC BY 3.0),
-// one velocity layer trimmed to short mono zones every minor third. Decoded
-// once per process and shared - DAWs open many instances.
+// The sampled piano: Upright Piano KW (a Kawai upright, CC0 / public domain),
+// two velocity layers as mono zones every minor third. Decoded once per
+// process and shared - DAWs open many instances.
+//
+// Two layers rather than one because a piano played softly is DARKER, not
+// just quieter. With a single layer the only thing velocity can do is turn
+// the same hard attack down, which is the giveaway that makes a sampler
+// sound like a toy. The layers carry the timbre; velocity trims the level
+// inside whichever one is chosen.
 
 namespace
 {
     struct PianoZone
     {
         int rootNote = 60;
+        bool hard = true;               // the loud layer of the pair
         double sampleRate = 48000.0;
-        juce::AudioBuffer<float> data; // mono
+        juce::AudioBuffer<float> data;  // mono
     };
 
     const std::vector<PianoZone>& pianoZones()
@@ -72,7 +79,7 @@ namespace
             juce::OggVorbisAudioFormat ogg;
             for (int i = 0; i < PianoData::namedResourceListSize; ++i)
             {
-                const char* name = PianoData::namedResourceList[i]; // "p024_ogg"
+                const char* name = PianoData::namedResourceList[i]; // "p024_soft_ogg"
                 int size = 0;
                 const char* data = PianoData::getNamedResource (name, size);
                 const auto root = juce::String (name).retainCharacters ("0123456789").getIntValue();
@@ -86,6 +93,7 @@ namespace
 
                 PianoZone zone;
                 zone.rootNote = root;
+                zone.hard = ! juce::String (name).containsIgnoreCase ("soft");
                 zone.sampleRate = reader->sampleRate;
                 zone.data.setSize (1, (int) reader->lengthInSamples);
                 reader->read (&zone.data, 0, (int) reader->lengthInSamples, 0, true, false);
@@ -95,6 +103,27 @@ namespace
                        [] (const PianoZone& a, const PianoZone& b) { return a.rootNote < b.rootNote; });
         });
         return zones;
+    }
+
+    // The nearest sampled root, preferring the layer the touch asks for.
+    // The set is not perfectly square - a few notes were only usable in one
+    // layer - so a miss falls back to the other layer at the same pitch
+    // rather than jumping to a distant root and sounding transposed.
+    const PianoZone* pickPianoZone (int note, bool wantHard)
+    {
+        const auto& zones = pianoZones();
+        const PianoZone* best = nullptr;
+        const PianoZone* fallback = nullptr;
+        for (const auto& z : zones)
+        {
+            auto closer = [note] (const PianoZone* a, const PianoZone& b)
+            {
+                return a == nullptr || std::abs (b.rootNote - note) < std::abs (a->rootNote - note);
+            };
+            if (z.hard == wantHard) { if (closer (best, z))     best = &z; }
+            else                    { if (closer (fallback, z)) fallback = &z; }
+        }
+        return best != nullptr ? best : fallback;
     }
 
     // How much of a voice feeds the stereo delay. The original four send
@@ -157,8 +186,11 @@ void SoundEngine::startVoice (Voice& v, int note, float velocity, int newFlavour
     v.freq = juce::MidiMessage::getMidiNoteInHertz (note);
     v.velocity = velocity;
     // A sine has no timbre to spend velocity on, so spend it on dynamics:
-    // a power curve gives soft notes a real pianissimo.
-    v.gain = 0.06f + 0.94f * std::pow (velocity, 1.7f);
+    // a power curve gives soft notes a real pianissimo. The piano is the
+    // exception - its layers already darken with touch, so the same steep
+    // curve on top would double the gesture and bury the soft layer.
+    v.gain = newFlavour == piano ? 0.30f + 0.70f * velocity
+                                 : 0.06f + 0.94f * std::pow (velocity, 1.7f);
     v.note = note;
     v.heldSamples = 0;
     v.flavour = newFlavour;
@@ -210,11 +242,10 @@ void SoundEngine::startVoice (Voice& v, int note, float velocity, int newFlavour
     }
     else if (newFlavour == piano)
     {
-        const auto& zones = pianoZones();
-        const PianoZone* best = nullptr;
-        for (const auto& z : zones)
-            if (best == nullptr || std::abs (z.rootNote - note) < std::abs (best->rootNote - note))
-                best = &z;
+        // The split matches where the library itself divides its two takes
+        // (MIDI velocity 80), so the layer that sounds is the one that was
+        // actually played that hard.
+        const PianoZone* best = pickPianoZone (note, velocity >= 80.0f / 127.0f);
         if (best != nullptr)
         {
             v.sample = &best->data;

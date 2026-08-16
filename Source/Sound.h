@@ -17,7 +17,7 @@ enum Flavour
     softSaw,
     pureSine,   // Pure Sine and Triangle stay surgically clear (near-dry, no
     triangle,   // detune) even though they sit in the SYNTH group.
-    piano,      // Salamander Grand Piano by Alexander Holm (CC BY 3.0).
+    piano,      // Upright Piano KW, a Kawai upright (CC0 / public domain).
     ePiano,
     organ,
     strings,

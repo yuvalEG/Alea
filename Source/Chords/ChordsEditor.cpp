@@ -45,7 +45,7 @@ namespace
         "me on GitHub (github.com/yuvalEG/Alea) or at "
         "yuvalprod@gmail.com\n\n"
         "Open source (GPLv3), built with JUCE. The piano is the "
-        "Salamander Grand Piano by Alexander Holm (CC BY 3.0). "
+        "Upright Piano KW from the FreePats project (public domain). "
         "Check for updates from the top-right menu.\n\n"
         "Made By Yuval Egozi");
 }

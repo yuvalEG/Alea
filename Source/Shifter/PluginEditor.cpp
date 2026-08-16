@@ -41,7 +41,7 @@ namespace
                 "made with ALEA! You can reach me through GitHub "
                 "(github.com/yuvalEG/Alea) or my email: yuvalprod@gmail.com\n\n"
                 "Alea is open source (GPLv3), built with JUCE. The piano is "
-                "the Salamander Grand Piano by Alexander Holm (CC BY 3.0). "
+                "the Upright Piano KW from the FreePats project (public domain). "
                 "Check for updates from the menu in the top-right corner.\n\n\n"
                 "Plugin Made By Yuval Egozi");
 }

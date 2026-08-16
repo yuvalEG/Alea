@@ -39,8 +39,9 @@ children.
 
 ## Third-party code
 
-The apps are built with the JUCE framework, and include the Salamander Grand
-Piano by Alexander Holm (CC BY 3.0). Neither collects data through the apps.
+The apps are built with the JUCE framework, and include the Upright Piano KW
+samples from the FreePats project (CC0, public domain). Neither collects data
+through the apps.
 
 ## Changes
 

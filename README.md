@@ -161,9 +161,10 @@ Alea is open source under the [GPLv3](LICENSE) (it is built on
 [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions)
 and the [CLAP](https://github.com/free-audio/clap) SDK (both MIT), and
 embeds the Space Grotesk font (SIL Open Font License). The built-in piano
-uses samples from the
-[Salamander Grand Piano](https://github.com/sfzinstruments/SalamanderGrandPiano)
-by Alexander Holm ([CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)).
+uses samples from
+[Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html)
+by the FreePats project, released into the public domain under
+[CC0](https://creativecommons.org/publicdomain/zero/1.0/).
 
 The Alea name, wordmark, and icon artwork are copyright Yuval Egozi and are
 not covered by the code license. Please don't reuse the branding in forks.

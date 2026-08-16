@@ -315,6 +315,92 @@ static int updateTagTest (bool live)
     return failures == 0 ? 0 : 5;
 }
 
+// The embedded piano. Shared code, so this covers both products at once.
+//
+// The bug being guarded against is silence-shaped and layer-shaped, and
+// neither announces itself: an empty Assets/piano makes the piano flavour
+// mute, and a sample set that lost its soft layer still plays, just with
+// one hard attack at every dynamic. The second is the one that shipped for
+// months and read as "the piano is not very good".
+static int pianoTest()
+{
+    int failures = 0;
+    auto check = [&failures] (const char* what, bool ok)
+    {
+        std::cout << (ok ? "OK   " : "FAIL ") << what << "\n";
+        failures += ok ? 0 : 1;
+    };
+
+    constexpr double sr = 44100.0;
+
+    // Renders one note held for the whole buffer, dry of nothing - the peak
+    // and the shape are all this needs.
+    auto renderNote = [] (int note, float velocity, double seconds)
+    {
+        alea::SoundEngine engine;
+        engine.prepare (sr);
+        const int total = (int) (seconds * sr);
+        juce::AudioBuffer<float> out (2, total);
+        out.clear();
+
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1, note, velocity), 0);
+        engine.render (out, midi, alea::piano, 1.0f);
+        return out;
+    };
+    auto peakBetween = [] (const juce::AudioBuffer<float>& b, double from, double to)
+    {
+        const int a = juce::jlimit (0, b.getNumSamples(), (int) (from * sr));
+        const int z = juce::jlimit (a, b.getNumSamples(), (int) (to * sr));
+        return z > a ? b.getMagnitude (a, z - a) : 0.0f;
+    };
+
+    // 1. It makes a sound at all, across the range. An empty sample folder
+    //    builds and runs perfectly happily.
+    for (int note : { 24, 48, 60, 72, 96 })
+    {
+        const auto b = renderNote (note, 0.9f, 1.0);
+        check ((juce::String ("note ") + juce::String (note) + " sounds").toRawUTF8(),
+               peakBetween (b, 0.0, 1.0) > 0.01f);
+    }
+
+    // 2. Touch changes the TIMBRE, not merely the level. Normalise a soft
+    //    and a hard strike to the same peak: with one velocity layer they
+    //    are the same samples scaled, so the difference collapses to noise.
+    {
+        auto soft = renderNote (60, 0.25f, 1.5);
+        auto hard = renderNote (60, 0.95f, 1.5);
+        const float ps = soft.getMagnitude (0, soft.getNumSamples());
+        const float ph = hard.getMagnitude (0, hard.getNumSamples());
+        check ("both a soft and a hard strike sound", ps > 0.01f && ph > 0.01f);
+
+        if (ps > 0.0f && ph > 0.0f)
+        {
+            soft.applyGain (1.0f / ps);
+            hard.applyGain (1.0f / ph);
+            double diff = 0.0;
+            const int n = juce::jmin (soft.getNumSamples(), hard.getNumSamples());
+            for (int i = 0; i < n; ++i)
+                diff += std::abs (soft.getSample (0, i) - hard.getSample (0, i));
+            diff /= juce::jmax (1, n);
+            // Gain-only difference lands near zero; two real layers differ
+            // by orders of magnitude more than this floor.
+            check ("a soft strike is darker, not just quieter", diff > 0.01);
+        }
+    }
+
+    // 3. Low notes ring. Everything used to be cut and faded out by 3.6s,
+    //    which is audibly wrong on the bottom octaves of a piano.
+    {
+        const auto b = renderNote (36, 0.9f, 6.0);
+        check ("a low note is still ringing after 4 seconds",
+               peakBetween (b, 4.0, 5.5) > 0.002f);
+    }
+
+    std::cout << (failures == 0 ? "\npiano OK\n" : "\npiano FAILED\n");
+    return failures == 0 ? 0 : 6;
+}
+
 // The Scale Shifter half of the store poses (see ChordsUISnapshot --posetest).
 static int posesTest()
 {
@@ -497,6 +583,8 @@ int main (int argc, char* argv[])
         return updateTagTest (argc > 2 && juce::String (argv[2]) == "live");
     if (argc > 1 && juce::String (argv[1]) == "--freetempotest")
         return freeTempoTest();
+    if (argc > 1 && juce::String (argv[1]) == "--pianotest")
+        return pianoTest();
     if (argc > 2 && juce::String (argv[1]) == "--gallery")
         return galleryShot (argv[2]);
     if (argc > 2 && juce::String (argv[1]) == "--menushot")
