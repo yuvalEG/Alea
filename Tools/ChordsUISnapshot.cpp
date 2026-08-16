@@ -11,6 +11,7 @@
 // may ever sound outside the printed chord. Non-zero exit on violation.
 #include "../Source/Chords/ChordsEditor.h"
 #include <iostream>
+#include <set>
 #include <map>
 #include <vector>
 
@@ -258,25 +259,40 @@ static int posesTest()
         ChordsProcessor p;
         p.applyScreenshotPose ("chords-01");
         check ("chords-01 is playing", p.playing.load());
-        check ("chords-01 is not in the ear workout", ! p.earMode.load());
+        check ("chords-01 stays at the friendly default", p.simplify && ! p.useSevenths);
     }
     {   ChordsProcessor p;
         p.applyScreenshotPose ("chords-02");
-        check ("chords-02 turns the ear workout on", p.earMode.load() && p.playing.load());
+        check ("chords-02 shows more than the default four chords", p.seriesLength > 4);
     }
     {   ChordsProcessor p;
         p.applyScreenshotPose ("chords-03");
-        check ("chords-03 locks the key", p.keyLockOn && p.playing.load());
+        check ("chords-03 rolls the hardest chords the app can",
+               ! p.simplify && p.useSevenths && p.ninthsOn && p.susOn);
+        check ("chords-03 sounds every octave", p.octaveMask.load() == 0b111);
     }
     {   ChordsProcessor p;
         p.applyScreenshotPose ("chords-04");
-        check ("chords-04 shows the voicing options",
-               p.openVoicing.load() && p.bassNote.load() && p.smoothVoicing.load());
+        check ("chords-04 turns ear workout mode on", p.earMode.load() && p.playing.load());
     }
     {   ChordsProcessor p;
         p.applyScreenshotPose ("chords-05");
-        check ("chords-05 rolls the hardest chords the app can",
-               ! p.simplify && p.useSevenths && p.ninthsOn && p.susOn);
+        check ("chords-05 locks the key", p.keyLockOn && p.playing.load());
+    }
+    {   ChordsProcessor p;
+        p.applyScreenshotPose ("chords-06");
+        check ("chords-06 shows the voicing options",
+               p.openVoicing.load() && p.bassNote.load() && p.smoothVoicing.load());
+    }
+    {   // the set must not look like one screen photographed six times
+        std::set<juce::String> sounds;
+        for (const char* pose : { "chords-01", "chords-02", "chords-03", "chords-05", "chords-06" })
+        {
+            ChordsProcessor p;
+            p.applyScreenshotPose (pose);
+            sounds.insert (p.getStandaloneOutput());
+        }
+        check ("the poses do not all pick the same sound", sounds.size() >= 4);
     }
     {   ChordsProcessor p;
         const bool wasPlaying = p.playing.load();

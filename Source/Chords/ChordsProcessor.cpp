@@ -205,25 +205,50 @@ void ChordsProcessor::applyScreenshotPose (const juce::String& pose)
         return;
 
     // Every store shot is mid-loop: a stopped app photographs as a mock-up.
+    // The poses also deliberately DIFFER from each other - a different sound,
+    // a different number of chords, a different octave span - so the set reads
+    // as a versatile app rather than one screen photographed six times.
     playing.store (true);
 
-    if (pose == "chords-02")            // the ear workout
-        earMode.store (true);
-    else if (pose == "chords-03")       // key lock, showing its key and scale
-        keyLockOn = true;
-    else if (pose == "chords-05")       // the dice at their most demanding
+    if (pose == "chords-01")            // the drill itself, at its friendliest
+    {
+        setStandaloneOutput ("piano");
+    }
+    else if (pose == "chords-02")       // length: a vamp, or a long progression
+    {
+        useSevenths = true;
+        octaveMask.store (0b110);
+        barsPerChord.store (2);
+        setStandaloneOutput ("synth:epiano");
+        setSeriesLength (7);            // visibly past the default four
+    }
+    else if (pose == "chords-03")       // the hard end of the vocabulary
     {
         simplify = false;               // the full 21-root vocabulary
         useSevenths = true;
         ninthsOn = true;                // CHORD TYPE reads 9THS
         susOn = true;
+        octaveMask.store (0b111);       // every octave sounding together
+        setStandaloneOutput ("synth:strings");
     }
-    else if (pose == "chords-04")       // the LOOP panel doing something
+    else if (pose == "chords-04")       // ear workout mode
+    {
+        earMode.store (true);
+        useSevenths = true;
+    }
+    else if (pose == "chords-05")       // key lock, showing its key and scale
+    {
+        keyLockOn = true;
+        useSevenths = true;
+        setStandaloneOutput ("synth:organ");
+    }
+    else if (pose == "chords-06")       // voicing: the LOOP panel doing something
     {
         openVoicing.store (true);
         bassNote.store (true);
         smoothVoicing.store (true);
         octaveMask.store (0b110);
+        setStandaloneOutput ("piano");
     }
 
     rollSeries();   // a fresh series under the pose, and re-voice for it
