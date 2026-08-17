@@ -20,6 +20,11 @@
 //   few seconds threw that away and cut the low notes off mid-ring. The cap
 //   below is a safety limit, not a target - normally nothing reaches it.
 //
+// Re-running this on the SAME input produces different bytes - the Ogg encoder
+// is not deterministic - so expect every file to show as modified even when
+// nothing about the sound changed. Only commit a regenerated set when you
+// meant to change something; otherwise `git checkout -- Assets/piano`.
+//
 // Usage: SamplePrep <inDir> <outDir> [maxSeconds=8] [fade=0.35] [quality 0..1=0.65]
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <iostream>
@@ -61,6 +66,19 @@ int main (int argc, char* argv[])
     const double fade = argc > 4 ? juce::String (argv[4]).getDoubleValue() : 0.35;
     const float quality = argc > 5 ? (float) juce::String (argv[5]).getDoubleValue() : 0.65f;
     outDir.createDirectory();
+
+    // Sweep the previous set first. This tool REPLACES the embedded samples,
+    // and the output names have changed once already (p060.ogg became
+    // p060_soft.ogg / p060_hard.ogg). Writing over a directory that still
+    // holds the old scheme leaves those files behind, CMake globs *.ogg, and
+    // the engine reads any name without "soft" as a hard-layer zone - so the
+    // instrument silently becomes a blend of two libraries, with the stale
+    // roots competing to be the nearest. Only p*.ogg is touched.
+    int swept = 0;
+    for (const auto& old : outDir.findChildFiles (juce::File::findFiles, false, "p*.ogg"))
+        swept += old.deleteFile() ? 1 : 0;
+    if (swept > 0)
+        std::cout << "swept " << swept << " sample(s) from the previous set\n";
 
     juce::FlacAudioFormat flac;
     juce::OggVorbisAudioFormat ogg;
