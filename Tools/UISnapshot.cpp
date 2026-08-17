@@ -389,7 +389,22 @@ static int pianoTest()
         }
     }
 
-    // 3. Low notes ring. Everything used to be cut and faded out by 3.6s,
+    // 3. Touch changes the LEVEL too, over a range worth calling dynamics.
+    //    The first attempt at the layer split came with a gain floor of 0.30,
+    //    which left about 10 dB between the softest and loudest note and made
+    //    a pianissimo impossible however gently you played. A piano covers
+    //    thirty or more; 18 is a floor, not a target.
+    {
+        const auto quiet = renderNote (60, 0.10f, 1.0);
+        const auto loud  = renderNote (60, 1.00f, 1.0);
+        const float pq = quiet.getMagnitude (0, quiet.getNumSamples());
+        const float pl = loud.getMagnitude (0, loud.getNumSamples());
+        const double dB = (pq > 0.0f && pl > 0.0f) ? 20.0 * std::log10 (pl / pq) : 0.0;
+        std::cout << "     (softest to loudest: " << juce::String (dB, 1) << " dB)\n";
+        check ("a near-silent touch is genuinely quiet, not just less loud", dB > 18.0);
+    }
+
+    // 4. Low notes ring. Everything used to be cut and faded out by 3.6s,
     //    which is audibly wrong on the bottom octaves of a piano.
     {
         const auto b = renderNote (36, 0.9f, 6.0);

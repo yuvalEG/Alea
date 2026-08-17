@@ -186,10 +186,14 @@ void SoundEngine::startVoice (Voice& v, int note, float velocity, int newFlavour
     v.freq = juce::MidiMessage::getMidiNoteInHertz (note);
     v.velocity = velocity;
     // A sine has no timbre to spend velocity on, so spend it on dynamics:
-    // a power curve gives soft notes a real pianissimo. The piano is the
-    // exception - its layers already darken with touch, so the same steep
-    // curve on top would double the gesture and bury the soft layer.
-    v.gain = newFlavour == piano ? 0.30f + 0.70f * velocity
+    // a power curve gives soft notes a real pianissimo. The piano wants a
+    // gentler curve, because its layers already darken with touch and a
+    // steep one on top would double the gesture - but only gentler, never
+    // flat. A floor high enough to keep every note audible is a floor high
+    // enough to make pianissimo impossible: 0.30 leaves barely 10 dB, and a
+    // piano covers thirty or more. The layers carry timbre, this carries
+    // level, and both have to move.
+    v.gain = newFlavour == piano ? 0.08f + 0.92f * std::pow (velocity, 1.35f)
                                  : 0.06f + 0.94f * std::pow (velocity, 1.7f);
     v.note = note;
     v.heldSamples = 0;
