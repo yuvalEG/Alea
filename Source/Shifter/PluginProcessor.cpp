@@ -251,6 +251,10 @@ void AleaAudioProcessor::setStandaloneOutput (const juce::String& choice)
         synthVoice.store (flavour);
         synthOn.store (true);
         midiOut.setDevice ({});
+        // Message thread: decode the piano HERE rather than on the first note,
+        // which would decode ~51 MB inside processBlock (see alea::prewarmPiano).
+        if (flavour == alea::piano)
+            alea::prewarmPiano();
     }
     else
     {

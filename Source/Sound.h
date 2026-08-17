@@ -38,6 +38,18 @@ struct FlavourInfo
     const char* name;     // menu display name
 };
 
+// Decode the embedded piano now, on whatever thread calls this. Call it from
+// the MESSAGE thread when the piano is chosen.
+//
+// The samples are decoded once per process, lazily, the first time a piano
+// note starts a voice - and startVoice runs on the AUDIO thread. That is 66
+// Ogg files and about 51 MB of float samples allocated and decoded inside one
+// processBlock, against an 11 ms budget: a guaranteed dropout on the first
+// piano note, and an xrun in a host. Doing it when the sound is SELECTED
+// keeps the cost off the audio thread and still off anyone who never picks
+// the piano. Cheap and safe to call repeatedly.
+void prewarmPiano();
+
 const std::array<FlavourInfo, numFlavours>& flavourTable();
 const char* groupName (int group);
 int flavourFromChoice (const juce::String&);  // -1 if not an internal sound

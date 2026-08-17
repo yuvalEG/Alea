@@ -86,7 +86,6 @@ void ChordsProcessor::rollSeries()
                                                                        : rollOne());
     series = std::move (fresh);
     trimmedTail.clear();
-    seriesSerial.fetch_add (1);
 
     updateLoop();
     ++revision;
@@ -172,7 +171,6 @@ void ChordsProcessor::setSeriesLength (int newLength)
             series.push_back (rollOne());
     }
 
-    seriesSerial.fetch_add (1);
     updateLoop();
     ++revision;
 }
@@ -192,7 +190,6 @@ void ChordsProcessor::recallRoll (int index)
     series = std::move (recalled);
     seriesLength = juce::jlimit (1, 8, (int) series.size());
     pinned.fill (false); // a recalled roll starts unpinned
-    seriesSerial.fetch_add (1);
     trimmedTail.clear();
     trimHistory();
     updateLoop();
@@ -663,6 +660,10 @@ void ChordsProcessor::setStandaloneOutput (const juce::String& choice)
         synthVoice.store (flavour);
         synthOn.store (true);
         midiOut.setDevice ({});
+        // Message thread: decode the piano HERE rather than on the first note,
+        // which would decode ~51 MB inside processBlock (see alea::prewarmPiano).
+        if (flavour == alea::piano)
+            alea::prewarmPiano();
     }
     else
     {

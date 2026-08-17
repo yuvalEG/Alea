@@ -35,7 +35,7 @@ namespace
         "EAR WORKOUT MODE is its opposite (press E, or the top-right menu): "
         "the chord names, the previews and the monitor all hide behind a "
         "crossed-out eye, and you name what you hear. Click the eye on a "
-        "card to reveal that one chord; it stays open until the next roll.\n\n"
+        "card to reveal that one chord; it stays open until that chord changes.\n\n"
         "AUTO rolls for you every few loops (press A to flip it). "
         "Pin a chord (the little dot on its card) and it survives "
         "rolls. Keep what you love, reroll the rest.\n\n"
@@ -191,9 +191,8 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
 
     // Ear workout: the keys are the answer written in notes, so they stay
     // dark until the sounding card is revealed (spec M6). The screen itself
-    // still glows, and it wears the crossed-out eye - without that, a dark
-    // keybed reads as a broken monitor rather than a deliberate one
-    // (Yuval, Aug 14).
+    // still glows; what withholding looks like is decided at the end of this
+    // function, not here.
     bool lit[128] = {};
     if (! suppressed)
     {
@@ -1027,9 +1026,8 @@ void ChordsEditor::refresh()
     // While a swap is pending: the SOUNDING card keeps its old chord (lit,
     // progress running), every other card previews the incoming series in
     // cyan - the "next" colour.
-    // Ear workout: a reveal survives until the SERIES CONTENT changes - a roll,
-    // an auto-roll landing, a recall, a length change. Pinning does not count,
-    // which is why this watches seriesSerial rather than the revision counter.
+    // Ear workout: a reveal survives while its card still shows the chord it
+    // revealed - decided per card further down, not from any counter here.
     const bool ear = chordsProc.earMode.load();
 
     const bool pendingSwap = chordsProc.playing.load() && chordsProc.swapPending()
@@ -1154,7 +1152,12 @@ bool ChordsEditor::keyPressed (const juce::KeyPress& key)
 void ChordsEditor::setEarMode (bool on)
 {
     chordsProc.earMode.store (on);
-    revealed.fill (false);   // leaving and re-entering never keeps an old reveal
+    // Both halves, or neither: `revealed` is DERIVED from revealedChord on
+    // every refresh, so clearing the flag alone is undone by the refresh on
+    // the next line and the mode comes back with its old answers showing.
+    revealed.fill (false);
+    for (auto& c : revealedChord)
+        c.clear();
     refresh();
 }
 

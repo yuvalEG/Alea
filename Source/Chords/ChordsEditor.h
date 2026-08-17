@@ -164,8 +164,9 @@ private:
     juce::OwnedArray<ChordCard> cards;
 
     // Ear workout (spec M6). Reveals live here, not in the processor: they are
-    // a property of what you are looking at, not of what is playing. They are
-    // dropped whenever the SERIES CONTENT changes, which seriesSerial reports.
+    // a property of what you are looking at, not of what is playing. Each one
+    // is derived from revealedChord below on every refresh, so it ends by
+    // itself the moment its card shows something else.
     std::array<bool, 8> revealed { };
     // WHICH chord each reveal was for. A reveal is only valid while the card
     // still shows this exact text, which is what makes the lifetime immune to

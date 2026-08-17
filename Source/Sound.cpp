@@ -105,10 +105,15 @@ namespace
         return zones;
     }
 
-    // The nearest sampled root, preferring the layer the touch asks for.
-    // The set is not perfectly square - a few notes were only usable in one
-    // layer - so a miss falls back to the other layer at the same pitch
-    // rather than jumping to a distant root and sounding transposed.
+    // The nearest sampled root WITHIN the layer the touch asks for. The other
+    // layer is used only if the wanted one is empty altogether, which cannot
+    // happen with the shipped set - it is a guard, not a per-note fallback.
+    //
+    // That is deliberate, and it does cost a little: this set is not square
+    // (MIDI 45 and 60 exist only in the soft layer), so a hard middle C plays
+    // the B below it shifted up a semitone rather than the exact-pitch soft
+    // sample. Timbre wins - reaching into the soft layer for the loudest notes
+    // would be audible in a way a semitone of shift is not.
     const PianoZone* pickPianoZone (int note, bool wantHard)
     {
         const auto& zones = pianoZones();
@@ -140,6 +145,11 @@ namespace
             default:                      return 1.0f;
         }
     }
+}
+
+void prewarmPiano()
+{
+    (void) pianoZones();   // std::call_once inside: the second call is free
 }
 
 //==============================================================================
