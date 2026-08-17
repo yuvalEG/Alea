@@ -38,4 +38,27 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiOutputTarget)
 };
 
+// Where the notes go, applied and read back. Both products had their own
+// identical copy of this pair, and that is precisely the shape the Aug 10 debt
+// pass named as this codebase's main bug source: the piano prewarm had to be
+// added to both by hand on Aug 17, and three earlier bugs were a fix landing
+// in one product only.
+//
+// The atomics stay owned by each processor - they are read all over both
+// editors - so these take references rather than moving the state. The rule
+// lives in one place; the storage does not have to.
+//
+// `choice` is an internal flavour ("piano", "synth:organ"), a MIDI device
+// identifier, or empty for MIDI to the host. Message thread only, because
+// opening a device is.
+void applyOutputChoice (const juce::String& choice,
+                        std::atomic<bool>& synthOn,
+                        std::atomic<int>& synthVoice,
+                        MidiOutputTarget& midiOut,
+                        bool standaloneLike);
+
+juce::String currentOutputChoice (const std::atomic<bool>& synthOn,
+                                  const std::atomic<int>& synthVoice,
+                                  const MidiOutputTarget& midiOut);
+
 } // namespace alea

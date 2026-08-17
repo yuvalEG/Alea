@@ -640,28 +640,12 @@ void ChordsProcessor::renderClicks (juce::AudioBuffer<float>& buffer)
 
 void ChordsProcessor::setStandaloneOutput (const juce::String& choice)
 {
-    if (const int flavour = alea::flavourFromChoice (choice); flavour >= 0)
-    {
-        synthVoice.store (flavour);
-        synthOn.store (true);
-        midiOut.setDevice ({});
-        // Message thread: decode the piano HERE rather than on the first note,
-        // which would decode ~51 MB inside processBlock (see alea::prewarmPiano).
-        if (flavour == alea::piano)
-            alea::prewarmPiano();
-    }
-    else
-    {
-        // Empty = MIDI to the DAW (plugin); a device id = standalone MIDI out.
-        synthOn.store (false);
-        midiOut.setDevice (isStandaloneLike() ? choice : juce::String());
-    }
+    alea::applyOutputChoice (choice, synthOn, synthVoice, midiOut, isStandaloneLike());
 }
 
 juce::String ChordsProcessor::getStandaloneOutput() const
 {
-    return synthOn.load() ? alea::choiceForFlavour (synthVoice.load())
-                          : midiOut.deviceId();
+    return alea::currentOutputChoice (synthOn, synthVoice, midiOut);
 }
 
 //==============================================================================
