@@ -92,14 +92,6 @@ public:
     // chords stay the same, so no "switching" theater.
     bool swapPending() const { return seriesSwapPending.load(); }
 
-    // Which history entry is the series still SOUNDING, or -1 if none is.
-    // A mid-loop roll files the outgoing series into history before it stops
-    // playing, and the ear workout has to hide exactly that entry. It is not
-    // always the newest: roll twice before the boundary and the newest is a
-    // roll that never sounded, with the sounding one behind it (QA Aug 14).
-    // Message thread only, like the rest of the series state.
-    int soundingHistoryIndex() const;
-
     // Put the app into a named state for a store screenshot (ui::screenshotPose).
     // Standalone only, inert unless "--pose <name>" was passed.
     void applyScreenshotPose (const juce::String& pose);

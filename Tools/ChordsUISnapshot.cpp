@@ -206,7 +206,16 @@ static int dumpVocabulary()
 // always the newest entry, which is wrong the moment you roll twice before
 // the boundary: the newest is then a roll that never sounded, and the one
 // that IS sounding sits behind it - fully readable, which is the answer.
-static int earHistoryTest()
+// A mid-loop roll files the still-SOUNDING series into history and marks a
+// pending swap; roll again before the boundary and the newest entry is a roll
+// that never sounded, with the sounding one behind it. That bookkeeping is
+// what pendingOldSeries and the swap rules rest on.
+//
+// Written for the ear workout, which hid the sounding entry using a
+// soundingHistoryIndex() helper. The hiding was removed the same week because
+// it flickered, and the helper went with it (Aug 17, 2026) - what remains are
+// the checks that still guard shipped behaviour.
+static int pendingSwapHistoryTest()
 {
     ChordsProcessor processor;
     processor.setPlayConfigDetails (0, 2, 44100.0, 512);
@@ -233,12 +242,7 @@ static int earHistoryTest()
     check ("the newest history entry is NOT the sounding one",
            ! processor.history.empty() && processor.history.front() != sounding);
 
-    // The behaviour the fix actually depends on, asserted where it lives.
-    const int found = processor.soundingHistoryIndex();
-    check ("soundingHistoryIndex points behind the newest entry", found == 1);
-    std::cout << "  (sounding series sits at history index " << found << ")\n";
-
-    std::cout << (failures == 0 ? "ear-workout history OK\n" : "ear-workout history BROKEN\n");
+    std::cout << (failures == 0 ? "pending-swap history OK\n" : "pending-swap history BROKEN\n");
     return failures == 0 ? 0 : 6;
 }
 
@@ -449,8 +453,8 @@ int main (int argc, char* argv[])
 
     if (argc > 1 && juce::String (argv[1]) == "--vocab")
         return dumpVocabulary();
-    if (argc > 1 && juce::String (argv[1]) == "--eartest")
-        return earHistoryTest();
+    if (argc > 1 && juce::String (argv[1]) == "--swaptest")
+        return pendingSwapHistoryTest();
     if (argc > 1 && juce::String (argv[1]) == "--posetest")
         return posesTest();
     if (argc > 1 && juce::String (argv[1]) == "--veltest")
