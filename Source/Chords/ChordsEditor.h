@@ -26,6 +26,15 @@ public:
     static bool monitorHidden (bool earMode, int soundingCard,
                                const std::array<bool, 8>& revealed);
 
+    // Whether the ear workout's reveals must be dropped this tick. A reveal is
+    // about ONE chord on ONE card, so it may not outlive the content of that
+    // card - which changes at two separate moments, not one: when a roll fires
+    // (the series serial moves) and again when a pending swap actually LANDS,
+    // a chord later and on the audio thread, touching neither the serial nor
+    // the revision counter.
+    static bool revealsExpire (int serial, int lastSerial,
+                               bool swapPendingNow, bool swapPendingBefore);
+
 private:
     void timerCallback() override;
     void refresh();   // pull processor state into the widgets
@@ -154,6 +163,7 @@ private:
     // dropped whenever the SERIES CONTENT changes, which seriesSerial reports.
     std::array<bool, 8> revealed { };
     int lastSeriesSerial = -1;
+    bool lastSwapPending = false;   // a swap LANDING also ends a reveal's life
     void setEarMode (bool on);
 
     juce::Rectangle<int> chordsPanel, loopPanel, monitorPanel, historyPanel; // module plates

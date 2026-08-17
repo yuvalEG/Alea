@@ -1,4 +1,5 @@
 #include "ChordsEditor.h"
+#include <algorithm>
 #include "BinaryData.h"
 
 using namespace ui;
@@ -846,6 +847,20 @@ void ChordsEditor::timerCallback()
     // the lit highlight stays on - refresh() keeps that card honest.
     const bool loopRunning = chordsProc.playing.load();
     const bool pendingNow = loopRunning && chordsProc.swapPending();
+
+    // Reveal lifetime, checked every tick because a swap lands on the audio
+    // thread and moves neither the revision counter nor the series serial.
+    if (revealsExpire (chordsProc.seriesSerial.load(), lastSeriesSerial,
+                       pendingNow, lastSwapPending))
+    {
+        lastSwapPending = pendingNow;
+        if (std::any_of (revealed.begin(), revealed.end(), [] (bool b) { return b; }))
+        {
+            revealed.fill (false);
+            refresh();
+        }
+    }
+    lastSwapPending = pendingNow;
     const int sounding = chordsProc.playingChord.load();
     const float progress = chordsProc.chordProgress.load();
 
@@ -966,6 +981,20 @@ void ChordsEditor::timerCallback()
         playButton.repaint();
         repaint (0, 0, getWidth(), 56); // status LED + word
     }
+}
+
+bool ChordsEditor::revealsExpire (int serial, int lastSerial,
+                                  bool swapPendingNow, bool swapPendingBefore)
+{
+    // A roll fires: the series serial moves, and everything hides again.
+    if (serial != lastSerial)
+        return true;
+    // A pending swap resolves: the cards are about to show different chords
+    // (or, on a revert, the old ones again). Either way a reveal made DURING
+    // the pending window - revealing the last chord just before the roll lands
+    // is the easy way to do it - would otherwise carry over onto a chord the
+    // player has never seen, handing them the answer.
+    return swapPendingBefore && ! swapPendingNow;
 }
 
 bool ChordsEditor::monitorHidden (bool earMode, int soundingCard,
