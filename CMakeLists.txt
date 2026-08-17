@@ -232,6 +232,8 @@ add_test(NAME ear_workout_history     COMMAND ChordsUISnapshot --eartest)
 add_test(NAME store_poses_chords      COMMAND ChordsUISnapshot --posetest)
 add_test(NAME store_poses_shifter     COMMAND AleaUISnapshot --posetest)
 add_test(NAME piano_velocity_layers  COMMAND AleaUISnapshot --pianotest)
+add_test(NAME chords_velocity         COMMAND ChordsUISnapshot --veltest)
+add_test(NAME ear_monitor_hiding     COMMAND ChordsUISnapshot --monitortest)
 
 # The chord audit walks ~250k voicings; the rest are quick.
 set_tests_properties(chord_vocabulary PROPERTIES TIMEOUT 900)

@@ -19,6 +19,13 @@ public:
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
 
+    // Whether the MONITOR must withhold the notes. Pulled out of the editor so
+    // it can be tested directly: it is decided from the card that is SOUNDING,
+    // and getting that wrong shows the answer to a chord you are meant to be
+    // naming - which is the whole exercise, silently broken.
+    static bool monitorHidden (bool earMode, int soundingCard,
+                               const std::array<bool, 8>& revealed);
+
 private:
     void timerCallback() override;
     void refresh();   // pull processor state into the widgets
@@ -132,7 +139,11 @@ private:
                           voicingRow;           // VOICING: close / open spacing
     juce::ComboBox outputBox;
     void rebuildKeyBox();
-    juce::Slider volKnob;
+    // LEVEL is internal-synth chrome and comes and goes with it (lastSynthOn).
+    // VELOCITY is always shown: the velocity it sets rides the MIDI going to
+    // the host and to a MIDI device too, so hiding it would hide a control
+    // that is still having an effect.
+    juce::Slider volKnob, velKnob;
     juce::Array<juce::MidiDeviceInfo> devices;
     HistoryTicker ticker;
     MonitorStrip monitor;

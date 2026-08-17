@@ -129,6 +129,11 @@ public:
     std::atomic<bool>  synthOn { true };
     std::atomic<int>   synthVoice { 0 };              // alea::Flavour - the shared sound library
     std::atomic<float> synthVolDb { 0.0f };
+    // How hard every note is struck. Deliberately ONE value, not a range:
+    // this is a loop you improvise over, and a backing part that shifts
+    // dynamics under you is harder to play against, not more musical.
+    // 91 is what was hard-coded before it became a control (0.72 * 127).
+    std::atomic<int> noteVelocity { 91 };
     std::atomic<float> synthPeak { 0.0f };            // post-limiter block peak, for the meter
     void setStandaloneOutput (const juce::String& choice); // "synth[:flavour]" or device identifier; message thread only
     juce::String getStandaloneOutput() const;

@@ -305,6 +305,120 @@ static int posesTest()
     return failures == 0 ? 0 : 7;
 }
 
+
+// VELOCITY: the knob has to be audible, and it has to survive a reload.
+//
+// Measured through the real audio path rather than by sniffing MIDI, because
+// that is where the user meets it: with the sampled piano the value crosses
+// the soft/hard layer split at 80, so this covers the knob AND the fact that
+// the two velocity layers are reachable from this product at all. They were
+// not until this control existed - every note went out at a hard-coded 91.
+//
+// The state tree here is hand-rolled rather than an APVTS, so save and
+// restore are written by hand, and a property added to the write and missed
+// The MONITOR must go dark the moment a HIDDEN chord is the one sounding.
+// Reported Aug 17, 2026: reveal one card, let the loop walk onto the next
+// (still hidden) card, and the keys stayed lit - the answer to the chord you
+// were meant to be naming, in notes. The decision was being made only when
+// the revision counter changed, and walking to the next chord does not change
+// it, so a stale "revealed" answer survived the card it belonged to.
+static int monitorHideTest()
+{
+    int failures = 0;
+    auto check = [&failures] (const char* what, bool ok)
+    {
+        std::cout << (ok ? "OK   " : "FAIL ") << what << "\n";
+        failures += ok ? 0 : 1;
+    };
+
+    std::array<bool, 8> none { };
+    std::array<bool, 8> firstRevealed { };
+    firstRevealed[0] = true;
+
+    check ("ear workout off: the monitor always shows",
+           ! ChordsEditor::monitorHidden (false, 0, none)
+           && ! ChordsEditor::monitorHidden (false, 1, firstRevealed));
+
+    check ("a hidden sounding chord hides the monitor",
+           ChordsEditor::monitorHidden (true, 2, none));
+
+    check ("revealing the SOUNDING card shows the monitor",
+           ! ChordsEditor::monitorHidden (true, 0, firstRevealed));
+
+    // The reported bug, exactly.
+    check ("revealing card 1 does not light the monitor for card 2",
+           ChordsEditor::monitorHidden (true, 1, firstRevealed));
+
+    check ("nothing sounding hides the monitor",
+           ChordsEditor::monitorHidden (true, -1, firstRevealed));
+
+    check ("a sounding index past the card array hides the monitor",
+           ChordsEditor::monitorHidden (true, 99, firstRevealed));
+
+    std::cout << (failures == 0 ? "\nmonitor OK\n" : "\nmonitor FAILED\n");
+    return failures == 0 ? 0 : 8;
+}
+
+
+// in the read only shows up weeks later as "my settings did not stick".
+static int velocityTest()
+{
+    int failures = 0;
+    auto check = [&failures] (const char* what, bool ok)
+    {
+        std::cout << (ok ? "OK   " : "FAIL ") << what << "\n";
+        failures += ok ? 0 : 1;
+    };
+
+    auto peakAt = [] (int velocity)
+    {
+        ChordsProcessor p;
+        p.setPlayConfigDetails (0, 2, 44100.0, 512);
+        p.prepareToPlay (44100.0, 512);
+        p.setStandaloneOutput ("piano");
+        p.noteVelocity.store (velocity);
+        p.playing.store (true);
+
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+        float peak = 0.0f;
+        for (int block = 0; block < 200; ++block)   // ~2.3 s of the loop
+        {
+            midi.clear();
+            p.processBlock (buffer, midi);
+            peak = juce::jmax (peak, buffer.getMagnitude (0, 512));
+        }
+        return peak;
+    };
+
+    const float quiet = peakAt (20);
+    const float loud  = peakAt (120);
+    std::cout << "     (velocity 20 peaks at " << quiet << ", velocity 120 at " << loud << ")\n";
+    check ("the loop sounds at a low velocity", quiet > 0.005f);
+    check ("the loop sounds at a high velocity", loud > 0.01f);
+    check ("the velocity knob audibly changes the loop", loud > quiet * 2.0f);
+
+    // 0 would be a note-OFF on the wire, and an older or hand-edited session
+    // can hold one. It must clamp rather than silence the app.
+    check ("velocity 0 still plays, clamped", peakAt (0) > 0.005f);
+
+    // A save and reload, the way a host reopening a session does it.
+    {
+        ChordsProcessor a;
+        a.noteVelocity.store (42);
+        juce::MemoryBlock saved;
+        a.getStateInformation (saved);
+
+        ChordsProcessor b;
+        b.setStateInformation (saved.getData(), (int) saved.getSize());
+        check ("velocity survives a save and reload", b.noteVelocity.load() == 42);
+    }
+
+    std::cout << (failures == 0 ? "\nvelocity OK\n" : "\nvelocity FAILED\n");
+    return failures == 0 ? 0 : 7;
+}
+
+
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -315,6 +429,10 @@ int main (int argc, char* argv[])
         return earHistoryTest();
     if (argc > 1 && juce::String (argv[1]) == "--posetest")
         return posesTest();
+    if (argc > 1 && juce::String (argv[1]) == "--veltest")
+        return velocityTest();
+    if (argc > 1 && juce::String (argv[1]) == "--monitortest")
+        return monitorHideTest();
 
     ChordsProcessor processor;
     processor.useSevenths = argc > 3 && juce::String (argv[3]).getIntValue() != 0;

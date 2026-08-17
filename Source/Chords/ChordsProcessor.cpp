@@ -340,7 +340,10 @@ void ChordsProcessor::strikeChord (juce::MidiBuffer& midi, int sampleOffset)
     juce::uint64 lo = 0, hi = 0;
     for (int i = 0; i < pc.count; ++i)
     {
-        midi.addEvent (juce::MidiMessage::noteOn (1, pc.notes[i], 0.72f), sampleOffset);
+        midi.addEvent (juce::MidiMessage::noteOn (
+                           1, pc.notes[i],
+                           (juce::uint8) juce::jlimit (1, 127, noteVelocity.load())),
+                       sampleOffset);
         soundingNotes[soundingCount++] = pc.notes[i];
         if (pc.notes[i] < 64) lo |= (juce::uint64) 1 << pc.notes[i];
         else                  hi |= (juce::uint64) 1 << (pc.notes[i] - 64);
@@ -702,6 +705,7 @@ void ChordsProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("autoRollLoops", autoRollLoops.load(), nullptr);
     state.setProperty ("output", getStandaloneOutput(), nullptr);
     state.setProperty ("synthVol", (double) synthVolDb.load(), nullptr);
+    state.setProperty ("noteVelocity", noteVelocity.load(), nullptr);
 
     juce::ValueTree seriesTree ("Series");
     for (size_t i = 0; i < series.size(); ++i)
@@ -756,6 +760,7 @@ void ChordsProcessor::setStateInformation (const void* data, int sizeInBytes)
     autoRollOn.store (state.getProperty ("autoRoll", false));
     autoRollLoops.store (juce::jlimit (1, 8, (int) state.getProperty ("autoRollLoops", 2)));
     synthVolDb.store (juce::jlimit (-24.0f, 6.0f, (float) (double) state.getProperty ("synthVol", 0.0)));
+    noteVelocity.store (juce::jlimit (1, 127, (int) state.getProperty ("noteVelocity", 91)));
     setStandaloneOutput (state.getProperty ("output",
         isStandaloneLike() ? "synth" : "").toString());
 

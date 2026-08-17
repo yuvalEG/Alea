@@ -31,10 +31,16 @@ static void addScale (juce::AudioProcessorValueTreeState::ParameterLayout& layou
         juce::ParameterID { juce::String::charToString (scale) + "Root", 1 },
         prefix + " Root", pitchClassNames, 0));
 
+    // The full spectrum by default, not a polite band in the middle. The old
+    // 80-110 default spanned 10 dB and, once the piano gained a soft velocity
+    // layer split at 80, sat entirely above that split - so a brand new
+    // instance could never reach the soft samples at all and every note came
+    // out at one dynamic. 1 rather than 0 because a note-on at velocity 0 is
+    // a note-OFF in MIDI, which is why the emit already clamps to 1.
     layout.add (std::make_unique<juce::AudioParameterInt> (
-        juce::ParameterID { juce::String::charToString (scale) + "VelMin", 1 }, prefix + " Velocity Min", 0, 127, 80));
+        juce::ParameterID { juce::String::charToString (scale) + "VelMin", 1 }, prefix + " Velocity Min", 0, 127, 1));
     layout.add (std::make_unique<juce::AudioParameterInt> (
-        juce::ParameterID { juce::String::charToString (scale) + "VelMax", 1 }, prefix + " Velocity Max", 0, 127, 110));
+        juce::ParameterID { juce::String::charToString (scale) + "VelMax", 1 }, prefix + " Velocity Max", 0, 127, 127));
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createLayout()

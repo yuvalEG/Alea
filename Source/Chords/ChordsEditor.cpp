@@ -260,17 +260,15 @@ void ChordsEditor::MonitorStrip::paint (juce::Graphics& g)
     if (below) arrow (true);
     if (above) arrow (false);
 
-    // The monitor says it is withholding, rather than just going quiet. A dark
-    // keybed with no explanation is indistinguishable from a broken one, and
-    // the app's own rule is that the UI never lies by omission either.
+    // Withholding reads as a darkened bed and nothing else. It used to wear
+    // the same crossed-out eye as the cards, which was a lie of a different
+    // kind: on a card that icon IS the reveal button, so putting it here
+    // promised a press that does nothing. One idiom, one meaning - and the
+    // meaning of that icon is "press me". The reveal lives on the card.
     if (suppressed)
     {
-        // Dim the keys behind it so the icon has something to sit on, then the
-        // same crossed-out eye the cards wear - one idiom for one meaning.
         g.setColour (juce::Colours::black.withAlpha (0.62f));
         g.fillRoundedRectangle (bed, 6.0f);
-        hw::eyeOff (g, bed.withSizeKeepingCentre (bed.getHeight() * 1.9f, bed.getHeight() * 0.95f),
-                    colors::purple.brighter (0.4f).withAlpha (0.95f), true);
     }
 }
 
@@ -666,6 +664,22 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     volKnob.onValueChange = [this] { chordsProc.synthVolDb.store ((float) volKnob.getValue()); };
     addAndMakeVisible (volKnob);
 
+    // VELOCITY: how hard the loop strikes. One value, not a range - the loop
+    // is what you improvise OVER, and a backing part whose dynamics move
+    // under you is harder to play against, not more musical. It matters
+    // audibly on the sampled piano, which has a soft and a hard layer split
+    // at 80, so this knob crosses a real boundary rather than only changing
+    // the volume.
+    velKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    velKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    velKnob.setPopupDisplayEnabled (true, true, this);
+    velKnob.setColour (juce::Slider::rotarySliderFillColourId, colors::green.withAlpha (0.85f));
+    velKnob.setRange (1.0, 127.0, 1.0);
+    velKnob.setDoubleClickReturnValue (true, 91.0);
+    velKnob.setValue ((double) chordsProc.noteVelocity.load(), juce::dontSendNotification);
+    velKnob.onValueChange = [this] { chordsProc.noteVelocity.store ((int) velKnob.getValue()); };
+    addAndMakeVisible (velKnob);
+
     simplifyToggle.onClick = [this] { chordsProc.simplify = simplifyToggle.getToggleState(); };
     addAndMakeVisible (simplifyToggle);
     susToggle.onClick = [this] { chordsProc.susOn = susToggle.getToggleState(); };
@@ -747,7 +761,8 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
                      (juce::Component*) &octaveRow, (juce::Component*) &monitor,
                      (juce::Component*) &freezeButton, (juce::Component*) &panicButton,
                      (juce::Component*) &playButton, (juce::Component*) &outputBox,
-                     (juce::Component*) &volKnob, (juce::Component*) &tempoBox,
+                     (juce::Component*) &volKnob, (juce::Component*) &velKnob,
+                     (juce::Component*) &tempoBox,
                      (juce::Component*) &clickButton, (juce::Component*) &susToggle,
                      (juce::Component*) &autoButton, (juce::Component*) &everyRow,
                      (juce::Component*) &clickVolKnob,
@@ -833,6 +848,17 @@ void ChordsEditor::timerCallback()
     const bool pendingNow = loopRunning && chordsProc.swapPending();
     const int sounding = chordsProc.playingChord.load();
     const float progress = chordsProc.chordProgress.load();
+
+    // The monitor is the answer in notes, so it goes dark the moment a HIDDEN
+    // chord is the one sounding - every tick, not only when something else
+    // changed. A reveal belongs to one card; walking onto the next card must
+    // take the answer away again.
+    const bool hideMonitor = monitorHidden (chordsProc.earMode.load(), sounding, revealed);
+    if (monitor.suppressed != hideMonitor)
+    {
+        monitor.suppressed = hideMonitor;
+        monitor.repaint();
+    }
     for (int i = 0; i < cards.size(); ++i)
     {
         auto* card = cards[i];
@@ -923,7 +949,7 @@ void ChordsEditor::timerCallback()
     if (synth != lastSynthOn)
     {
         lastSynthOn = synth;
-        volKnob.setVisible (synth);
+        volKnob.setVisible (synth);   // LEVEL is synth chrome; VELOCITY is not
         repaint();
     }
     if (synth)
@@ -940,6 +966,19 @@ void ChordsEditor::timerCallback()
         playButton.repaint();
         repaint (0, 0, getWidth(), 56); // status LED + word
     }
+}
+
+bool ChordsEditor::monitorHidden (bool earMode, int soundingCard,
+                                  const std::array<bool, 8>& revealed)
+{
+    if (! earMode)
+        return false;
+    // A reveal belongs to ONE card. Nothing is sounding, or the sounding card
+    // is still hidden, means the monitor stays dark - a reveal on some other
+    // card, including the one that was playing a moment ago, buys nothing.
+    if (soundingCard < 0 || soundingCard >= (int) revealed.size())
+        return true;
+    return ! revealed[(size_t) soundingCard];
 }
 
 void ChordsEditor::refresh()
@@ -1019,13 +1058,11 @@ void ChordsEditor::refresh()
         cards[i]->repaint();
     }
 
-    // The monitor is the answer in notes: dark until the SOUNDING card is
-    // revealed. The history entry filed by a mid-loop roll is the answer in
-    // writing while it is still playing, so it hides for exactly that long.
-    const int sounding = chordsProc.playingChord.load();
-    monitor.suppressed = ear
-                      && ! (sounding >= 0 && sounding < (int) revealed.size()
-                            && revealed[(size_t) sounding]);
+    // Monitor suppression is NOT decided here: it depends on which card is
+    // sounding, and that advances every chord boundary without touching the
+    // revision counter this function keys off. Deciding it here left the
+    // monitor lit on a hidden chord whenever the previous one had been
+    // revealed. It is recomputed every tick instead - see timerCallback.
     ticker.repaint();
     resized(); // card widths depend on how many are visible
     repaint(); // card blooms + gated captions live in the editor's layer
@@ -1205,10 +1242,20 @@ void ChordsEditor::paint (juce::Graphics& g)
     caption (outputBox, "OUT");
     caption (voicingRow, "VOICING");
 
-    // LEVEL knob caption + the output meter (internal synth only).
+    // Engraved knob captions. VELOCITY is captioned unconditionally because
+    // the knob itself is always there: the velocity it sets rides the MIDI
+    // going to the host and to a MIDI device, not just the internal sound, so
+    // hiding it would hide a control that is still doing something. LEVEL and
+    // the meter are genuinely internal-synth chrome and still come and go.
+    g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+    const auto vb = velKnob.getBounds();
+    g.setColour (juce::Colours::black.withAlpha (0.8f));
+    g.drawText ("VELOCITY", vb.getX() - 11, vb.getBottom() + 1, vb.getWidth() + 24, 13, juce::Justification::centred);
+    g.setColour (juce::Colour (0xff868ba0));
+    g.drawText ("VELOCITY", vb.getX() - 12, vb.getBottom(), vb.getWidth() + 24, 13, juce::Justification::centred);
+
     if (chordsProc.synthOn.load())
     {
-        g.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
         const auto kb = volKnob.getBounds();
         g.setColour (juce::Colours::black.withAlpha (0.8f));
         g.drawText ("LEVEL", kb.getX() - 11, kb.getBottom() + 1, kb.getWidth() + 24, 13, juce::Justification::centred);
@@ -1310,7 +1357,7 @@ void ChordsEditor::resized()
     scaleBox.setBounds (rowE.removeFromLeft (scaleW).withSizeKeepingCentre (scaleW, 26));
 
     // LOOP plate: BARS / OCTAVE / OUT on the first row; VOICING, the voicing
-    // toggles, and the green LEVEL knob + meter on the second.
+    // toggles, and the green VELOCITY + LEVEL knobs + meter on the second.
     auto loop = loopPanel.reduced (12).withTrimmedTop (24);
     auto row1 = loop.removeFromTop (43).withTrimmedTop (17).withHeight (26);
     barsRow.setBounds (row1.removeFromLeft (104));
@@ -1324,6 +1371,10 @@ void ChordsEditor::resized()
     auto voiceCol = row2.removeFromLeft (128);
     voicingRow.setBounds (voiceCol.withTrimmedTop (17).withHeight (26));
     row2.removeFromLeft (16);
+    // The toggles keep their full width. The plate is laid out at a fixed
+    // design size and scaled by a transform, so this row never gets narrower
+    // than it is here - reserving extra space for the second knob only
+    // truncated "Add bass note" to solve a case that cannot occur.
     auto togglesCol = row2.removeFromLeft (juce::jmin (158, row2.getWidth() - 96)).withTrimmedTop (10);
     smoothToggle.setBounds (togglesCol.removeFromTop (28));
     togglesCol.removeFromTop (4);
@@ -1331,6 +1382,10 @@ void ChordsEditor::resized()
 
     meterRect = juce::Rectangle<int> (row2.getRight() - 14, row2.getY() + 6, 14, 58);
     volKnob.setBounds (row2.getRight() - 14 - 8 - 58, row2.getY() + 6, 58, 58);
+    // VELOCITY keeps this slot whether or not the internal sound is on, so it
+    // never jumps out from under the pointer when OUT changes. When LEVEL and
+    // the meter go, they simply leave space to its right.
+    velKnob.setBounds (volKnob.getX() - 10 - 58, volKnob.getY(), 58, 58);
     volKnob.setVisible (chordsProc.synthOn.load());
 
     // Series cards fill the middle, growing with the window.
