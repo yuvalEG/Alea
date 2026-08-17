@@ -494,7 +494,12 @@ ChordsEditor::ChordsEditor (ChordsProcessor& p)
     {
         auto* card = cards.add (new ChordCard());
         card->onPress = [this, i] { chordsProc.jumpRequest.store (i); };
-        card->onReveal = [this, i] { revealed[(size_t) i] = true; refresh(); };
+        card->onReveal = [this, i]
+        {
+            revealed[(size_t) i] = true;
+            revealedChord[(size_t) i] = cards[i]->text;   // what was revealed
+            refresh();
+        };
         card->onPinToggle = [this, i]
         {
             chordsProc.togglePin (i);
@@ -848,19 +853,6 @@ void ChordsEditor::timerCallback()
     const bool loopRunning = chordsProc.playing.load();
     const bool pendingNow = loopRunning && chordsProc.swapPending();
 
-    // Reveal lifetime, checked every tick because a swap lands on the audio
-    // thread and moves neither the revision counter nor the series serial.
-    if (revealsExpire (chordsProc.seriesSerial.load(), lastSeriesSerial,
-                       pendingNow, lastSwapPending))
-    {
-        lastSwapPending = pendingNow;
-        if (std::any_of (revealed.begin(), revealed.end(), [] (bool b) { return b; }))
-        {
-            revealed.fill (false);
-            refresh();
-        }
-    }
-    lastSwapPending = pendingNow;
     const int sounding = chordsProc.playingChord.load();
     const float progress = chordsProc.chordProgress.load();
 
@@ -983,18 +975,10 @@ void ChordsEditor::timerCallback()
     }
 }
 
-bool ChordsEditor::revealsExpire (int serial, int lastSerial,
-                                  bool swapPendingNow, bool swapPendingBefore)
+bool ChordsEditor::revealStillValid (const juce::String& revealedChord,
+                                    const juce::String& shownChord)
 {
-    // A roll fires: the series serial moves, and everything hides again.
-    if (serial != lastSerial)
-        return true;
-    // A pending swap resolves: the cards are about to show different chords
-    // (or, on a revert, the old ones again). Either way a reveal made DURING
-    // the pending window - revealing the last chord just before the roll lands
-    // is the easy way to do it - would otherwise carry over onto a chord the
-    // player has never seen, handing them the answer.
-    return swapPendingBefore && ! swapPendingNow;
+    return revealedChord.isNotEmpty() && revealedChord == shownChord;
 }
 
 bool ChordsEditor::monitorHidden (bool earMode, int soundingCard,
@@ -1047,12 +1031,6 @@ void ChordsEditor::refresh()
     // an auto-roll landing, a recall, a length change. Pinning does not count,
     // which is why this watches seriesSerial rather than the revision counter.
     const bool ear = chordsProc.earMode.load();
-    const int serial = chordsProc.seriesSerial.load();
-    if (serial != lastSeriesSerial)
-    {
-        lastSeriesSerial = serial;
-        revealed.fill (false);
-    }
 
     const bool pendingSwap = chordsProc.playing.load() && chordsProc.swapPending()
                           && ! chordsProc.pendingOldSeries.empty();
@@ -1083,6 +1061,14 @@ void ChordsEditor::refresh()
                       && chordsProc.pendingOldSeries[(size_t) i] == chordsProc.series[(size_t) i]);
         }
         cards[i]->pinned = chordsProc.pinned[(size_t) i];
+        // A reveal lives exactly as long as the card still shows the chord it
+        // revealed. A roll, a swap landing, a recall or a length change all
+        // put a different chord here and end it without being named; a chord
+        // that survives - pinned, or simply rolled again - keeps its reveal,
+        // because the answer it gave is still the right one.
+        revealed[(size_t) i] = revealStillValid (revealedChord[(size_t) i], cards[i]->text);
+        if (! revealed[(size_t) i])
+            revealedChord[(size_t) i].clear();
         cards[i]->hidden = ear && ! revealed[(size_t) i];
         cards[i]->repaint();
     }

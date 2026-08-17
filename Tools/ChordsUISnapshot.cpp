@@ -321,6 +321,8 @@ static int posesTest()
 // (still hidden) card, and the keys stayed lit - the answer to the chord you
 // were meant to be naming, in notes. The decision was being made only when
 // the revision counter changed, and walking to the next chord does not change
+
+
 // it, so a stale "revealed" answer survived the card it belonged to.
 static int monitorHideTest()
 {
@@ -355,20 +357,27 @@ static int monitorHideTest()
     check ("a sounding index past the card array hides the monitor",
            ChordsEditor::monitorHidden (true, 99, firstRevealed));
 
-    // Reveal lifetime. Reported Aug 17, 2026: reveal the LAST chord in the
-    // window where auto roll has already fired but the swap has not landed,
-    // and the reveal carried over onto the incoming chord - a chord the
-    // player had never seen, shown with its name already given away.
-    check ("a roll expires every reveal",
-           ChordsEditor::revealsExpire (5, 4, false, false));
-    check ("a swap LANDING expires every reveal",
-           ChordsEditor::revealsExpire (5, 5, false, true));
-    check ("a reveal survives while the swap is still pending",
-           ! ChordsEditor::revealsExpire (5, 5, true, true));
-    check ("an ordinary tick expires nothing",
-           ! ChordsEditor::revealsExpire (5, 5, false, false));
-    check ("a swap STARTING expires nothing",
-           ! ChordsEditor::revealsExpire (5, 5, true, false));
+    // Reveal lifetime, by chord identity rather than by timing. Two bugs came
+    // from trying to time it: reveal the last chord just before a roll and it
+    // carried onto the incoming chord (Aug 17, 2026), then expiring on the
+    // swap landing killed a deliberate pre-reveal that had nothing to do with
+    // the swap (same day). Comparing the chord cannot miss a case either way.
+    check ("a reveal holds while the card still shows that chord",
+           ChordsEditor::revealStillValid ("Am7", "Am7"));
+    check ("a reveal dies when the card shows a different chord",
+           ! ChordsEditor::revealStillValid ("Am7", "Ebdim7"));
+    check ("nothing revealed is never valid",
+           ! ChordsEditor::revealStillValid ("", "Am7"));
+    check ("a reveal cannot survive onto an empty card",
+           ! ChordsEditor::revealStillValid ("Am7", ""));
+    // The reported leak, stated as a rule: after a swap the card carries a new
+    // chord, so the old reveal cannot still be showing.
+    check ("a swap landing a new chord ends the reveal",
+           ! ChordsEditor::revealStillValid ("Cm7", "F#m7b5"));
+    // And its mirror: a chord that survives keeps its reveal, which is what a
+    // deliberate pre-reveal depends on.
+    check ("a chord that survives the roll keeps its reveal",
+           ChordsEditor::revealStillValid ("Cm7", "Cm7"));
 
     std::cout << (failures == 0 ? "\nmonitor OK\n" : "\nmonitor FAILED\n");
     return failures == 0 ? 0 : 8;

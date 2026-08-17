@@ -26,14 +26,19 @@ public:
     static bool monitorHidden (bool earMode, int soundingCard,
                                const std::array<bool, 8>& revealed);
 
-    // Whether the ear workout's reveals must be dropped this tick. A reveal is
-    // about ONE chord on ONE card, so it may not outlive the content of that
-    // card - which changes at two separate moments, not one: when a roll fires
-    // (the series serial moves) and again when a pending swap actually LANDS,
-    // a chord later and on the audio thread, touching neither the serial nor
-    // the revision counter.
-    static bool revealsExpire (int serial, int lastSerial,
-                               bool swapPendingNow, bool swapPendingBefore);
+    // Whether a reveal is still telling the truth. A reveal is about ONE chord
+    // on ONE card, so it lives exactly as long as that card still shows that
+    // chord - and not one moment longer.
+    //
+    // This replaced two attempts at timing the expiry (on the series serial,
+    // then also on a pending swap landing). Both were guesses at WHEN the
+    // content changes, and each missed a case: the serial moves when a roll
+    // fires but the cards flip a chord later, and expiring on the landing
+    // killed a deliberate pre-reveal that had nothing to do with the swap.
+    // Comparing the chord itself cannot miss a case, and cannot leak: a
+    // reveal survives only while the answer it gave is still the right one.
+    static bool revealStillValid (const juce::String& revealedChord,
+                                  const juce::String& shownChord);
 
 private:
     void timerCallback() override;
@@ -162,8 +167,10 @@ private:
     // a property of what you are looking at, not of what is playing. They are
     // dropped whenever the SERIES CONTENT changes, which seriesSerial reports.
     std::array<bool, 8> revealed { };
-    int lastSeriesSerial = -1;
-    bool lastSwapPending = false;   // a swap LANDING also ends a reveal's life
+    // WHICH chord each reveal was for. A reveal is only valid while the card
+    // still shows this exact text, which is what makes the lifetime immune to
+    // when the series changes underneath it.
+    std::array<juce::String, 8> revealedChord;
     void setEarMode (bool on);
 
     juce::Rectangle<int> chordsPanel, loopPanel, monitorPanel, historyPanel; // module plates
