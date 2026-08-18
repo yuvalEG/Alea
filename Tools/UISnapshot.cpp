@@ -315,6 +315,8 @@ static int updateTagTest (bool live)
     return failures == 0 ? 0 : 5;
 }
 
+static constexpr double kSampleRate = 44100.0;
+
 // The embedded piano. Shared code, so this covers both products at once.
 //
 // The bug being guarded against is silence-shaped and layer-shaped, and
@@ -331,15 +333,16 @@ static int pianoTest()
         failures += ok ? 0 : 1;
     };
 
-    constexpr double sr = 44100.0;
-
     // Renders one note held for the whole buffer, dry of nothing - the peak
-    // and the shape are all this needs.
+    // and the shape are all this needs. kSampleRate is a FILE-scope constant
+    // rather than a local: MSVC rejects an uncaptured local constexpr inside
+    // a capture-less lambda (C3493) where clang and gcc accept it, and this
+    // file is only ever compiled by MSVC on CI.
     auto renderNote = [] (int note, float velocity, double seconds)
     {
         alea::SoundEngine engine;
-        engine.prepare (sr);
-        const int total = (int) (seconds * sr);
+        engine.prepare (kSampleRate);
+        const int total = (int) (seconds * kSampleRate);
         juce::AudioBuffer<float> out (2, total);
         out.clear();
 
@@ -350,8 +353,8 @@ static int pianoTest()
     };
     auto peakBetween = [] (const juce::AudioBuffer<float>& b, double from, double to)
     {
-        const int a = juce::jlimit (0, b.getNumSamples(), (int) (from * sr));
-        const int z = juce::jlimit (a, b.getNumSamples(), (int) (to * sr));
+        const int a = juce::jlimit (0, b.getNumSamples(), (int) (from * kSampleRate));
+        const int z = juce::jlimit (a, b.getNumSamples(), (int) (to * kSampleRate));
         return z > a ? b.getMagnitude (a, z - a) : 0.0f;
     };
 
