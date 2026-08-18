@@ -10,10 +10,9 @@ music).
 
 | | What it is | Get it |
 |---|---|---|
-| **[Alea Scale Shifter](#alea-scale-shifter)** | Random notes from a scale, slowly morphing into another scale | [Latest release](https://github.com/yuvalEG/Alea/releases?q=%22v0.%22&expanded=false) (`Alea-x.y.z` files) |
-| **[Alea Chord Randomizer](#alea-chord-randomizer)** | Random chords, looped. Improvise over them | [Latest release](https://github.com/yuvalEG/Alea/releases?q=chords&expanded=false) (`AleaChordRandomizer-x.y.z` files) |
+| **[Alea Scale Shifter](#alea-scale-shifter)** | Random notes from any scale, slowly morphing into another scale | [Latest release](https://github.com/yuvalEG/Alea/releases?q=%22v0.%22&expanded=false) (`Alea-x.y.z` files) |
+| **[Alea Chord Randomizer](#alea-chord-randomizer)** | Random chords to improvise over | [Latest release](https://github.com/yuvalEG/Alea/releases?q=chords&expanded=false) (`AleaChordRandomizer-x.y.z` files) |
 
-Each product releases on its own. Download just the one you want.
 Both come as VST3, AU and CLAP plugins plus a standalone app, for macOS
 and Windows. Every build passes
 [pluginval](https://github.com/Tracktion/pluginval) at strictness 10 and
@@ -28,7 +27,7 @@ The installers are unsigned for now, so macOS will block the first open
 and say the package "was blocked from use because it is not from an
 identified developer". To install anyway:
 
-1. Dismiss the warning.
+1. Dismiss the warning. (click 'Done')
 2. Open **System Settings > Privacy & Security** and scroll down to the
    **Security** section.
 3. You will see a note about the blocked installer. Click **Open Anyway**
