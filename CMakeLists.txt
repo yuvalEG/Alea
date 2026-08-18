@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 FetchContent_Declare(JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-    GIT_TAG        8.0.14
+    GIT_TAG        9.0.1
     GIT_SHALLOW    TRUE)
 FetchContent_MakeAvailable(JUCE)
 
@@ -17,7 +17,7 @@ FetchContent_MakeAvailable(JUCE)
 # of the existing processor (https://github.com/free-audio/clap-juce-extensions).
 FetchContent_Declare(clap-juce-extensions
     GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git
-    GIT_TAG        16e9d4ca7b1e86c76e04584b2c08e85a764bcda8) # pinned for reproducible builds
+    GIT_TAG        c1a5ad025f95d01e03267857fa8276ebeed16500) # pinned for reproducible builds; first commits with JUCE 9 support
 FetchContent_MakeAvailable(clap-juce-extensions)
 
 # Embedded UI assets (header wordmark + UI font, Space Grotesk, SIL OFL)
