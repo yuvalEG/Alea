@@ -2,6 +2,27 @@
 
 (Chord Randomizer's changelog lives in [CHANGELOG-chords.md](CHANGELOG-chords.md).)
 
+## v0.4.0 - 2026-08-19
+
+A new piano, the whole velocity range, and a licence change.
+
+- The piano is a different instrument. It was one recording of a hard
+  strike, turned down when you played softly, which is why it never sounded
+  like a real one. It now has a soft set and a loud set, so a gentle note is
+  darker and not merely quieter, and every note rings for as long as it was
+  actually recorded instead of being cut at 3.6 seconds. Low notes ring on.
+- Velocity spans 1 to 127 out of the box. It used to span 80 to 110, about a
+  tenth of the range, which also meant a new instance could never reach the
+  piano's soft set. Presets keep their own ranges.
+- The first piano note no longer clicks. The samples were being decoded at
+  the moment you played, inside the audio stream. They load when you choose
+  the piano instead.
+- The About text is rewritten, and the menu says About Alea Scale Shifter
+  rather than About Alea, which was the name before the product had one.
+- **Licence: all rights reserved.** The app stays free to download and use.
+  The source is still readable on GitHub but is no longer licensed for reuse.
+  Earlier releases keep the licence they shipped with.
+
 ## v0.3.3 - 2026-07-11
 
 A preset polish pass and two timing fixes.

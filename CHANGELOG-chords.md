@@ -2,6 +2,28 @@
 
 (Scale Shifter's changelog lives in [CHANGELOG.md](CHANGELOG.md).)
 
+## chords-v0.5.0 - 2026-08-19
+
+A VELOCITY knob, a new piano, and three fixes to the ear workout.
+
+- **VELOCITY** in the LOOP panel sets how hard the loop strikes. One value
+  for the whole loop on purpose, because a backing part whose dynamics shift
+  under you is harder to play against. It shows in every output mode, since
+  the velocity travels with the MIDI too.
+- The piano is a different instrument. It was one recording of a hard
+  strike, turned down when you played softly. It now has a soft set and a
+  loud set, so a gentle note is darker and not merely quieter, and every note
+  rings for as long as it was recorded rather than being cut short.
+- The ear workout stops giving the answer away. Revealing a chord just
+  before a roll used to carry the reveal onto the new chord that replaced it.
+  A reveal now belongs to the chord it revealed and ends when that chord
+  does, so a pinned chord keeps its reveal and nothing else can leak.
+- Revealing one card no longer lights the keyboard for a different chord.
+- The first piano note no longer clicks.
+- **Licence: all rights reserved.** The app stays free to download and use.
+  The source is still readable on GitHub but is no longer licensed for reuse.
+  Earlier releases keep the licence they shipped with.
+
 ## chords-v0.4.1 - 2026-07-11
 
 A small flash fix.
