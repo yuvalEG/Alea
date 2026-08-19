@@ -46,7 +46,7 @@ namespace
         "me on GitHub (github.com/yuvalEG/Alea) or at "
         "yuvalprod@gmail.com\n\n"
         "Special thanks for the original idea to Yonatan Benaroche\n\n"
-        "Open source (GPLv3), built with JUCE. The piano is the "
+        "Copyright Yuval Egozi. Built with JUCE. The piano is the "
         "Upright Piano KW from the FreePats project (public domain). "
         "Check for updates from the top-right menu.\n\n"
         "Plugin Made By Yuval Egozi");

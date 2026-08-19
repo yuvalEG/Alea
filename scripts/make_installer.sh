@@ -76,6 +76,15 @@ pkgbuild --root "$OUT/approot" --identifier "$BUNDLE.app" \
 
 cp "$BACKGROUND" "$OUT/background.png"
 
+# The licence page. Not decoration: the apps are proprietary now, and the
+# third-party components they bundle (JUCE, the CLAP and VST3 SDKs under MIT,
+# Space Grotesk under the OFL, zlib and the rest) each require their notice to
+# travel WITH the binary. An open-source repo carried them implicitly, because
+# the source went with the build. A proprietary installer has to carry them.
+cat LICENSE > "$OUT/licence.txt"
+printf '\n\n' >> "$OUT/licence.txt"
+cat THIRD-PARTY-LICENSES.md >> "$OUT/licence.txt"
+
 cat > "$OUT/distribution.xml" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1">
@@ -84,6 +93,7 @@ cat > "$OUT/distribution.xml" <<EOF
     <background file="background.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
     <background-darkAqua file="background.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
     <welcome language="en" mime-type="text/plain">$WELCOME</welcome>
+    <license file="licence.txt" mime-type="text/plain"/>
     <choices-outline>
         <line choice="vst3"/>
         <line choice="au"/>

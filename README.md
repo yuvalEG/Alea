@@ -155,15 +155,21 @@ Full details in the [privacy policy](docs/PRIVACY.md).
 
 ## License
 
-Alea is open source under the [GPLv3](LICENSE) (it is built on
-[JUCE](https://juce.com), whose free tier requires it). It also uses
-[clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions)
-and the [CLAP](https://github.com/free-audio/clap) SDK (both MIT), and
-embeds the Space Grotesk font (SIL Open Font License). The built-in piano
-uses samples from
-[Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html)
+**The apps are free to download and use.** The source is [proprietary](LICENSE):
+you can read it here, but no permission is granted to copy, modify or
+redistribute it. Copyright Yuval Egozi, all rights reserved.
+
+Releases up to Scale Shifter v0.3.3 and Chord Randomizer chords-v0.4.1 went
+out under the GPLv3. Those grants stand and are not withdrawn.
+
+Alea is built on [JUCE](https://juce.com), used under a JUCE licence. It also
+uses [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions)
+and the [CLAP](https://github.com/free-audio/clap) SDK (both MIT), and embeds
+the Space Grotesk font (SIL Open Font License). The built-in piano uses samples
+from [Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html)
 by the FreePats project, released into the public domain under
-[CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+[CC0](https://creativecommons.org/publicdomain/zero/1.0/). Full notices are in
+[THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
 
 The Alea name, wordmark, and icon artwork are copyright Yuval Egozi and are
 not covered by the code license. Please don't reuse the branding in forks.
