@@ -58,6 +58,11 @@ jobs:
       - name: Build installers
         shell: pwsh
         run: |
+          # The licence page both .iss files point at: LICENSE followed by the
+          # third-party notices. Those notices are a condition of MIT, the OFL
+          # and zlib, and a proprietary binary has to carry them itself - an
+          # open repo used to carry them implicitly with the source.
+          Get-Content LICENSE, THIRD-PARTY-LICENSES.md | Set-Content build\licence.txt
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DVersion=${{ steps.ver.outputs.version }} installer\windows\alea.iss
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DVersion=${{ steps.ver.outputs.chords_version }} installer\windows\chords.iss
 
@@ -69,12 +74,16 @@ jobs:
           Copy-Item -Recurse "build\Alea_artefacts\Release\VST3\Alea Scale Shifter.vst3" portable\
           Copy-Item "build\Alea_artefacts\Release\CLAP\Alea Scale Shifter.clap" portable\
           Copy-Item "build\Alea_artefacts\Release\Standalone\Alea Scale Shifter.exe" portable\
+          Copy-Item LICENSE portable\LICENSE.txt
+          Copy-Item THIRD-PARTY-LICENSES.md portable\
           Compress-Archive -Path portable\* -DestinationPath "build\Alea-$v-Windows-Portable.zip"
           $c = "${{ steps.ver.outputs.chords_version }}"
           New-Item -ItemType Directory portable-chords | Out-Null
           Copy-Item -Recurse "build\AleaChords_artefacts\Release\VST3\Alea Chord Randomizer.vst3" portable-chords\
           Copy-Item "build\AleaChords_artefacts\Release\CLAP\Alea Chord Randomizer.clap" portable-chords\
           Copy-Item "build\AleaChords_artefacts\Release\Standalone\Alea Chord Randomizer.exe" portable-chords\
+          Copy-Item LICENSE portable-chords\LICENSE.txt
+          Copy-Item THIRD-PARTY-LICENSES.md portable-chords\
           Compress-Archive -Path portable-chords\* -DestinationPath "build\AleaChordRandomizer-$c-Windows-Portable.zip"
 
       - uses: actions/upload-artifact@v4
