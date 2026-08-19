@@ -12,20 +12,23 @@ namespace
     const juce::String aboutText = juce::String::fromUTF8 (
                 "Aleatoric Scale Shifter, version " ALEA_VERSION "\n\n\n"
                 "HOW TO USE\n\n"
-                "Alea generates MIDI notes. It makes no sound of its own "
-                "(unless you pick Internal Synth under OUT).\n\n"
+                "Alea generates MIDI notes / basic sounds - choose under OUTPUT\n"
+                "(If no MIDI device is shown, make sure it's properly connected).\n\n"
+
+                "DAW MIDI ROUTING\n\n"
+
                 "1. Load Alea on a MIDI track.\n"
                 "2. Create a second MIDI track and put any instrument on it.\n"
-                "3. Route the instrument track's MIDI input from the Alea track "
-                "(in Ableton Live: set 'MIDI From' to the Alea track and pick "
-                "'Alea' in the chooser below it). In Live use the VST3, since "
-                "Live cannot route MIDI from AU plugins. In Logic or GarageBand use "
-                "the AU with OUT set to Internal Synth.\n"
-                "4. Arm the instrument track and press Play. Alea follows the "
-                "host transport and you should hear notes drawn from Scale A.\n"
-                "5. From there: pick a preset, set up your own Scale A and "
-                "Scale B, drag the morph bar to blend between them, or hit "
-                "AUTO-SWEEP and let Alea travel on its own.\n\n"
+                "3. Route the instrument track's MIDI input from the Alea track\n"
+                "Ableton Live: \n"
+                "set 'MIDI From' to the Alea track and pick 'Alea' in the chooser below it).\n"
+                "make sure to use the VST3, since Live cannot route MIDI from AU plugins.\n"
+                "Logic or GarageBand:\n"
+                "use the AU with OUT set to Internal Synth.\n"
+                "4. Arm the instrument track and press Play.\n"
+                "Alea follows the host transport and you should hear notes drawn from Scale A.\n"
+                "5. From there - pick a preset or set up your own two scales, morph between them with the bar, or hit AUTO-SWEEP and let Alea travel on its own.\n\n"
+
                 "Hearing nothing? Check the instrument track is armed and the "
                 "header dot says 'playing'.\n\n\n"
                 "THE IDEA\n\n"
@@ -228,9 +231,9 @@ AleaAudioProcessorEditor::AleaAudioProcessorEditor (AleaAudioProcessor& p)
             ui::checkForUpdates ("v", "Alea Scale Shifter", ALEA_VERSION);
         });
         m.addSeparator();
-        m.addItem ("About Alea...", []
+        m.addItem ("About Alea Scale Shifter...", []
         {
-            ui::showAboutDialog ("About Alea", aboutText, 20.5f, 820, 760);
+            ui::showAboutDialog ("About Alea Scale Shifter", aboutText, 20.5f, 820, 760);
         });
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton));
     };
