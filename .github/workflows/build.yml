@@ -86,7 +86,7 @@ jobs:
           Copy-Item THIRD-PARTY-LICENSES.md portable-chords\
           Compress-Archive -Path portable-chords\* -DestinationPath "build\AleaChordRandomizer-$c-Windows-Portable.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: alea-windows
           path: |
